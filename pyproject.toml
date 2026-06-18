@@ -3,11 +3,11 @@ requires = ["uv_build>=0.8.19,<0.9.0"]
 build-backend = "uv_build"
 
 [project]
-name = "mjlab-textop-playground"
+name = "mjlab-vla"
 version = "0.1.0"
 description = "TextOp motion normalization utilities for MJLab"
 readme = "README.md"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.11,<3.14"
 dependencies = [
     "numpy>=2.4.6",
 ]
@@ -17,7 +17,7 @@ cpu = ["mjlab", "torch>=2.7.0"]
 cu128 = ["mjlab", "torch>=2.7.0"]
 
 [project.scripts]
-normalize-textop-npz = "mjlab_textop_playground.scripts.normalize_textop_npz:main"
+normalize-textop-npz = "mjlab_vla.scripts.normalize_textop_npz:main"
 
 [tool.uv.sources]
 mjlab = { git = "https://github.com/mujocolab/mjlab", rev = "0cdc56246999409b83622764f5b38edb660cf16e" }
@@ -59,17 +59,13 @@ conflicts = [
 override-dependencies = ["mujoco>=3.8.0.dev0"]
 
 [tool.ruff]
-indent-width = 2
+line-length = 88
+indent-width = 4
 src = ["src"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "B"]
 ignore = ["B011"]
-
-[tool.pyright]
-pythonVersion = "3.10"
-stubPath = "typings"
-reportWildcardImportFromLibrary = false
 
 [dependency-groups]
 dev = [

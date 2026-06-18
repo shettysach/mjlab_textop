@@ -37,12 +37,12 @@ MJLAB_G1_JOINT_NAMES: tuple[str, ...] = (
     "right_wrist_yaw_joint",
 )
 
-# Audited against TextOp's deploy/replay scripts. TextOp stores G1 joints in
-# IsaacLab policy order; MJLab/MuJoCo consumes them in XML joint order.
 # fmt: off
 TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX: tuple[int, ...] = (
-        0, 3, 6, 9, 13, 17, 1, 4, 7, 10, 14, 18, 2, 5, 8, 11, 15, 19, 21, 23, 25, 27, 12, 16, 20, 22, 24, 26, 28
-    )
+    0, 3, 6, 9, 13, 17, 1, 4, 7, 10, 14, 18, 2, 5, 8, 11, 15, 19, 21, 23, 25, 27, 12, 16, 20, 22, 24, 26, 28
+)
+# fmt:on
+
 
 @dataclass(frozen=True)
 class TextOpMotion:

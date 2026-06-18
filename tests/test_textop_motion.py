@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from mjlab.tasks.tracking.mdp.commands import MotionLoader
 
-from mjlab_textop_playground.textop_motion import (
+from mjlab_vla.textop_motion import (
   MJLAB_G1_JOINT_NAMES,
   TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
   load_textop_motion,

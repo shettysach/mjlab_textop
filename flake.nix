@@ -22,7 +22,7 @@
           packages = with pkgs; [
             uv
             ty
-            black
+            ruff
             #
             libglvnd
             mesa

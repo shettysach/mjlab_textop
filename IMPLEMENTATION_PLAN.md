@@ -61,7 +61,7 @@ Action Expert / TextOp / Kimodo / dummy provider
 ├── IMPLEMENTATION_PLAN.md
 ├── README.md
 ├── pyproject.toml
-├── src/mjlab_textop_playground/
+├── src/mjlab_vla/
 │   ├── __init__.py
 │   ├── reference/
 │   │   ├── __init__.py
@@ -84,11 +84,13 @@ Action Expert / TextOp / Kimodo / dummy provider
 └── tests/
 ```
 
-Task registration uses MJLab entry points:
+This V1 dummy-task package structure has been superseded by the current
+TextOp-motion normalization package. The current project does not register an
+MJLab task entry point; it exposes the `normalize-textop-npz` console script.
 
 ```toml
-[project.entry-points."mjlab.tasks"]
-mjlab_textop_playground = "mjlab_textop_playground.tasks"
+[project.scripts]
+normalize-textop-npz = "mjlab_vla.scripts.normalize_textop_npz:main"
 ```
 
 ## V1 Implementation
