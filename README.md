@@ -62,16 +62,48 @@ The normalizer expects TextOp's canonical tracker NPZ fields. It reorders
 TextOp IsaacLab G1 joints into MJLab/MuJoCo order and replays root plus joints
 through MJLab so body references are written in MJLab's own body order.
 
-For the downloaded TextOp walking motion on a GPU machine:
+For the downloaded TextOp walking motion on a GPU machine, train an MJLab
+tracking policy from scratch:
 
 ```bash
-bash scripts/textop_walk_gpu.sh
+uv run --extra cu128 train-textop-motion
 ```
 
-The default `AGENT=zero` mode is only a visual sanity check for the reference
-motion. The robot is expected to fall without a trained tracking policy. To run
-with a local trained MJLab checkpoint:
+Useful overrides:
 
 ```bash
-AGENT=trained CHECKPOINT_FILE=/path/to/model.pt bash scripts/textop_walk_gpu.sh
+uv run --extra cu128 train-textop-motion \
+  --train-num-envs 8192 \
+  --max-iterations 30000 \
+  --run-name walk_scratch_long
+```
+
+To finetune from a previous MJLab run:
+
+```bash
+uv run --extra cu128 train-textop-motion \
+  --resume \
+  --load-run '.*walk_scratch.*' \
+  --load-checkpoint 'model_.*.pt' \
+  --run-name walk_finetune
+```
+
+To view a trained MJLab checkpoint:
+
+```bash
+uv run --extra cu128 train-textop-motion \
+  --mode play \
+  --checkpoint-file /path/to/model.pt
+```
+
+To only download and normalize:
+
+```bash
+uv run --extra cu128 train-textop-motion --mode normalize
+```
+
+To print the MJLab command without running it:
+
+```bash
+uv run --extra cu128 train-textop-motion --skip-download --skip-normalize --dry-run
 ```
