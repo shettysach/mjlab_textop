@@ -93,9 +93,24 @@ uv run --extra cpu play Mjlab-Tracking-Flat-Unitree-G1 \
   --agent zero \
   --motion-file /tmp/textop_mjlab_motion.npz \
   --num-envs 1 \
-  --no-terminations
+  --viewer viser \
+  --no-terminations True
 ```
 
 The normalizer expects TextOp's canonical tracker NPZ fields. It reorders
 TextOp IsaacLab G1 joints into MJLab/MuJoCo order and replays root plus joints
 through MJLab so body references are written in MJLab's own body order.
+
+For the downloaded TextOp walking motion on a GPU machine:
+
+```bash
+bash scripts/textop_walk_gpu.sh
+```
+
+The default `AGENT=zero` mode is only a visual sanity check for the reference
+motion. The robot is expected to fall without a trained tracking policy. To run
+with a local trained MJLab checkpoint:
+
+```bash
+AGENT=trained CHECKPOINT_FILE=/path/to/model.pt bash scripts/textop_walk_gpu.sh
+```
