@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, TypeAlias
 
 import tyro
 from mjlab.scripts.play import PlayConfig, run_play
 from mjlab.scripts.train import TrainConfig, launch_training
 from mjlab.tasks.tracking.mdp import MotionCommandCfg
 
+from mjlab_vla.scripts.eval_textop_motion import EvalCommand, evaluate_textop_motion
 from mjlab_vla.scripts.normalize_textop_npz import normalize_textop_npz
 
 DEFAULT_MOTION_REL = (
@@ -19,15 +20,19 @@ DEFAULT_MOTION_REL = (
 
 
 @dataclass
-class TextOpMotionDataConfig:
+class NormalizedMotionConfig:
+    normalized_motion_file: str = "/tmp/textop_walk_mjlab.npz"
+
+
+@dataclass
+class NormalizeCommand(NormalizedMotionConfig):
     motion_rel: str = DEFAULT_MOTION_REL
     data_dir: str = "/tmp/textop-data"
-    normalized_motion_file: str = "/tmp/textop_walk_mjlab.npz"
     device: str = "cuda:0"
 
 
 @dataclass
-class TextOpTrainConfig:
+class TrainCommand(NormalizedMotionConfig):
     num_envs: int = 4096
     max_iterations: int = 10000
     logger: Literal["tensorboard", "wandb"] = "wandb"
@@ -39,63 +44,70 @@ class TextOpTrainConfig:
 
 
 @dataclass
-class TextOpPlayConfig:
+class PlayCommand(NormalizedMotionConfig):
     checkpoint_file: str | None = None
+    device: str = "cuda:0"
     num_envs: int = 1
     viewer: Literal["auto", "native", "viser"] = "auto"
 
 
-@dataclass
-class TextOpMotionRunConfig:
-    mode: Literal["train", "play", "normalize"] = "train"
-    data: TextOpMotionDataConfig = field(default_factory=TextOpMotionDataConfig)
-    train: TextOpTrainConfig = field(default_factory=TextOpTrainConfig)
-    play: TextOpPlayConfig = field(default_factory=TextOpPlayConfig)
+TextOpCommand: TypeAlias = NormalizeCommand | TrainCommand | PlayCommand | EvalCommand
+
+TextOpCommandType = tyro.extras.subcommand_type_from_defaults(
+    {
+        "normalize": NormalizeCommand(),
+        "train": TrainCommand(),
+        "play": PlayCommand(),
+        "eval": EvalCommand(),
+    },
+)
 
 
-def run_textop_motion(cfg: TextOpMotionRunConfig) -> None:
+def run_textop_motion(cfg: TextOpCommand) -> None:
     """Normalize TextOp motion data or run MJLab train/play against it."""
 
-    data_path = Path(cfg.data.data_dir).expanduser()
-    input_file = data_path / cfg.data.motion_rel
-    normalized_file = Path(cfg.data.normalized_motion_file).expanduser()
-
-    if cfg.mode == "normalize":
+    if isinstance(cfg, NormalizeCommand):
+        normalized_file = Path(cfg.normalized_motion_file).expanduser()
+        input_file = Path(cfg.data_dir).expanduser() / cfg.motion_rel
         normalize_textop_npz(
             input_file=str(input_file),
             output_file=str(normalized_file),
-            device=cfg.data.device,
+            device=cfg.device,
         )
         return
 
+    if isinstance(cfg, EvalCommand):
+        evaluate_textop_motion(cfg)
+        return
+
+    normalized_file = Path(cfg.normalized_motion_file).expanduser()
     if not normalized_file.exists():
         raise FileNotFoundError(
             f"Normalized motion file does not exist: {normalized_file}. "
-            "Run with --mode normalize to create it, or set "
-            "--data.normalized-motion-file "
-            "to an existing MJLab motion NPZ."
+            "Run `textop-tracking normalize` to create it, or set "
+            "`--normalized-motion-file` to an existing MJLab motion NPZ."
         )
 
-    if cfg.mode == "train":
+    if isinstance(cfg, TrainCommand):
         _train(
             motion_file=normalized_file,
-            train_cfg=cfg.train,
+            train_cfg=cfg,
         )
         return
 
-    if cfg.play.checkpoint_file is None:
-        raise ValueError("`play.checkpoint_file` is required when mode='play'")
+    if cfg.checkpoint_file is None:
+        raise ValueError("`--checkpoint-file` is required for play")
     _play(
         motion_file=normalized_file,
-        checkpoint_file=Path(cfg.play.checkpoint_file).expanduser(),
-        play_cfg=cfg.play,
-        device=cfg.data.device,
+        checkpoint_file=Path(cfg.checkpoint_file).expanduser(),
+        play_cfg=cfg,
+        device=cfg.device,
     )
 
 
 def _train(
     motion_file: Path,
-    train_cfg: TextOpTrainConfig,
+    train_cfg: TrainCommand,
 ) -> None:
     cfg = TrainConfig.from_task("Mjlab-Tracking-Flat-Unitree-G1")
     motion_cmd = cfg.env.commands["motion"]
@@ -116,7 +128,7 @@ def _train(
 def _play(
     motion_file: Path,
     checkpoint_file: Path,
-    play_cfg: TextOpPlayConfig,
+    play_cfg: PlayCommand,
     device: str,
 ) -> None:
     cfg = PlayConfig(
@@ -131,7 +143,7 @@ def _play(
 
 
 def main() -> None:
-    run_textop_motion(tyro.cli(TextOpMotionRunConfig))
+    run_textop_motion(tyro.cli(TextOpCommandType))
 
 
 if __name__ == "__main__":

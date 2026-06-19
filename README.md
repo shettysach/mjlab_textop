@@ -49,7 +49,7 @@ uvx hf download Yochish/TextOp-Data \
 Then normalize the TextOp NPZ into MJLab's native tracking format:
 
 ```bash
-uv run --extra cu128 train-textop-motion --mode normalize
+uv run --extra cu128 textop-tracking normalize
 ```
 
 Then use MJLab's built-in G1 tracking task and `MotionCommand`:
@@ -71,41 +71,51 @@ For the downloaded and normalized TextOp walking motion on a GPU machine, train
 an MJLab tracking policy from scratch:
 
 ```bash
-uv run --extra cu128 train-textop-motion
+uv run --extra cu128 textop-tracking train
 ```
 
 Useful overrides:
 
 ```bash
-uv run --extra cu128 train-textop-motion \
-  --train.num-envs 8192 \
-  --train.max-iterations 30000 \
-  --train.run-name walk_scratch_long
+uv run --extra cu128 textop-tracking train \
+  --num-envs 8192 \
+  --max-iterations 30000 \
+  --run-name walk_scratch_long
 ```
 
 To finetune from a previous MJLab run:
 
 ```bash
-uv run --extra cu128 train-textop-motion \
-  --train.resume \
-  --train.load-run '.*walk_scratch.*' \
-  --train.load-checkpoint 'model_.*.pt' \
-  --train.run-name walk_finetune
+uv run --extra cu128 textop-tracking train \
+  --resume \
+  --load-run '.*walk_scratch.*' \
+  --load-checkpoint 'model_.*.pt' \
+  --run-name walk_finetune
 ```
 
 To view a trained MJLab checkpoint:
 
 ```bash
-uv run --extra cu128 train-textop-motion \
-  --mode play \
-  --play.checkpoint-file /path/to/model.pt
+uv run --extra cu128 textop-tracking play \
+  --checkpoint-file /path/to/model.pt
 ```
+
+To run a headless local evaluation against the normalized TextOp motion:
+
+```bash
+uv run --extra cu128 textop-tracking eval \
+  --checkpoint-file /path/to/model.pt \
+  --num-envs 1024 \
+  --output-file logs/textop_eval.json
+```
+
+Evaluation reuses MJLab's tracking metrics: success rate, global MPKPE,
+root-relative MPKPE, joint velocity error, and end-effector pose errors.
 
 To normalize a different downloaded TextOp motion:
 
 ```bash
-uv run --extra cu128 train-textop-motion \
-  --mode normalize \
-  --data.motion-rel path/inside/textop-data/motion.npz \
-  --data.normalized-motion-file /tmp/other_textop_mjlab.npz
+uv run --extra cu128 textop-tracking normalize \
+  --motion-rel path/inside/textop-data/motion.npz \
+  --normalized-motion-file /tmp/other_textop_mjlab.npz
 ```

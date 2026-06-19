@@ -101,11 +101,11 @@ def normalize_textop_npz(
         "body_lin_vel_w",
         "body_ang_vel_w",
     ):
-        log[key] = np.stack(log[key], axis=0)  # type: ignore[arg-type]
+        log[key] = np.stack(log[key], axis=0)  # ty:ignore[no-matching-overload]
 
     output_path = Path(output_file).expanduser().resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez(output_path, **log)
+    np.savez(output_path, **log)  # ty:ignore[invalid-argument-type]
     print(f"Saved MJLab-native motion to {output_path}")
     print(f"Frames: {frame_count}, fps: {output_fps:g}")
     return output_path
