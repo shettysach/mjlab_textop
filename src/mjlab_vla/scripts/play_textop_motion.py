@@ -7,12 +7,12 @@ from typing import Literal
 import tyro
 from mjlab.scripts.play import PlayConfig, run_play
 
-from mjlab_vla.scripts.config import NormalizedMotionConfig
 from mjlab_vla.tracking import TASK_NAME
 
 
 @dataclass(kw_only=True)
-class PlayCommand(NormalizedMotionConfig):
+class PlayCommand:
+    normalized_motion_file: str = "/tmp/textop_walk_mjlab.npz"
     checkpoint_file: str = field(default=tyro.MISSING)
     device: str = "cuda:0"
     num_envs: int = 1

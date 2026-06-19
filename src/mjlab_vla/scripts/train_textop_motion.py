@@ -6,12 +6,12 @@ from typing import Literal
 
 from mjlab.scripts.train import TrainConfig, launch_training
 
-from mjlab_vla.scripts.config import NormalizedMotionConfig
 from mjlab_vla.tracking import TASK_NAME, set_motion_file
 
 
 @dataclass(kw_only=True)
-class TrainCommand(NormalizedMotionConfig):
+class TrainCommand:
+    normalized_motion_file: str = "/tmp/textop_walk_mjlab.npz"
     num_envs: int = 4096
     max_iterations: int = 10000
     logger: Literal["tensorboard", "wandb"] = "wandb"

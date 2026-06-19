@@ -21,12 +21,12 @@ from mjlab.tasks.tracking.mdp.metrics import (
 )
 from mjlab.utils.torch import configure_torch_backends
 
-from mjlab_vla.scripts.config import NormalizedMotionConfig
 from mjlab_vla.tracking import TASK_NAME, get_motion_command_cfg, set_motion_file
 
 
 @dataclass(kw_only=True)
-class EvalCommand(NormalizedMotionConfig):
+class EvalCommand:
+    normalized_motion_file: str = "/tmp/textop_walk_mjlab.npz"
     checkpoint_file: str = field(default=tyro.MISSING)
     device: str = "cuda:0"
     num_envs: int = 1024

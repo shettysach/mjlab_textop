@@ -10,7 +10,6 @@ from mjlab.scene import Scene
 from mjlab.sim.sim import Simulation, SimulationCfg
 from mjlab.tasks.tracking.config.g1.env_cfgs import unitree_g1_flat_tracking_env_cfg
 
-from mjlab_vla.scripts.config import NormalizedMotionConfig
 from mjlab_vla.textop_motion import (
     MJLAB_G1_JOINT_NAMES,
     load_textop_motion,
@@ -24,7 +23,8 @@ DEFAULT_MOTION_REL = (
 
 
 @dataclass(kw_only=True)
-class NormalizeCommand(NormalizedMotionConfig):
+class NormalizeCommand:
+    normalized_motion_file: str = "/tmp/textop_walk_mjlab.npz"
     motion_rel: str = DEFAULT_MOTION_REL
     data_dir: str = "/tmp/textop-data"
     device: str = "cuda:0"
