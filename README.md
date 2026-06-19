@@ -27,7 +27,7 @@ cpu   -> mjlab + torch from pytorch-cpu
 cu128 -> mjlab + torch from pytorch-cu128
 ```
 
-Use exactly one extra at a time. For local CPU verification. `pyproject.toml` declares the extras as conflicting, so uv rejects selecting
+Use exactly one extra at a time. For local CPU verification `pyproject.toml` declares the extras as conflicting, so uv rejects selecting
 both CPU and CUDA dependencies in the same environment.
 
 The extras depend on plain `mjlab`, not `mjlab[cpu]` or `mjlab[cu128]`. This
@@ -57,10 +57,8 @@ Then use MJLab's built-in G1 tracking task and `MotionCommand`:
 ```bash
 uv run --extra cpu play Mjlab-Tracking-Flat-Unitree-G1 \
   --agent zero \
-  --motion-file /tmp/textop_mjlab_motion.npz \
   --num-envs 1 \
-  --no-terminations True \
-  --viewer viser
+  --no-terminations True
 ```
 
 The normalizer expects TextOp's canonical tracker NPZ fields. It reorders

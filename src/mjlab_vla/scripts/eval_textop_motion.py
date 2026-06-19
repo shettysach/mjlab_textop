@@ -194,9 +194,9 @@ def _run_eval_rollout(
 
 
 def _print_eval_metrics(metrics: dict[str, float]) -> None:
-    print("\n" + "=" * 50)
+    print("\n" + "-" * 50)
     print("Evaluation Results")
-    print("=" * 50)
+    print("-" * 50)
     for name, value in metrics.items():
         print(f"  {name}: {value:.4f}")
-    print("=" * 50)
+    print("-" * 50)
