@@ -98,11 +98,11 @@ def _run_eval_rollout(
     device: str,
     max_steps: int,
 ) -> dict[str, float]:
-    all_mpkpe: list[torch.Tensor] = []
-    all_r_mpkpe: list[torch.Tensor] = []
-    all_joint_vel_error: list[torch.Tensor] = []
-    all_ee_pos_error: list[torch.Tensor] = []
-    all_ee_ori_error: list[torch.Tensor] = []
+    all_mpkpe: list[torch.Tensor] = []  # Mean Per-Keypoint Position Error
+    all_r_mpkpe: list[torch.Tensor] = []  # root-relative MPKPE
+    all_joint_vel_error: list[torch.Tensor] = []  # Joint velocity tracking error
+    all_ee_pos_error: list[torch.Tensor] = []  # End-effector position error
+    all_ee_ori_error: list[torch.Tensor] = []  # End-effector orientation error
     all_active: list[torch.Tensor] = []
 
     done_envs = torch.zeros(num_envs, dtype=torch.bool, device=device)

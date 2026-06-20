@@ -117,6 +117,7 @@ def normalize_textop_npz(
 
     output_file.parent.mkdir(parents=True, exist_ok=True)
     np.savez(output_file, **log)  # ty:ignore[invalid-argument-type]
+    _validate_normalized_output(output_file)
     print(f"Saved MJLab-native motion to {output_file}")
     print(f"Frames: {frame_count}, fps: {output_fps:g}")
     return output_file
@@ -142,3 +143,29 @@ def _append_frame(
     log["body_ang_vel_w"].append(
         robot.data.body_link_ang_vel_w[0, :].cpu().numpy().copy()
     )
+
+
+def _validate_normalized_output(path: Path) -> None:
+    data = np.load(path)
+    required = (
+        "fps",
+        "joint_pos",
+        "joint_vel",
+        "body_pos_w",
+        "body_quat_w",
+        "body_lin_vel_w",
+        "body_ang_vel_w",
+    )
+    missing = [key for key in required if key not in data]
+    if missing:
+        raise ValueError(f"Normalized MJLab motion is missing keys: {missing}")
+
+    num_frames = data["joint_pos"].shape[0]
+    for key in required:
+        if key == "fps":
+            continue
+        if data[key].shape[0] != num_frames:
+            raise ValueError(
+                f"Normalized output key {key} has inconsistent frame count: "
+                f"{data[key].shape[0]} vs {num_frames}"
+            )
