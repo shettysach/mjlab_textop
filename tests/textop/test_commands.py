@@ -1,0 +1,151 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+import pytest
+import torch
+from mjlab.tasks.tracking.mdp.commands import MotionCommand, MotionCommandCfg
+
+from mjlab_vla.textop.mdp.commands import (
+    TextOpMotionCommand,
+    TextOpMotionCommandCfg,
+    make_future_time_steps,
+    textop_motion_command_cfg_from,
+    use_textop_motion_command,
+)
+
+
+def test_make_future_time_steps_clamps_at_end() -> None:
+    time_steps = torch.tensor([0, 7, 9], dtype=torch.long)
+
+    future = make_future_time_steps(
+        time_steps,
+        future_steps=5,
+        time_step_total=10,
+    )
+
+    assert future.tolist() == [
+        [0, 1, 2, 3, 4],
+        [7, 8, 9, 9, 9],
+        [9, 9, 9, 9, 9],
+    ]
+
+
+def test_make_future_time_steps_rejects_invalid_future_steps() -> None:
+    time_steps = torch.tensor([0], dtype=torch.long)
+
+    with pytest.raises(ValueError, match="future_steps must be positive"):
+        make_future_time_steps(
+            time_steps,
+            future_steps=0,
+            time_step_total=10,
+        )
+
+
+def test_make_future_time_steps_rejects_invalid_time_step_total() -> None:
+    time_steps = torch.tensor([0], dtype=torch.long)
+
+    with pytest.raises(ValueError, match="time_step_total must be positive"):
+        make_future_time_steps(
+            time_steps,
+            future_steps=5,
+            time_step_total=0,
+        )
+
+
+def test_textop_motion_command_cfg_is_motion_command_cfg() -> None:
+    assert issubclass(TextOpMotionCommandCfg, MotionCommandCfg)
+    assert issubclass(TextOpMotionCommand, MotionCommand)
+
+
+def test_textop_motion_command_cfg_from_copies_motion_cfg_fields() -> None:
+    cfg = MotionCommandCfg(
+        resampling_time_range=(1.0e9, 1.0e9),
+        motion_file="/tmp/motion.npz",
+        anchor_body_name="pelvis",
+        body_names=("pelvis", "torso_link"),
+        entity_name="robot",
+        pose_range={"x": (-0.1, 0.1)},
+        sampling_mode="start",
+    )
+
+    textop_cfg = textop_motion_command_cfg_from(cfg, future_steps=7)
+
+    assert isinstance(textop_cfg, TextOpMotionCommandCfg)
+    assert textop_cfg.motion_file == cfg.motion_file
+    assert textop_cfg.anchor_body_name == cfg.anchor_body_name
+    assert textop_cfg.body_names == cfg.body_names
+    assert textop_cfg.entity_name == cfg.entity_name
+    assert textop_cfg.pose_range == cfg.pose_range
+    assert textop_cfg.sampling_mode == "start"
+    assert textop_cfg.future_steps == 7
+
+    cfg.pose_range["x"] = (-1.0, 1.0)
+    assert textop_cfg.pose_range["x"] == (-0.1, 0.1)
+
+
+def test_use_textop_motion_command_replaces_motion_cfg() -> None:
+    cfg = MotionCommandCfg(
+        resampling_time_range=(1.0e9, 1.0e9),
+        motion_file="/tmp/motion.npz",
+        anchor_body_name="pelvis",
+        body_names=("pelvis",),
+        entity_name="robot",
+    )
+    env_cfg = SimpleNamespace(commands={"motion": cfg})
+
+    use_textop_motion_command(env_cfg, future_steps=3)
+
+    assert isinstance(env_cfg.commands["motion"], TextOpMotionCommandCfg)
+    assert env_cfg.commands["motion"].future_steps == 3
+
+
+def test_use_textop_motion_command_rejects_non_motion_cfg() -> None:
+    env_cfg = SimpleNamespace(commands={"motion": object()})
+
+    with pytest.raises(TypeError, match="MotionCommandCfg"):
+        use_textop_motion_command(env_cfg)
+
+
+def test_textop_motion_command_future_reference_properties() -> None:
+    command = object.__new__(TextOpMotionCommand)
+    command.cfg = TextOpMotionCommandCfg(
+        resampling_time_range=(1.0e9, 1.0e9),
+        motion_file="/tmp/motion.npz",
+        anchor_body_name="pelvis",
+        body_names=("pelvis", "torso_link"),
+        entity_name="robot",
+        future_steps=5,
+    )
+    command.time_steps = torch.tensor([0, 3], dtype=torch.long)
+    command.motion_anchor_body_index = 1
+    command.motion = SimpleNamespace(
+        time_step_total=4,
+        joint_pos=torch.arange(4 * 29, dtype=torch.float32).reshape(4, 29),
+        joint_vel=torch.arange(4 * 29, dtype=torch.float32).reshape(4, 29) + 1000.0,
+        body_pos_w=torch.arange(4 * 2 * 3, dtype=torch.float32).reshape(4, 2, 3),
+        body_quat_w=torch.arange(4 * 2 * 4, dtype=torch.float32).reshape(4, 2, 4),
+    )
+    command._env = SimpleNamespace(
+        scene=SimpleNamespace(
+            env_origins=torch.tensor(
+                [[10.0, 20.0, 30.0], [100.0, 200.0, 300.0]],
+                dtype=torch.float32,
+            )
+        )
+    )
+
+    assert command.future_time_steps.tolist() == [
+        [0, 1, 2, 3, 3],
+        [3, 3, 3, 3, 3],
+    ]
+    assert command.future_joint_pos.shape == (2, 5, 29)
+    assert command.future_joint_vel.shape == (2, 5, 29)
+    assert command.future_anchor_pos_w.shape == (2, 5, 3)
+    assert command.future_anchor_quat_w.shape == (2, 5, 4)
+
+    expected_anchor_pos = (
+        command.motion.body_pos_w[command.future_time_steps, 1]
+        + command._env.scene.env_origins[:, None, :]
+    )
+    torch.testing.assert_close(command.future_anchor_pos_w, expected_anchor_pos)
