@@ -17,6 +17,10 @@ TextOp tracker NPZ
   -> MJLab MotionCommand
 ```
 
+The TextOp integration code lives under `src/mjlab_vla/textop/`:
+`contract.py`, `motion.py`, `normalize.py`, `train.py`, `play.py`, and
+`eval.py`.
+
 ## Dependencies
 
 This package uses upstream MJLab pinned to the latest verified `main` commit.

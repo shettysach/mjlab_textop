@@ -3,7 +3,7 @@ You already added **most of the contract**, just not as a clearly named contract
 This file:
 
 ```text
-src/mjlab_vla/textop_motion.py
+src/mjlab_vla/textop/motion.py
 ```
 
 already contains:
@@ -22,7 +22,7 @@ So you do **not** need to add a big new subsystem. The remaining work is mostly 
 
 ## 1. Add/rename a small `contract.py`
 
-Right now `textop_motion.py` is doing two jobs:
+Previously, `textop/motion.py` did two jobs:
 
 ```text
 1. defining the TextOp/MJLab contract
@@ -32,7 +32,7 @@ Right now `textop_motion.py` is doing two jobs:
 I would split the static assumptions into:
 
 ```text
-src/mjlab_vla/textop_contract.py
+src/mjlab_vla/textop/contract.py
 ```
 
 or:
@@ -51,7 +51,7 @@ TEXTOP_REQUIRED_KEYS = ("fps", "joint_pos", "joint_vel", "body_pos_w", "body_qua
 TEXTOP_OPTIONAL_KEYS = ("body_lin_vel_w", "body_ang_vel_w")
 ```
 
-Then `textop_motion.py` imports from it.
+Then `textop/motion.py` imports from it.
 
 This is not functionally necessary, but it makes the repo easier to explain:
 
@@ -59,10 +59,10 @@ This is not functionally necessary, but it makes the repo easier to explain:
 contract.py:
   what TextOp means
 
-textop_motion.py:
+motion.py:
   how we load and validate TextOp motions
 
-normalize_textop_motion.py:
+normalize.py:
   how we replay through MJLab and save MJLab-native motion
 ```
 
@@ -241,7 +241,7 @@ This is probably the most important thing to add now.
 Minimal tests:
 
 ```text
-tests/test_textop_motion.py
+tests/textop/test_motion.py
 ```
 
 Test these:
@@ -283,7 +283,7 @@ So the priority order is:
 Your script file is named:
 
 ```text
-normalize_textop_motion.py
+normalize.py
 ```
 
 but the function is:
@@ -295,21 +295,21 @@ normalize_textop_npz(...)
 That is fine, but for clarity I would pick one naming style:
 
 ```text
-normalize_textop_npz.py
+normalize.py
 normalize_textop_npz()
 ```
 
 or:
 
 ```text
-normalize_textop_motion.py
-normalize_textop_motion()
+normalize.py
+normalize_textop_npz()
 ```
 
 I prefer:
 
 ```text
-normalize_textop_npz.py
+normalize.py
 ```
 
 because the input is specifically a TextOp NPZ file.

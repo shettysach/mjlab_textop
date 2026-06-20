@@ -4,8 +4,8 @@ import numpy as np
 import torch
 from mjlab.tasks.tracking.mdp.commands import MotionLoader
 
-from mjlab_vla.textop_contract import validate_textop_contract
-from mjlab_vla.textop_motion import (
+from mjlab_vla.textop.contract import validate_textop_contract
+from mjlab_vla.textop.motion import (
     MJLAB_G1_JOINT_NAMES,
     TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
     load_textop_motion,

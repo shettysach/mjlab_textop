@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from mjlab_vla.textop_contract import (
+from mjlab_vla.textop.contract import (
     MJLAB_G1_JOINT_NAMES,
     TEXTOP_G1_JOINT_COUNT,
     TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
