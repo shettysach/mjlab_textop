@@ -83,7 +83,6 @@ def textop_motion_command_cfg_from(
     kwargs = {
         field.name: copy.deepcopy(getattr(cfg, field.name))
         for field in fields(MotionCommandCfg)
-        if hasattr(cfg, field.name)
     }
     return TextOpMotionCommandCfg(**kwargs, future_steps=future_steps)
 

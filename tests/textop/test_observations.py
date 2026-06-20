@@ -1,0 +1,153 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+import pytest
+import torch
+from mjlab.managers.scene_entity_config import SceneEntityCfg
+
+from mjlab_vla.textop.mdp.commands import TextOpMotionCommand
+from mjlab_vla.textop.mdp.observations import (
+    future_anchor_ori_b,
+    future_anchor_pos_b,
+    future_joint_window,
+    projected_gravity,
+)
+
+
+class _FakeCommandManager:
+    def __init__(self, command) -> None:
+        self.command = command
+
+    def get_term(self, _name: str):
+        return self.command
+
+
+class _FakeTextOpMotionCommand(TextOpMotionCommand):
+    @property
+    def future_joint_pos(self) -> torch.Tensor:
+        return self._values["future_joint_pos"]
+
+    @property
+    def future_joint_vel(self) -> torch.Tensor:
+        return self._values["future_joint_vel"]
+
+    @property
+    def robot_anchor_pos_w(self) -> torch.Tensor:
+        return self._values["robot_anchor_pos_w"]
+
+    @property
+    def robot_anchor_quat_w(self) -> torch.Tensor:
+        return self._values["robot_anchor_quat_w"]
+
+    @property
+    def future_anchor_pos_w(self) -> torch.Tensor:
+        return self._values["future_anchor_pos_w"]
+
+    @property
+    def future_anchor_quat_w(self) -> torch.Tensor:
+        return self._values["future_anchor_quat_w"]
+
+
+def _fake_textop_command(**kwargs) -> TextOpMotionCommand:
+    command = object.__new__(_FakeTextOpMotionCommand)
+    command._values = kwargs
+    return command
+
+
+def _fake_env_with_command(command=None, *, num_envs: int | None = None, **kwargs):
+    if command is None:
+        command = _fake_textop_command(**kwargs)
+    if num_envs is None:
+        num_envs = int(command.future_joint_pos.shape[0])
+    return SimpleNamespace(
+        num_envs=num_envs,
+        command_manager=_FakeCommandManager(command),
+    )
+
+
+def test_future_joint_window_shape_and_textop_order() -> None:
+    n = 2
+    f = 5
+    j = 29
+    pos = torch.arange(n * f * j, dtype=torch.float32).reshape(n, f, j)
+    vel = 1000.0 + torch.arange(n * f * j, dtype=torch.float32).reshape(n, f, j)
+    env = _fake_env_with_command(
+        future_joint_pos=pos,
+        future_joint_vel=vel,
+    )
+
+    out = future_joint_window(env)
+
+    assert out.shape == (n, f * j * 2)
+    torch.testing.assert_close(out[:, : f * j], pos.reshape(n, -1))
+    torch.testing.assert_close(out[:, f * j :], vel.reshape(n, -1))
+
+
+def test_future_anchor_pos_b_uses_robot_anchor_frame() -> None:
+    robot_anchor_pos_w = torch.tensor([[1.0, 2.0, 3.0]], dtype=torch.float32)
+    robot_anchor_quat_w = torch.tensor([[1.0, 0.0, 0.0, 0.0]], dtype=torch.float32)
+    future_anchor_pos_w = torch.tensor(
+        [
+            [
+                [2.0, 2.0, 3.0],
+                [1.0, 4.0, 3.0],
+                [1.0, 2.0, 6.0],
+                [0.0, 2.0, 3.0],
+                [1.0, 1.0, 3.0],
+            ]
+        ],
+        dtype=torch.float32,
+    )
+    future_anchor_quat_w = robot_anchor_quat_w[:, None, :].repeat(1, 5, 1)
+    env = _fake_env_with_command(
+        robot_anchor_pos_w=robot_anchor_pos_w,
+        robot_anchor_quat_w=robot_anchor_quat_w,
+        future_anchor_pos_w=future_anchor_pos_w,
+        future_anchor_quat_w=future_anchor_quat_w,
+        future_joint_pos=torch.zeros(1, 5, 29),
+    )
+
+    out = future_anchor_pos_b(env)
+
+    assert out.shape == (1, 15)
+    torch.testing.assert_close(
+        out.reshape(1, 5, 3),
+        future_anchor_pos_w - robot_anchor_pos_w[:, None, :],
+    )
+
+
+def test_future_anchor_ori_b_identity_orientation() -> None:
+    robot_anchor_quat_w = torch.tensor([[1.0, 0.0, 0.0, 0.0]], dtype=torch.float32)
+    future_anchor_quat_w = robot_anchor_quat_w[:, None, :].repeat(1, 5, 1)
+    env = _fake_env_with_command(
+        robot_anchor_pos_w=torch.zeros(1, 3),
+        robot_anchor_quat_w=robot_anchor_quat_w,
+        future_anchor_pos_w=torch.zeros(1, 5, 3),
+        future_anchor_quat_w=future_anchor_quat_w,
+        future_joint_pos=torch.zeros(1, 5, 29),
+    )
+
+    out = future_anchor_ori_b(env)
+
+    assert out.shape == (1, 30)
+    expected_one = torch.tensor([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
+    torch.testing.assert_close(out.reshape(1, 5, 6)[0, 0], expected_one)
+
+
+def test_projected_gravity_reuses_mjlab_observation() -> None:
+    expected = torch.tensor([[0.0, 0.0, -1.0]], dtype=torch.float32)
+    env = SimpleNamespace(
+        scene={"robot": SimpleNamespace(data=SimpleNamespace(projected_gravity_b=expected))}
+    )
+
+    out = projected_gravity(env, asset_cfg=SceneEntityCfg("robot"))
+
+    torch.testing.assert_close(out, expected)
+
+
+def test_observation_rejects_non_textop_command() -> None:
+    env = _fake_env_with_command(command=object(), num_envs=1)
+
+    with pytest.raises(TypeError, match="TextOpMotionCommand"):
+        future_joint_window(env)
