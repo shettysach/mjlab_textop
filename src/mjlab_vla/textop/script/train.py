@@ -6,7 +6,8 @@ from typing import Literal
 
 from mjlab.scripts.train import TrainConfig, launch_training
 
-from mjlab_vla.tracking import TASK_NAME, set_motion_file
+from mjlab_vla.textop.task import TEXTOP_TASK_NAME, ensure_textop_task_registered
+from mjlab_vla.tracking import set_motion_file
 
 
 @dataclass(kw_only=True)
@@ -27,7 +28,8 @@ def train_textop_motion(
     *,
     motion_file: Path,
 ) -> None:
-    train_cfg = TrainConfig.from_task(TASK_NAME)
+    ensure_textop_task_registered()
+    train_cfg = TrainConfig.from_task(TEXTOP_TASK_NAME)
     set_motion_file(train_cfg.env, motion_file)
 
     train_cfg.env.scene.num_envs = cfg.num_envs
@@ -39,4 +41,4 @@ def train_textop_motion(
     train_cfg.agent.load_run = cfg.load_run
     train_cfg.agent.load_checkpoint = cfg.load_checkpoint
 
-    launch_training(TASK_NAME, train_cfg)
+    launch_training(TEXTOP_TASK_NAME, train_cfg)

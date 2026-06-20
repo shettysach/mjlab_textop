@@ -21,7 +21,8 @@ from mjlab.tasks.tracking.mdp.metrics import (
 )
 from mjlab.utils.torch import configure_torch_backends
 
-from mjlab_vla.tracking import TASK_NAME, get_motion_command_cfg, set_motion_file
+from mjlab_vla.textop.task import TEXTOP_TASK_NAME, ensure_textop_task_registered
+from mjlab_vla.tracking import get_motion_command_cfg, set_motion_file
 
 
 @dataclass(kw_only=True)
@@ -41,8 +42,9 @@ def evaluate_textop_motion(
     checkpoint_file: Path,
 ) -> dict[str, float]:
     configure_torch_backends()
-    env_cfg = load_env_cfg(TASK_NAME, play=False)
-    agent_cfg = load_rl_cfg(TASK_NAME)
+    ensure_textop_task_registered()
+    env_cfg = load_env_cfg(TEXTOP_TASK_NAME, play=False)
+    agent_cfg = load_rl_cfg(TEXTOP_TASK_NAME)
 
     set_motion_file(env_cfg, motion_file)
     motion_cmd = get_motion_command_cfg(env_cfg.commands)
@@ -54,7 +56,7 @@ def evaluate_textop_motion(
     env = ManagerBasedRlEnv(cfg=env_cfg, device=cfg.device)
     wrapped_env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
     try:
-        runner_cls = load_runner_cls(TASK_NAME) or MjlabOnPolicyRunner
+        runner_cls = load_runner_cls(TEXTOP_TASK_NAME) or MjlabOnPolicyRunner
         runner = runner_cls(wrapped_env, asdict(agent_cfg), device=cfg.device)
         runner.load(
             str(checkpoint_file),

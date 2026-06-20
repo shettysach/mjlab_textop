@@ -7,7 +7,7 @@ from typing import Literal
 import tyro
 from mjlab.scripts.play import PlayConfig, run_play
 
-from mjlab_vla.tracking import TASK_NAME
+from mjlab_vla.textop.task import TEXTOP_TASK_NAME, ensure_textop_task_registered
 
 
 @dataclass(kw_only=True)
@@ -25,6 +25,7 @@ def play_textop_motion(
     motion_file: Path,
     checkpoint_file: Path,
 ) -> None:
+    ensure_textop_task_registered()
     play_cfg = PlayConfig(
         agent="trained",
         checkpoint_file=str(checkpoint_file),
@@ -33,4 +34,4 @@ def play_textop_motion(
         device=cfg.device,
         viewer=cfg.viewer,
     )
-    run_play(TASK_NAME, play_cfg)
+    run_play(TEXTOP_TASK_NAME, play_cfg)

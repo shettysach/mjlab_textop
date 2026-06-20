@@ -4,8 +4,10 @@ Utilities for running low-level TextOp tracker motions through MJLab's native
 Unitree G1 tracking stack.
 
 The current integration boundary is deliberately narrow: convert a canonical
-TextOp tracker NPZ into MJLab's native tracking NPZ format, then use MJLab's
-existing `MotionCommand` task, rewards, metrics, and play/train/evaluate flow.
+TextOp tracker NPZ into MJLab's native tracking NPZ format, then train or play a
+registered MJLab task variant with TextOp-style low-level tracker observations.
+This is offline TextOp tracker integration; it does not run RobotMDAR or live
+text-to-motion generation yet.
 
 ## Architecture
 
@@ -13,13 +15,13 @@ existing `MotionCommand` task, rewards, metrics, and play/train/evaluate flow.
 TextOp tracker NPZ
   -> textop-tracking normalize
   -> MJLab-native motion.npz
-  -> Mjlab-Tracking-Flat-Unitree-G1
-  -> MJLab MotionCommand
+  -> Mjlab-TextOp-Flat-Unitree-G1
+  -> TextOpMotionCommand
+  -> TextOp-style future reference observations
 ```
 
 The TextOp integration code lives under `src/mjlab_vla/textop/`:
-`contract.py`, `motion.py`, `normalize.py`, `train.py`, `play.py`, and
-`eval.py`.
+`contract.py`, `mdp/`, `task.py`, and the command-line scripts in `script/`.
 
 ## Dependencies
 
@@ -56,10 +58,10 @@ Then normalize the TextOp NPZ into MJLab's native tracking format:
 uv run --extra cu128 textop-tracking normalize
 ```
 
-Then use MJLab's built-in G1 tracking task and `MotionCommand`:
+Then use the registered TextOp-flavored MJLab task:
 
 ```bash
-uv run --extra cpu play Mjlab-Tracking-Flat-Unitree-G1 \
+uv run --extra cpu play Mjlab-TextOp-Flat-Unitree-G1 \
   --agent zero \
   --num-envs 1 \
   --no-terminations True
@@ -70,7 +72,7 @@ TextOp IsaacLab G1 joints into MJLab/MuJoCo order and replays root plus joints
 through MJLab so body references are written in MJLab's own body order.
 
 For the downloaded and normalized TextOp walking motion on a GPU machine, train
-an MJLab tracking policy from scratch:
+a TextOp-style MJLab tracking policy from scratch:
 
 ```bash
 uv run --extra cu128 textop-tracking train
