@@ -1,1 +1,0 @@
-"""TextOp motion normalization utilities."""
