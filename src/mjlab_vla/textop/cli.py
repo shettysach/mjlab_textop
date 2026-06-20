@@ -29,7 +29,7 @@ def resolve_path(path: str) -> Path:
     return Path(path).expanduser().resolve()
 
 
-def verify_file(resolved: Path, label: str) -> Path:
+def verify_resolved(resolved: Path, label: str) -> Path:
     if not resolved.exists():
         raise FileNotFoundError(f"{label} does not exist: {resolved}")
     if not resolved.is_file():
@@ -37,15 +37,15 @@ def verify_file(resolved: Path, label: str) -> Path:
     return resolved
 
 
-def verify_resolved(path: str, label: str) -> Path:
-    return verify_file(resolve_path(path), label)
+def verify_path(path: str, label: str) -> Path:
+    return verify_resolved(resolve_path(path), label)
 
 
 def run_textop_motion(cfg: TextOpCommand) -> None:
     match cfg:
         case NormalizeCommand():
             input_path = resolve_path(cfg.data_dir) / cfg.motion_rel
-            input_file = verify_file(
+            input_file = verify_resolved(
                 input_path,
                 "TextOp motion file",
             )
@@ -54,7 +54,7 @@ def run_textop_motion(cfg: TextOpCommand) -> None:
             return
 
         case TrainCommand():
-            motion_file = verify_resolved(
+            motion_file = verify_path(
                 cfg.normalized_motion_file,
                 "Normalized motion file",
             )
@@ -62,11 +62,11 @@ def run_textop_motion(cfg: TextOpCommand) -> None:
             return
 
         case PlayCommand():
-            motion_file = verify_resolved(
+            motion_file = verify_path(
                 cfg.normalized_motion_file,
                 "Normalized motion file",
             )
-            checkpoint_file = verify_resolved(
+            checkpoint_file = verify_path(
                 cfg.checkpoint_file,
                 "Checkpoint file",
             )
@@ -78,11 +78,11 @@ def run_textop_motion(cfg: TextOpCommand) -> None:
             return
 
         case EvalCommand():
-            motion_file = verify_resolved(
+            motion_file = verify_path(
                 cfg.normalized_motion_file,
                 "Normalized motion file",
             )
-            checkpoint_file = verify_resolved(
+            checkpoint_file = verify_path(
                 cfg.checkpoint_file,
                 "Checkpoint file",
             )

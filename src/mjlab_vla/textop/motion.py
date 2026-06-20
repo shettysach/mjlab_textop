@@ -9,8 +9,8 @@ from mjlab_vla.textop.contract import (
     MJLAB_G1_JOINT_NAMES,
     TEXTOP_G1_JOINT_COUNT,
     TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
-    TEXTOP_OPTIONAL_MOTION_KEYS,
-    TEXTOP_REQUIRED_MOTION_KEYS,
+    TEXTOP_OPTIONAL_INPUT_KEYS,
+    TEXTOP_REQUIRED_INPUT_KEYS,
     TEXTOP_ROOT_BODY_INDEX,
 )
 
@@ -55,7 +55,7 @@ def load_textop_motion(path: str | Path, fps: float | None = None) -> TextOpMoti
 
     data = np.load(Path(path))
     resolved_fps = _resolve_fps(data, fps)
-    _require_keys(data, TEXTOP_REQUIRED_MOTION_KEYS)
+    _require_keys(data, TEXTOP_REQUIRED_INPUT_KEYS)
 
     joint_pos = np.asarray(data["joint_pos"], dtype=np.float32)
     joint_vel = np.asarray(data["joint_vel"], dtype=np.float32)
@@ -152,7 +152,9 @@ def _validate_body_arrays(body_pos_w: np.ndarray, body_quat_w: np.ndarray) -> No
 def _validate_optional_body_velocity_arrays(
     data: np.lib.npyio.NpzFile, body_pos_w: np.ndarray
 ) -> None:
-    for key in TEXTOP_OPTIONAL_MOTION_KEYS:
+    for key in TEXTOP_OPTIONAL_INPUT_KEYS:
+        if key == "fps":
+            continue
         if key not in data:
             continue
         value = np.asarray(data[key], dtype=np.float32)
