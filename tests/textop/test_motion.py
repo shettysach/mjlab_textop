@@ -5,21 +5,19 @@ import torch
 from mjlab.tasks.tracking.mdp.commands import MotionLoader
 
 from mjlab_vla.textop.contract import (
+    MJLAB_G1_JOINT_NAMES,
     TEXTOP_FUTURE_STEPS,
+    TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
     TEXTOP_OPTIONAL_INPUT_KEYS,
     TEXTOP_REQUIRED_INPUT_KEYS,
-    validate_textop_contract,
 )
 from mjlab_vla.textop.script.motion import (
-    MJLAB_G1_JOINT_NAMES,
-    TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
     load_textop_motion,
     reindex_textop_g1_joints_to_mjlab,
 )
 
 
 def test_textop_to_mjlab_joint_index_matches_audited_textop_deploy_order():
-    validate_textop_contract()
     assert TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX == (
         0,
         3,
@@ -55,7 +53,6 @@ def test_textop_to_mjlab_joint_index_matches_audited_textop_deploy_order():
 
 
 def test_textop_contract_declares_raw_input_keys_and_future_steps():
-    validate_textop_contract()
     assert TEXTOP_REQUIRED_INPUT_KEYS == (
         "joint_pos",
         "joint_vel",

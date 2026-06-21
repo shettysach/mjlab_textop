@@ -1,3 +1,21 @@
+"""
+`T` = number of time frames in the motion clip.
+`B` = number of tracked robot bodies/links in the body arrays.
+
+TextOp tracker NPZ struct:
+- `joint_pos`, `joint_vel`: `[T, 29]` G1 joints in IsaacLab order.
+- `body_pos_w`, `body_lin_vel_w`, `body_ang_vel_w`: `[T, B, 3]` world-frame body data.
+- `body_quat_w`: `[T, B, 4]` world-frame body quaternions.
+- fps is optional when an explicit loader fps is provided.
+- body index 0 is the pelvis/root body used as the TextOp anchor.
+
+MJLab normalized motion struct:
+- `joint_pos`, `joint_vel`: `[T, 29]` G1 joints in MJLab order.
+- `body_pos_w`, `body_lin_vel_w`, `body_ang_vel_w`: `[T, B, 3]` MJLab body order.
+- `body_quat_w`: `[T, B, 4]` MJLab body order.
+- fps is stored in the output NPZ.
+"""
+
 from __future__ import annotations
 
 MJLAB_G1_JOINT_NAMES: tuple[str, ...] = (
@@ -33,7 +51,6 @@ MJLAB_G1_JOINT_NAMES: tuple[str, ...] = (
 )
 
 # TextOp tracker motions store G1 joints in IsaacLab order.
-# MJLab/MuJoCo expects MJLAB_G1_JOINT_NAMES order.
 # fmt: off
 TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX: tuple[int, ...] = (
     0, 3, 6, 9, 13, 17,
@@ -58,39 +75,5 @@ TEXTOP_OPTIONAL_INPUT_KEYS: tuple[str, ...] = (
     "body_ang_vel_w",
 )
 
-# For now, the TextOp anchor is also the root body: pelvis.
-# Torso anchor parity is intentionally deferred until MJLab body ordering is verified.
-TEXTOP_ROOT_BODY_INDEX = 0
+TEXTOP_ROOT_BODY_INDEX = 0  # pelvis
 TEXTOP_FUTURE_STEPS = 5
-
-
-def validate_textop_contract() -> None:
-    if len(MJLAB_G1_JOINT_NAMES) != 29:
-        raise ValueError(
-            f"Expected 29 MJLab G1 joints, got {len(MJLAB_G1_JOINT_NAMES)}"
-        )
-
-    if TEXTOP_G1_JOINT_COUNT != 29:
-        raise ValueError(
-            f"Expected TextOp G1 joint count 29, got {TEXTOP_G1_JOINT_COUNT}"
-        )
-
-    mapping = TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
-
-    if len(mapping) != TEXTOP_G1_JOINT_COUNT:
-        raise ValueError(
-            f"Joint map has length {len(mapping)}, expected {TEXTOP_G1_JOINT_COUNT}"
-        )
-
-    if sorted(mapping) != list(range(TEXTOP_G1_JOINT_COUNT)):
-        raise ValueError("Joint map must be a permutation of 0..28")
-
-    overlap = set(TEXTOP_REQUIRED_INPUT_KEYS) & set(TEXTOP_OPTIONAL_INPUT_KEYS)
-    if overlap:
-        raise ValueError(f"Required and optional TextOp input keys overlap: {overlap}")
-
-    if TEXTOP_ROOT_BODY_INDEX < 0:
-        raise ValueError(f"Invalid root body index: {TEXTOP_ROOT_BODY_INDEX}")
-
-    if TEXTOP_FUTURE_STEPS <= 0:
-        raise ValueError(f"Invalid future steps: {TEXTOP_FUTURE_STEPS}")

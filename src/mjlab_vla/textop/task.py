@@ -7,8 +7,14 @@ from mjlab.tasks.tracking.config.g1.rl_cfg import unitree_g1_tracking_ppo_runner
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 from mjlab.utils.noise import UniformNoiseCfg as Unoise
 
-from mjlab_vla.textop import mdp as textop_mdp
 from mjlab_vla.textop.contract import TEXTOP_FUTURE_STEPS
+from mjlab_vla.textop.mdp.commands import use_textop_motion_command
+from mjlab_vla.textop.mdp.observations import (
+    future_anchor_ori_b,
+    future_anchor_pos_b,
+    future_joint_window,
+    projected_gravity,
+)
 
 TEXTOP_TASK_NAME = "Mjlab-TextOp-Flat-Unitree-G1"
 
@@ -20,7 +26,7 @@ def make_textop_g1_flat_tracking_env_cfg(
 ):
     cfg = unitree_g1_flat_tracking_env_cfg(play=play)
 
-    textop_mdp.use_textop_motion_command(
+    use_textop_motion_command(
         cfg,
         command_name="motion",
         future_steps=future_steps,
@@ -58,20 +64,20 @@ def _configure_textop_actor_observations(cfg) -> None:
     old_actor = cfg.observations["actor"]
     terms = {
         "future_joint_window": ObservationTermCfg(
-            func=textop_mdp.future_joint_window,
+            func=future_joint_window,
             params={"command_name": "motion"},
         ),
         "future_anchor_pos_b": ObservationTermCfg(
-            func=textop_mdp.future_anchor_pos_b,
+            func=future_anchor_pos_b,
             params={"command_name": "motion"},
             noise=Unoise(n_min=-0.25, n_max=0.25),
         ),
         "future_anchor_ori_b": ObservationTermCfg(
-            func=textop_mdp.future_anchor_ori_b,
+            func=future_anchor_ori_b,
             params={"command_name": "motion"},
             noise=Unoise(n_min=-0.05, n_max=0.05),
         ),
-        "projected_gravity": ObservationTermCfg(func=textop_mdp.projected_gravity),
+        "projected_gravity": ObservationTermCfg(func=projected_gravity),
         "base_lin_vel": old_actor.terms["base_lin_vel"],
         "base_ang_vel": old_actor.terms["base_ang_vel"],
         "joint_pos": old_actor.terms["joint_pos"],
@@ -90,15 +96,15 @@ def _configure_textop_critic_observations(cfg) -> None:
     old_critic = cfg.observations["critic"]
     terms = {
         "future_joint_window": ObservationTermCfg(
-            func=textop_mdp.future_joint_window,
+            func=future_joint_window,
             params={"command_name": "motion"},
         ),
         "future_anchor_pos_b": ObservationTermCfg(
-            func=textop_mdp.future_anchor_pos_b,
+            func=future_anchor_pos_b,
             params={"command_name": "motion"},
         ),
         "future_anchor_ori_b": ObservationTermCfg(
-            func=textop_mdp.future_anchor_ori_b,
+            func=future_anchor_ori_b,
             params={"command_name": "motion"},
         ),
         "body_pos": old_critic.terms["body_pos"],
