@@ -38,25 +38,10 @@ def make_textop_g1_flat_tracking_env_cfg(
     return cfg
 
 
-def ensure_textop_task_registered() -> None:
-    if TEXTOP_TASK_NAME in list_tasks():
-        return
-
-    register_mjlab_task(
-        task_id=TEXTOP_TASK_NAME,
-        env_cfg=make_textop_g1_flat_tracking_env_cfg(play=False),
-        play_env_cfg=make_textop_g1_flat_tracking_env_cfg(play=True),
-        rl_cfg=unitree_g1_tracking_ppo_runner_cfg(),
-        runner_cls=MotionTrackingOnPolicyRunner,
-    )
-
-
+# Match the current offline TextOp tracker convention - pelvis
+# but note, MJLab's base G1 tracking task uses torso_link
 def _configure_textop_anchor(cfg) -> None:
     motion_cmd = cfg.commands["motion"]
-
-    # Match the current offline TextOp tracker convention. MJLab's base G1
-    # tracking task uses torso_link; if pelvis-anchor training is unstable, add a
-    # separate torso-anchor TextOp variant rather than changing this one silently.
     motion_cmd.anchor_body_name = "pelvis"
 
 
@@ -120,6 +105,19 @@ def _configure_textop_critic_observations(cfg) -> None:
         terms=terms,
         concatenate_terms=True,
         enable_corruption=False,
+    )
+
+
+def ensure_textop_task_registered() -> None:
+    if TEXTOP_TASK_NAME in list_tasks():
+        return
+
+    register_mjlab_task(
+        task_id=TEXTOP_TASK_NAME,
+        env_cfg=make_textop_g1_flat_tracking_env_cfg(play=False),
+        play_env_cfg=make_textop_g1_flat_tracking_env_cfg(play=True),
+        rl_cfg=unitree_g1_tracking_ppo_runner_cfg(),
+        runner_cls=MotionTrackingOnPolicyRunner,
     )
 
 
