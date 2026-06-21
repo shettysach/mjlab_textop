@@ -5,9 +5,9 @@ from pathlib import Path
 from typing import Literal
 
 from mjlab.scripts.train import TrainConfig, launch_training
+from mjlab.tasks.tracking.mdp.commands import MotionCommandCfg
 
 from mjlab_vla.textop.task import TEXTOP_TASK_NAME, ensure_textop_task_registered
-from mjlab_vla.tracking import set_motion_file
 
 
 @dataclass(kw_only=True)
@@ -30,7 +30,13 @@ def train_textop_motion(
 ) -> None:
     ensure_textop_task_registered()
     train_cfg = TrainConfig.from_task(TEXTOP_TASK_NAME)
-    set_motion_file(train_cfg.env, motion_file)
+    motion_cmd = train_cfg.env.commands["motion"]
+    if not isinstance(motion_cmd, MotionCommandCfg):
+        raise TypeError(
+            "Expected env_cfg.commands['motion'] to be a MotionCommandCfg, "
+            f"got {type(motion_cmd).__name__}"
+        )
+    motion_cmd.motion_file = str(motion_file)
 
     train_cfg.env.scene.num_envs = cfg.num_envs
     train_cfg.agent.max_iterations = cfg.max_iterations

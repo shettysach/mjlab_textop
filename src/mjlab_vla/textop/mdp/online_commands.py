@@ -41,9 +41,13 @@ class OnlineTextOpMotionCommand(CommandTerm):
                 f"Online TextOp supports one environment in v1, got {self.num_envs}"
             )
         if self.cfg.future_steps <= 0:
-            raise ValueError(f"future_steps must be positive, got {self.cfg.future_steps}")
+            raise ValueError(
+                f"future_steps must be positive, got {self.cfg.future_steps}"
+            )
         if self.cfg.start_frame < 0:
-            raise ValueError(f"start_frame must be non-negative, got {self.cfg.start_frame}")
+            raise ValueError(
+                f"start_frame must be non-negative, got {self.cfg.start_frame}"
+            )
 
         self.robot = env.scene[cfg.entity_name]
         self.robot_anchor_body_index = self.robot.body_names.index(cfg.anchor_body_name)
@@ -58,8 +62,12 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._consecutive_stale_steps = 0
         self._last_stale_frame: int | None = None
 
-        self.metrics["online_buffer_frames"] = torch.zeros(self.num_envs, device=self.device)
-        self.metrics["online_stale_steps"] = torch.zeros(self.num_envs, device=self.device)
+        self.metrics["online_buffer_frames"] = torch.zeros(
+            self.num_envs, device=self.device
+        )
+        self.metrics["online_stale_steps"] = torch.zeros(
+            self.num_envs, device=self.device
+        )
         self.metrics["online_consecutive_stale_steps"] = torch.zeros(
             self.num_envs, device=self.device
         )
@@ -192,5 +200,5 @@ def use_online_textop_motion_command(
         entity_name=entity_name,
         anchor_body_name=anchor_body_name,
         future_steps=future_steps,
-        **kwargs,
+        # TODO: **kwargs,
     )

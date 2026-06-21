@@ -11,7 +11,7 @@ import tyro
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
-from mjlab.tasks.tracking.mdp.commands import MotionCommand
+from mjlab.tasks.tracking.mdp.commands import MotionCommand, MotionCommandCfg
 from mjlab.tasks.tracking.mdp.metrics import (
     compute_ee_orientation_error,
     compute_ee_position_error,
@@ -22,7 +22,6 @@ from mjlab.tasks.tracking.mdp.metrics import (
 from mjlab.utils.torch import configure_torch_backends
 
 from mjlab_vla.textop.task import TEXTOP_TASK_NAME, ensure_textop_task_registered
-from mjlab_vla.tracking import get_motion_command_cfg, set_motion_file
 
 
 @dataclass(kw_only=True)
@@ -46,8 +45,13 @@ def evaluate_textop_motion(
     env_cfg = load_env_cfg(TEXTOP_TASK_NAME, play=False)
     agent_cfg = load_rl_cfg(TEXTOP_TASK_NAME)
 
-    set_motion_file(env_cfg, motion_file)
-    motion_cmd = get_motion_command_cfg(env_cfg.commands)
+    motion_cmd = env_cfg.commands["motion"]
+    if not isinstance(motion_cmd, MotionCommandCfg):
+        raise TypeError(
+            "Expected env_cfg.commands['motion'] to be a MotionCommandCfg, "
+            f"got {type(motion_cmd).__name__}"
+        )
+    motion_cmd.motion_file = str(motion_file)
     motion_cmd.sampling_mode = "start"
     env_cfg.observations["actor"].enable_corruption = cfg.enable_corruption
     env_cfg.events.pop("push_robot", None)

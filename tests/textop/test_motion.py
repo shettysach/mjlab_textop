@@ -11,7 +11,7 @@ from mjlab_vla.textop.contract import (
     TEXTOP_OPTIONAL_INPUT_KEYS,
     TEXTOP_REQUIRED_INPUT_KEYS,
 )
-from mjlab_vla.textop.script.motion import (
+from mjlab_vla.textop.motion import (
     load_textop_motion,
     reindex_textop_g1_joints_to_mjlab,
 )
