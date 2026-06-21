@@ -6,18 +6,19 @@ from mjlab.envs.mdp.observations import projected_gravity as mjlab_projected_gra
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.utils.lab_api.math import matrix_from_quat, subtract_frame_transforms
 
-from mjlab_vla.textop.mdp.commands import TextOpMotionCommand
+from mjlab_vla.textop.mdp.future_reference import TextOpFutureReferenceCommand
 
 
-def _get_textop_motion_command(
+def _get_textop_future_reference_command(
     env: ManagerBasedRlEnv,
     command_name: str,
-) -> TextOpMotionCommand:
+) -> TextOpFutureReferenceCommand:
     command = env.command_manager.get_term(command_name)
 
-    if not isinstance(command, TextOpMotionCommand):
+    if not isinstance(command, TextOpFutureReferenceCommand):
         raise TypeError(
-            f"Expected command {command_name!r} to be TextOpMotionCommand, "
+            f"Expected command {command_name!r} to satisfy "
+            f"TextOpFutureReferenceCommand, "
             f"got {type(command).__name__}"
         )
 
@@ -28,7 +29,7 @@ def future_joint_window(
     env: ManagerBasedRlEnv,
     command_name: str = "motion",
 ) -> torch.Tensor:
-    command = _get_textop_motion_command(env, command_name)
+    command = _get_textop_future_reference_command(env, command_name)
 
     return torch.cat(
         [
@@ -43,7 +44,7 @@ def future_anchor_pos_b(
     env: ManagerBasedRlEnv,
     command_name: str = "motion",
 ) -> torch.Tensor:
-    command = _get_textop_motion_command(env, command_name)
+    command = _get_textop_future_reference_command(env, command_name)
 
     robot_anchor_pos_w = command.robot_anchor_pos_w[:, None, :].expand_as(
         command.future_anchor_pos_w
@@ -66,7 +67,7 @@ def future_anchor_ori_b(
     env: ManagerBasedRlEnv,
     command_name: str = "motion",
 ) -> torch.Tensor:
-    command = _get_textop_motion_command(env, command_name)
+    command = _get_textop_future_reference_command(env, command_name)
 
     robot_anchor_pos_w = command.robot_anchor_pos_w[:, None, :].expand_as(
         command.future_anchor_pos_w

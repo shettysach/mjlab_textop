@@ -6,7 +6,7 @@ import pytest
 import torch
 from mjlab.tasks.tracking.mdp.commands import MotionCommand, MotionCommandCfg
 
-from mjlab_vla.textop.mdp.commands import (
+from mjlab_vla.textop.mdp.offline_commands import (
     TextOpMotionCommand,
     TextOpMotionCommandCfg,
     make_future_time_steps,

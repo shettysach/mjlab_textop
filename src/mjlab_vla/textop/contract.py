@@ -53,11 +53,9 @@ MJLAB_G1_JOINT_NAMES: tuple[str, ...] = (
 # TextOp tracker motions store G1 joints in IsaacLab order.
 # fmt: off
 TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX: tuple[int, ...] = (
-    0, 3, 6, 9, 13, 17,
-    1, 4, 7, 10, 14, 18,
-    2, 5, 8,
-    11, 15, 19, 21, 23, 25, 27,
-    12, 16, 20, 22, 24, 26, 28,
+    0, 3, 6, 9, 13, 17, 1, 4, 7, 10, 
+    14, 18, 2, 5, 8, 11, 15, 19, 21, 23, 
+    25, 27, 12, 16, 20, 22, 24, 26, 28,
 )
 # fmt:on
 

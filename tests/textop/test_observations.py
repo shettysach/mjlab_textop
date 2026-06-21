@@ -6,7 +6,6 @@ import pytest
 import torch
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
-from mjlab_vla.textop.mdp.commands import TextOpMotionCommand
 from mjlab_vla.textop.mdp.observations import (
     future_anchor_ori_b,
     future_anchor_pos_b,
@@ -23,7 +22,7 @@ class _FakeCommandManager:
         return self.command
 
 
-class _FakeTextOpMotionCommand(TextOpMotionCommand):
+class _FakeTextOpFutureReferenceCommand:
     @property
     def future_joint_pos(self) -> torch.Tensor:
         return self._values["future_joint_pos"]
@@ -49,8 +48,19 @@ class _FakeTextOpMotionCommand(TextOpMotionCommand):
         return self._values["future_anchor_quat_w"]
 
 
-def _fake_textop_command(**kwargs) -> TextOpMotionCommand:
-    command = object.__new__(_FakeTextOpMotionCommand)
+def _fake_textop_command(**kwargs) -> _FakeTextOpFutureReferenceCommand:
+    if "future_joint_pos" in kwargs:
+        num_envs = int(kwargs["future_joint_pos"].shape[0])
+        future_steps = int(kwargs["future_joint_pos"].shape[1])
+    else:
+        num_envs = 1
+        future_steps = 5
+    kwargs.setdefault("future_joint_vel", torch.zeros(num_envs, future_steps, 29))
+    kwargs.setdefault("future_anchor_pos_w", torch.zeros(num_envs, future_steps, 3))
+    kwargs.setdefault("future_anchor_quat_w", torch.zeros(num_envs, future_steps, 4))
+    kwargs.setdefault("robot_anchor_pos_w", torch.zeros(num_envs, 3))
+    kwargs.setdefault("robot_anchor_quat_w", torch.zeros(num_envs, 4))
+    command = object.__new__(_FakeTextOpFutureReferenceCommand)
     command._values = kwargs
     return command
 
@@ -149,5 +159,5 @@ def test_projected_gravity_reuses_mjlab_observation() -> None:
 def test_observation_rejects_non_textop_command() -> None:
     env = _fake_env_with_command(command=object(), num_envs=1)
 
-    with pytest.raises(TypeError, match="TextOpMotionCommand"):
+    with pytest.raises(TypeError, match="TextOpFutureReferenceCommand"):
         future_joint_window(env)

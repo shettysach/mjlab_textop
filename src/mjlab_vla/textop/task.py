@@ -8,15 +8,18 @@ from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 from mjlab.utils.noise import UniformNoiseCfg as Unoise
 
 from mjlab_vla.textop.contract import TEXTOP_FUTURE_STEPS
-from mjlab_vla.textop.mdp.commands import use_textop_motion_command
 from mjlab_vla.textop.mdp.observations import (
     future_anchor_ori_b,
     future_anchor_pos_b,
     future_joint_window,
     projected_gravity,
 )
+from mjlab_vla.textop.mdp.offline_commands import use_textop_motion_command
+from mjlab_vla.textop.mdp.online_commands import use_online_textop_motion_command
+from mjlab_vla.textop.online import TextOpOnlineSource
 
 TEXTOP_TASK_NAME = "Mjlab-TextOp-Flat-Unitree-G1"
+ONLINE_TEXTOP_TASK_NAME = "Mjlab-OnlineTextOp-Flat-Unitree-G1"
 
 
 def make_textop_g1_flat_tracking_env_cfg(
@@ -34,6 +37,28 @@ def make_textop_g1_flat_tracking_env_cfg(
     _configure_textop_anchor(cfg)
     _configure_textop_actor_observations(cfg)
     _configure_textop_critic_observations(cfg)
+
+    return cfg
+
+
+def make_online_textop_g1_flat_tracking_env_cfg(
+    *,
+    play: bool = True,
+    future_steps: int = TEXTOP_FUTURE_STEPS,
+    source: TextOpOnlineSource | None = None,
+):
+    cfg = unitree_g1_flat_tracking_env_cfg(play=play)
+
+    use_online_textop_motion_command(
+        cfg,
+        command_name="motion",
+        future_steps=future_steps,
+        source=source,
+    )
+    _configure_textop_anchor(cfg)
+    _configure_textop_actor_observations(cfg)
+    _configure_textop_critic_observations(cfg)
+    _configure_online_textop_tracking_terms(cfg)
 
     return cfg
 
@@ -108,17 +133,38 @@ def _configure_textop_critic_observations(cfg) -> None:
     )
 
 
-def ensure_textop_task_registered() -> None:
-    if TEXTOP_TASK_NAME in list_tasks():
-        return
+def _configure_online_textop_tracking_terms(cfg) -> None:
+    for reward_name in (
+        "motion_body_pos",
+        "motion_body_ori",
+        "motion_body_lin_vel",
+        "motion_body_ang_vel",
+    ):
+        cfg.rewards.pop(reward_name, None)
 
-    register_mjlab_task(
-        task_id=TEXTOP_TASK_NAME,
-        env_cfg=make_textop_g1_flat_tracking_env_cfg(play=False),
-        play_env_cfg=make_textop_g1_flat_tracking_env_cfg(play=True),
-        rl_cfg=unitree_g1_tracking_ppo_runner_cfg(),
-        runner_cls=MotionTrackingOnPolicyRunner,
-    )
+    cfg.terminations.pop("ee_body_pos", None)
+
+
+def ensure_textop_task_registered() -> None:
+    task_names = list_tasks()
+
+    if TEXTOP_TASK_NAME not in task_names:
+        register_mjlab_task(
+            task_id=TEXTOP_TASK_NAME,
+            env_cfg=make_textop_g1_flat_tracking_env_cfg(play=False),
+            play_env_cfg=make_textop_g1_flat_tracking_env_cfg(play=True),
+            rl_cfg=unitree_g1_tracking_ppo_runner_cfg(),
+            runner_cls=MotionTrackingOnPolicyRunner,
+        )
+
+    if ONLINE_TEXTOP_TASK_NAME not in task_names:
+        register_mjlab_task(
+            task_id=ONLINE_TEXTOP_TASK_NAME,
+            env_cfg=make_online_textop_g1_flat_tracking_env_cfg(play=True),
+            play_env_cfg=make_online_textop_g1_flat_tracking_env_cfg(play=True),
+            rl_cfg=unitree_g1_tracking_ppo_runner_cfg(),
+            runner_cls=MotionTrackingOnPolicyRunner,
+        )
 
 
 ensure_textop_task_registered()
