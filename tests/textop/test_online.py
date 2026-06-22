@@ -241,6 +241,27 @@ def test_online_command_rejects_too_many_consecutive_stale_windows() -> None:
         _ = command.future_joint_pos
 
 
+def test_online_command_replay_allows_stale_windows_at_clip_end() -> None:
+    source = QueueTextOpOnlineSource([motion_block(frames=5)])
+    command = OnlineTextOpMotionCommand(
+        OnlineTextOpMotionCommandCfg(
+            source=source,
+            source_mode="replay",
+            future_steps=5,
+            max_stale_steps=1,
+        ),
+        fake_env(),
+    )
+    command._update_command()
+
+    for _ in range(4):
+        command._update_command()
+        _ = command.future_joint_pos
+
+    assert command._consecutive_stale_steps > command.cfg.max_stale_steps
+    assert command.future_joint_pos.shape == (1, 5, 29)
+
+
 def test_online_command_rejects_replay_source_without_reset() -> None:
     with pytest.raises(TypeError, match="implement reset"):
         OnlineTextOpMotionCommandCfg(

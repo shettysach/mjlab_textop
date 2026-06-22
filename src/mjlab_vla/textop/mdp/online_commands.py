@@ -214,7 +214,10 @@ class OnlineTextOpMotionCommand(CommandTerm):
             else:
                 self._consecutive_stale_steps = 0
             self._last_stale_frame = self.current_frame
-        if self._consecutive_stale_steps > self.cfg.max_stale_steps:
+        if (
+            self.cfg.source_mode == "live"
+            and self._consecutive_stale_steps > self.cfg.max_stale_steps
+        ):
             raise RuntimeError(
                 "Online TextOp future window exceeded max consecutive stale "
                 f"steps: {self._consecutive_stale_steps} > {self.cfg.max_stale_steps}"
