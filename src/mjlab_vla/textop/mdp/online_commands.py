@@ -172,7 +172,9 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._poll_source()
 
         if not self._started:
-            if self.buffer.can_start(self.current_frame, self.cfg.future_steps):
+            start_frame = self._startup_start_frame()
+            if start_frame is not None:
+                self.current_frame = start_frame
                 self._align_reference_anchor()
                 self._started = True
                 return
@@ -196,6 +198,13 @@ class OnlineTextOpMotionCommand(CommandTerm):
             if block is None:
                 return
             self.buffer.append_block(block)
+
+    def _startup_start_frame(self) -> int | None:
+        if self.cfg.source_mode == "live":
+            return self.buffer.earliest_start_frame(self.cfg.future_steps)
+        if self.buffer.can_start(self.current_frame, self.cfg.future_steps):
+            return self.current_frame
+        return None
 
     def _future(
         self,

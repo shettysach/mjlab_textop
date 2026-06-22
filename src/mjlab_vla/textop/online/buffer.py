@@ -89,6 +89,14 @@ class TextOpRollingMotionBuffer:
             (frame + offset) in self._joint_pos for offset in range(future_steps)
         )
 
+    def earliest_start_frame(self, future_steps: int) -> int | None:
+        if future_steps <= 0:
+            raise ValueError(f"future_steps must be positive, got {future_steps}")
+        for frame in sorted(self._joint_pos):
+            if self.can_start(frame, future_steps):
+                return frame
+        return None
+
     def get_future(
         self,
         frame: int,

@@ -84,6 +84,17 @@ def test_rolling_buffer_requires_contiguous_start_window() -> None:
     assert buffer.can_start(1, 4) is True
 
 
+def test_rolling_buffer_finds_earliest_contiguous_start_window() -> None:
+    buffer = TextOpRollingMotionBuffer()
+    buffer.append_block(motion_block(index=100, frames=3))
+
+    assert buffer.earliest_start_frame(5) is None
+
+    buffer.append_block(motion_block(index=103, frames=5))
+
+    assert buffer.earliest_start_frame(5) == 100
+
+
 def test_rolling_buffer_repeats_latest_available_frame_on_underrun() -> None:
     buffer = TextOpRollingMotionBuffer()
     block = motion_block(index=0, frames=5)
@@ -343,6 +354,55 @@ def test_online_command_live_reset_does_not_rewind_source() -> None:
     command._update_command()
     with pytest.raises(RuntimeError, match="did not receive enough contiguous"):
         command._update_command()
+
+
+def test_online_command_live_attaches_to_earliest_full_future_window() -> None:
+    source = _LiveTextOpOnlineSource(
+        [
+            motion_block(index=100, frames=3),
+            motion_block(index=103, frames=5),
+        ]
+    )
+    command = OnlineTextOpMotionCommand(
+        OnlineTextOpMotionCommandCfg(
+            source=source,
+            source_mode="live",
+            future_steps=5,
+        ),
+        fake_env(),
+    )
+
+    command._update_command()
+
+    assert command._started is True
+    assert command.current_frame == 100
+    assert command._last_stale_steps == 0
+
+
+def test_online_command_live_reset_attaches_to_next_full_future_window() -> None:
+    source = _LiveTextOpOnlineSource([motion_block(index=0, frames=8)])
+    command = OnlineTextOpMotionCommand(
+        OnlineTextOpMotionCommandCfg(
+            source=source,
+            source_mode="live",
+            future_steps=5,
+        ),
+        fake_env(),
+    )
+    command._update_command()
+
+    command._resample_command(torch.tensor([0]))
+    source.blocks.extend(
+        [
+            motion_block(index=100, frames=3),
+            motion_block(index=103, frames=5),
+        ]
+    )
+    command._update_command()
+
+    assert command._started is True
+    assert command.current_frame == 100
+    assert command._last_stale_steps == 0
 
 
 def test_use_online_textop_motion_command_preserves_injected_source() -> None:
