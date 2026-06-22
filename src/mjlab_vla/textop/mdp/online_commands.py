@@ -223,14 +223,8 @@ class OnlineTextOpMotionCommand(CommandTerm):
             else:
                 self._consecutive_stale_steps = 0
             self._last_stale_frame = self.current_frame
-        if (
-            self.cfg.source_mode == "live"
-            and self._consecutive_stale_steps > self.cfg.max_stale_steps
-        ):
-            raise RuntimeError(
-                "Online TextOp future window exceeded max consecutive stale "
-                f"steps: {self._consecutive_stale_steps} > {self.cfg.max_stale_steps}"
-            )
+        # Clamp stale future frames for now. Keep tracking consecutive stale
+        # windows so live deployments can surface underruns without aborting.
         return joint_pos, joint_vel, anchor_pos_w, anchor_quat_w
 
     def _startup_future(

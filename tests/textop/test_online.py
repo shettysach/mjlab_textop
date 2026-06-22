@@ -230,7 +230,7 @@ def test_online_command_rejects_vectorized_envs() -> None:
         )
 
 
-def test_online_command_rejects_too_many_consecutive_stale_windows() -> None:
+def test_online_command_clamps_too_many_consecutive_stale_windows() -> None:
     source = QueueTextOpOnlineSource([motion_block(frames=5)])
     command = OnlineTextOpMotionCommand(
         OnlineTextOpMotionCommandCfg(
@@ -248,8 +248,10 @@ def test_online_command_rejects_too_many_consecutive_stale_windows() -> None:
     _ = command.future_joint_pos
 
     command._update_command()
-    with pytest.raises(RuntimeError, match="max consecutive stale"):
-        _ = command.future_joint_pos
+    future = command.future_joint_pos
+
+    assert command._consecutive_stale_steps > command.cfg.max_stale_steps
+    assert future.shape == (1, 5, 29)
 
 
 def test_online_command_replay_allows_stale_windows_at_clip_end() -> None:
