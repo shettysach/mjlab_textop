@@ -31,25 +31,27 @@ def test_make_future_time_steps_clamps_at_end() -> None:
     ]
 
 
-def test_make_future_time_steps_rejects_invalid_future_steps() -> None:
-    time_steps = torch.tensor([0], dtype=torch.long)
-
+def test_textop_motion_command_cfg_rejects_invalid_future_steps() -> None:
     with pytest.raises(ValueError, match="future_steps must be positive"):
-        make_future_time_steps(
-            time_steps,
+        TextOpMotionCommandCfg(
+            resampling_time_range=(1.0e9, 1.0e9),
+            motion_file="/tmp/motion.npz",
+            anchor_body_name="pelvis",
+            body_names=("pelvis",),
+            entity_name="robot",
             future_steps=0,
-            time_step_total=10,
         )
 
 
-def test_make_future_time_steps_rejects_invalid_time_step_total() -> None:
-    time_steps = torch.tensor([0], dtype=torch.long)
+def test_online_textop_motion_command_cfg_rejects_invalid_future_steps() -> None:
+    from mjlab_vla.textop.mdp.online_commands import OnlineTextOpMotionCommandCfg
 
-    with pytest.raises(ValueError, match="time_step_total must be positive"):
-        make_future_time_steps(
-            time_steps,
-            future_steps=5,
-            time_step_total=0,
+    with pytest.raises(ValueError, match="future_steps must be positive"):
+        OnlineTextOpMotionCommandCfg(
+            resampling_time_range=(1.0e9, 1.0e9),
+            entity_name="robot",
+            anchor_body_name="pelvis",
+            future_steps=0,
         )
 
 

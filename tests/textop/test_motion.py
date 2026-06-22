@@ -251,6 +251,25 @@ def test_load_textop_motion_rejects_invalid_explicit_fps(tmp_path):
         raise AssertionError("Expected invalid fps to be rejected")
 
 
+def test_load_textop_motion_rejects_empty_motion(tmp_path):
+    input_file = tmp_path / "textop.npz"
+    np.savez(
+        input_file,
+        fps=np.array([50.0], dtype=np.float32),
+        joint_pos=np.zeros((0, 29), dtype=np.float32),
+        joint_vel=np.zeros((0, 29), dtype=np.float32),
+        body_pos_w=np.zeros((0, 1, 3), dtype=np.float32),
+        body_quat_w=np.zeros((0, 1, 4), dtype=np.float32),
+    )
+
+    try:
+        load_textop_motion(input_file)
+    except ValueError as exc:
+        assert "at least one frame" in str(exc)
+    else:
+        raise AssertionError("Expected empty motion to be rejected")
+
+
 def test_mjlab_motion_loader_accepts_normalized_npz(tmp_path):
     motion_file = tmp_path / "motion.npz"
     np.savez(

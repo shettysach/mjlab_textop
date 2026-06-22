@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
 from mjlab.tasks.registry import list_tasks, register_mjlab_task
 from mjlab.tasks.tracking.config.g1.env_cfgs import unitree_g1_flat_tracking_env_cfg
@@ -46,6 +48,10 @@ def make_online_textop_g1_flat_tracking_env_cfg(
     play: bool = True,
     future_steps: int = TEXTOP_FUTURE_STEPS,
     source: TextOpOnlineSource | None = None,
+    anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
+        "align_to_robot_start"
+    ),
+    max_stale_steps: int = 25,
 ):
     cfg = unitree_g1_flat_tracking_env_cfg(play=play)
 
@@ -54,6 +60,8 @@ def make_online_textop_g1_flat_tracking_env_cfg(
         command_name="motion",
         future_steps=future_steps,
         source=source,
+        anchor_alignment=anchor_alignment,
+        max_stale_steps=max_stale_steps,
     )
     _configure_textop_anchor(cfg)
     _configure_textop_actor_observations(cfg)

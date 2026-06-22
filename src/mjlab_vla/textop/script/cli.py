@@ -9,15 +9,22 @@ from mjlab_vla.textop.normalize import normalize_textop_npz
 from mjlab_vla.textop.script.eval import EvalCommand, evaluate_textop_motion
 from mjlab_vla.textop.script.normalize import NormalizeCommand
 from mjlab_vla.textop.script.play import PlayCommand, play_textop_motion
+from mjlab_vla.textop.script.play_online import (
+    PlayOnlineCommand,
+    play_online_textop_motion,
+)
 from mjlab_vla.textop.script.train import TrainCommand, train_textop_motion
 
-TextOpCommand: TypeAlias = NormalizeCommand | TrainCommand | PlayCommand | EvalCommand
+TextOpCommand: TypeAlias = (
+    NormalizeCommand | TrainCommand | PlayCommand | PlayOnlineCommand | EvalCommand
+)
 
 TextOpCommandType = tyro.extras.subcommand_type_from_defaults(
     {
         "normalize": NormalizeCommand(),
         "train": TrainCommand(),
         "play": PlayCommand(),
+        "play-online": PlayOnlineCommand(),
         "eval": EvalCommand(),
     },
 )
@@ -69,6 +76,22 @@ def run_textop_motion(cfg: TextOpCommand) -> None:
                 "Checkpoint file",
             )
             play_textop_motion(
+                cfg,
+                motion_file=motion_file,
+                checkpoint_file=checkpoint_file,
+            )
+            return
+
+        case PlayOnlineCommand():
+            motion_file = verify_path(
+                cfg.normalized_motion_file,
+                "Normalized motion file",
+            )
+            checkpoint_file = verify_path(
+                cfg.checkpoint_file,
+                "Checkpoint file",
+            )
+            play_online_textop_motion(
                 cfg,
                 motion_file=motion_file,
                 checkpoint_file=checkpoint_file,

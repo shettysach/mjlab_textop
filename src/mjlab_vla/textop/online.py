@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 import numpy as np
@@ -10,6 +11,11 @@ import torch
 from mjlab_vla.textop.contract import (
     TEXTOP_G1_JOINT_COUNT,
     TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
+    TEXTOP_ROOT_BODY_INDEX,
+)
+
+MJLAB_TO_TEXTOP_G1_JOINT_INDEX: tuple[int, ...] = tuple(
+    int(i) for i in np.argsort(TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)
 )
 
 
@@ -46,6 +52,62 @@ class QueueTextOpOnlineSource:
         return self._blocks.popleft()
 
 
+def make_mjlab_npz_replay_source(
+    path: str | Path,
+    *,
+    block_size: int = 8,
+) -> QueueTextOpOnlineSource:
+    if block_size <= 0:
+        raise ValueError(f"block_size must be positive, got {block_size}")
+
+    data = np.load(Path(path))
+    joint_pos_mjlab = _validate_joint_array("joint_pos", data["joint_pos"])
+    joint_vel_mjlab = _validate_joint_array("joint_vel", data["joint_vel"])
+    body_pos_w = np.asarray(data["body_pos_w"], dtype=np.float32)
+    body_quat_w = np.asarray(data["body_quat_w"], dtype=np.float32)
+
+    if body_pos_w.ndim != 3 or body_pos_w.shape[-1] != 3:
+        raise ValueError(f"body_pos_w must be shaped [T, B, 3], got {body_pos_w.shape}")
+    if body_quat_w.ndim != 3 or body_quat_w.shape[-1] != 4:
+        raise ValueError(
+            f"body_quat_w must be shaped [T, B, 4], got {body_quat_w.shape}"
+        )
+    if body_pos_w.shape[:2] != body_quat_w.shape[:2]:
+        raise ValueError(
+            "body_pos_w/body_quat_w frame-body shapes differ: "
+            f"{body_pos_w.shape[:2]} vs {body_quat_w.shape[:2]}"
+        )
+    if body_pos_w.shape[0] != joint_pos_mjlab.shape[0]:
+        raise ValueError(
+            f"body_pos_w frame count {body_pos_w.shape[0]} differs from "
+            f"joint_pos frame count {joint_pos_mjlab.shape[0]}"
+        )
+    if body_pos_w.shape[1] <= TEXTOP_ROOT_BODY_INDEX:
+        raise ValueError(
+            f"body arrays must include root body index {TEXTOP_ROOT_BODY_INDEX}, "
+            f"got {body_pos_w.shape[1]} bodies"
+        )
+
+    joint_pos_textop = joint_pos_mjlab[:, MJLAB_TO_TEXTOP_G1_JOINT_INDEX]
+    joint_vel_textop = joint_vel_mjlab[:, MJLAB_TO_TEXTOP_G1_JOINT_INDEX]
+    anchor_pos_w = body_pos_w[:, TEXTOP_ROOT_BODY_INDEX]
+    anchor_quat_w = body_quat_w[:, TEXTOP_ROOT_BODY_INDEX]
+
+    blocks = []
+    for start in range(0, joint_pos_textop.shape[0], block_size):
+        stop = min(start + block_size, joint_pos_textop.shape[0])
+        blocks.append(
+            TextOpMotionBlock(
+                index=start,
+                joint_pos=joint_pos_textop[start:stop],
+                joint_vel=joint_vel_textop[start:stop],
+                anchor_pos_w=anchor_pos_w[start:stop],
+                anchor_quat_w=anchor_quat_w[start:stop],
+            )
+        )
+    return QueueTextOpOnlineSource(blocks)
+
+
 class TextOpRollingMotionBuffer:
     def __init__(
         self,
@@ -70,6 +132,13 @@ class TextOpRollingMotionBuffer:
     @property
     def frame_count(self) -> int:
         return len(self._joint_pos)
+
+    def clear(self) -> None:
+        self._joint_pos.clear()
+        self._joint_vel.clear()
+        self._anchor_pos_w.clear()
+        self._anchor_quat_w.clear()
+        self._latest_index = None
 
     def append_block(self, block: TextOpMotionBlock) -> None:
         joint_pos = _validate_joint_array("joint_pos", block.joint_pos)
@@ -156,7 +225,7 @@ class TextOpRollingMotionBuffer:
         if available:
             return max(available)
 
-        return min(self._joint_pos)
+        raise RuntimeError(f"No available online TextOp frame at or before {frame}")
 
     def _evict_old_frames(self) -> None:
         if self.max_frames is None or self._latest_index is None:

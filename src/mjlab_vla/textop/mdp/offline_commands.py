@@ -16,11 +16,6 @@ def make_future_time_steps(
     future_steps: int,
     time_step_total: int,
 ) -> torch.Tensor:
-    if future_steps <= 0:
-        raise ValueError(f"future_steps must be positive, got {future_steps}")
-    if time_step_total <= 0:
-        raise ValueError(f"time_step_total must be positive, got {time_step_total}")
-
     offsets = torch.arange(
         future_steps,
         dtype=torch.long,
@@ -33,6 +28,10 @@ def make_future_time_steps(
 @dataclass(kw_only=True)
 class TextOpMotionCommandCfg(MotionCommandCfg):
     future_steps: int = TEXTOP_FUTURE_STEPS
+
+    def __post_init__(self) -> None:
+        if self.future_steps <= 0:
+            raise ValueError(f"future_steps must be positive, got {self.future_steps}")
 
     def build(self, env: ManagerBasedRlEnv) -> TextOpMotionCommand:
         return TextOpMotionCommand(self, env)

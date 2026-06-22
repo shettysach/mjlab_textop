@@ -10,11 +10,13 @@ from mjlab_vla.textop.contract import TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
 from mjlab_vla.textop.mdp.online_commands import (
     OnlineTextOpMotionCommand,
     OnlineTextOpMotionCommandCfg,
+    use_online_textop_motion_command,
 )
 from mjlab_vla.textop.online import (
     QueueTextOpOnlineSource,
     TextOpMotionBlock,
     TextOpRollingMotionBuffer,
+    make_mjlab_npz_replay_source,
 )
 
 
@@ -110,6 +112,14 @@ def test_rolling_buffer_repeats_latest_available_frame_on_underrun() -> None:
     np.testing.assert_allclose(joint_pos.cpu().numpy(), expected)
 
 
+def test_rolling_buffer_rejects_request_before_earliest_frame() -> None:
+    buffer = TextOpRollingMotionBuffer()
+    buffer.append_block(_motion_block(index=10, frames=5))
+
+    with pytest.raises(RuntimeError, match="at or before 0"):
+        buffer.get_future(0, 5)
+
+
 def test_rolling_buffer_evicts_old_frames() -> None:
     buffer = TextOpRollingMotionBuffer(max_frames=5)
     buffer.append_block(_motion_block(index=0, frames=8))
@@ -133,6 +143,33 @@ def test_rolling_buffer_rejects_wrong_joint_count() -> None:
         TextOpRollingMotionBuffer().append_block(bad)
 
 
+def test_mjlab_npz_replay_source_chunks_and_round_trips_joint_order(tmp_path) -> None:
+    joint_pos = np.arange(10 * 29, dtype=np.float32).reshape(10, 29)
+    joint_vel = joint_pos + 1000.0
+    body_pos_w = np.zeros((10, 1, 3), dtype=np.float32)
+    body_quat_w = np.tile(
+        np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32), (10, 1, 1)
+    )
+    path = tmp_path / "motion.npz"
+    np.savez(
+        path,
+        joint_pos=joint_pos,
+        joint_vel=joint_vel,
+        body_pos_w=body_pos_w,
+        body_quat_w=body_quat_w,
+    )
+
+    source = make_mjlab_npz_replay_source(path, block_size=8)
+    buffer = TextOpRollingMotionBuffer()
+    while (block := source.poll()) is not None:
+        buffer.append_block(block)
+
+    round_trip_joint_pos, _, _, _, stale_steps = buffer.get_future(0, 10)
+
+    assert stale_steps == 0
+    np.testing.assert_allclose(round_trip_joint_pos.cpu().numpy(), joint_pos)
+
+
 def test_online_command_polls_source_and_exposes_five_step_window() -> None:
     source = QueueTextOpOnlineSource([_motion_block(frames=8)])
     command = OnlineTextOpMotionCommand(
@@ -154,6 +191,20 @@ def test_online_command_polls_source_and_exposes_five_step_window() -> None:
 
     command._update_command()
     assert command.current_frame == 1
+
+
+def test_online_command_aligns_anchor_position_to_robot_start() -> None:
+    source = QueueTextOpOnlineSource([_motion_block(frames=8, offset=100.0)])
+    command = OnlineTextOpMotionCommand(
+        OnlineTextOpMotionCommandCfg(source=source, future_steps=5),
+        _fake_env(robot_anchor_pos=(10.0, 20.0, 30.0)),
+    )
+
+    command._update_command()
+
+    future_anchor_pos = command.future_anchor_pos_w[0]
+    torch.testing.assert_close(future_anchor_pos[0], torch.tensor([10.0, 20.0, 30.0]))
+    torch.testing.assert_close(future_anchor_pos[1], torch.tensor([11.0, 20.0, 30.0]))
 
 
 def test_online_command_rejects_vectorized_envs() -> None:
@@ -188,11 +239,46 @@ def test_online_command_rejects_too_many_consecutive_stale_windows() -> None:
         _ = command.future_joint_pos
 
 
-def _fake_env(num_envs: int = 1):
+def test_online_command_reset_clears_buffer_by_default() -> None:
+    source = QueueTextOpOnlineSource([_motion_block(frames=8)])
+    command = OnlineTextOpMotionCommand(
+        OnlineTextOpMotionCommandCfg(source=source, future_steps=5),
+        _fake_env(),
+    )
+    command._update_command()
+
+    assert command.buffer.frame_count == 8
+
+    command._resample_command(torch.tensor([0]))
+
+    assert command.buffer.frame_count == 0
+    assert command.current_frame == 0
+
+
+def test_use_online_textop_motion_command_preserves_injected_source() -> None:
+    source = QueueTextOpOnlineSource([_motion_block(frames=8)])
+    env_cfg = SimpleNamespace(
+        commands={
+            "motion": SimpleNamespace(entity_name="robot", anchor_body_name="pelvis")
+        }
+    )
+
+    use_online_textop_motion_command(env_cfg, source=source)
+
+    assert env_cfg.commands["motion"].source is source
+
+
+def _fake_env(
+    num_envs: int = 1,
+    robot_anchor_pos: tuple[float, float, float] = (0.0, 0.0, 0.0),
+):
+    body_pos = torch.tensor([[robot_anchor_pos]], dtype=torch.float32).repeat(
+        num_envs, 1, 1
+    )
     robot = SimpleNamespace(
         body_names=["pelvis"],
         data=SimpleNamespace(
-            body_link_pos_w=torch.zeros(num_envs, 1, 3),
+            body_link_pos_w=body_pos,
             body_link_quat_w=torch.tensor([[[1.0, 0.0, 0.0, 0.0]]]).repeat(
                 num_envs, 1, 1
             ),

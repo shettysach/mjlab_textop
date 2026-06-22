@@ -52,6 +52,8 @@ def load_textop_motion(path: str | Path, fps: float | None = None) -> TextOpMoti
     joint_vel = np.asarray(data["joint_vel"], dtype=np.float32)
     _validate_joint_array("joint_pos", joint_pos)
     _validate_joint_array("joint_vel", joint_vel)
+    if joint_pos.shape[0] == 0:
+        raise ValueError("TextOp motion must contain at least one frame")
 
     body_pos_w = np.asarray(data["body_pos_w"], dtype=np.float32)
     body_quat_w = _normalize_quat(np.asarray(data["body_quat_w"], dtype=np.float32))
