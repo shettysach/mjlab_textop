@@ -297,6 +297,46 @@ def test_online_command_rejects_replay_source_fps_mismatch() -> None:
         )
 
 
+def test_online_command_rejects_live_source_fps_mismatch() -> None:
+    source = QueueTextOpOnlineSource([motion_block(frames=8)], fps=25.0)
+
+    with pytest.raises(ValueError, match="FPS must match env control rate"):
+        OnlineTextOpMotionCommand(
+            OnlineTextOpMotionCommandCfg(
+                source=source,
+                source_mode="live",
+                future_steps=5,
+            ),
+            fake_env(step_dt=0.02),
+        )
+
+
+def test_online_command_updates_live_diagnostics_metrics() -> None:
+    source = QueueTextOpOnlineSource([motion_block(frames=8)])
+    source.diagnostics = SimpleNamespace(
+        queue_depth=3,
+        blocks_received=4,
+        blocks_dropped=1,
+        bad_messages=2,
+    )
+    command = OnlineTextOpMotionCommand(
+        OnlineTextOpMotionCommandCfg(source=source, future_steps=5),
+        fake_env(),
+    )
+
+    command._update_command()
+    command._update_metrics()
+
+    assert command.metrics["online_started"].item() == 1.0
+    assert command.metrics["online_current_frame"].item() == 0.0
+    assert command.metrics["online_latest_frame"].item() == 7.0
+    assert command.metrics["online_lag_frames"].item() == 7.0
+    assert command.metrics["online_queue_depth"].item() == 3.0
+    assert command.metrics["online_blocks_received"].item() == 4.0
+    assert command.metrics["online_blocks_dropped"].item() == 1.0
+    assert command.metrics["online_bad_messages"].item() == 2.0
+
+
 def test_online_command_replay_reset_rewinds_source() -> None:
     source = QueueTextOpOnlineSource([motion_block(frames=8)])
     env = fake_env()

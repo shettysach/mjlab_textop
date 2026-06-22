@@ -3,11 +3,14 @@
 Utilities for running low-level TextOp tracker motions through MJLab's native
 Unitree G1 tracking stack.
 
-The current integration boundary is deliberately narrow: convert a canonical
-TextOp tracker NPZ into MJLab's native tracking NPZ format, then train or play a
-registered MJLab task variant with TextOp-style low-level tracker observations.
-This is offline TextOp tracker integration; it does not run RobotMDAR or live
-text-to-motion generation yet.
+The integration supports three paths:
+
+- offline tracking: convert a canonical TextOp tracker NPZ into MJLab's native
+  tracking NPZ format, then train/play/evaluate a TextOp-style MJLab task.
+- online replay: stream a normalized MJLab motion file through the same online
+  reference buffer used by live sources.
+- live text-to-motion demo: run RobotMDAR in a separate TextOp environment and
+  stream generated TextOp motion blocks to MJLab over localhost NDJSON.
 
 ## Architecture
 
@@ -17,6 +20,13 @@ TextOp tracker NPZ
   -> MJLab-native motion.npz
   -> Mjlab-TextOp-Flat-Unitree-G1
   -> TextOpMotionCommand
+  -> TextOp-style future reference observations
+
+RobotMDAR text prompt
+  -> python -m mjlab_vla.textop.script.robotmdar_producer
+  -> localhost NDJSON TextOpMotionBlock stream
+  -> textop-tracking play-live
+  -> OnlineTextOpMotionCommand
   -> TextOp-style future reference observations
 ```
 
@@ -104,6 +114,37 @@ To view a trained MJLab checkpoint:
 uv run --extra cu128 textop-tracking play \
   --checkpoint-file /path/to/model.pt
 ```
+
+To replay the normalized motion through the online TextOp path:
+
+```bash
+uv run --extra cu128 textop-tracking play-online \
+  --checkpoint-file /path/to/model.pt \
+  --normalized-motion-file /tmp/textop_walk_mjlab.npz
+```
+
+To run a live text-to-motion simulation demo without ROS2, use two terminals.
+The RobotMDAR producer should run in the TextOp/RobotMDAR Python environment:
+
+```bash
+python -m mjlab_vla.textop.script.robotmdar_producer \
+  --ckpt /path/to/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
+  --datadir /path/to/TextOpRobotMDAR/dataset/BABEL-AMASS-ROBOT-23dof-FULL-50fps \
+  --skeleton-asset-root /path/to/TextOpRobotMDAR/description/robots/g1
+```
+
+Then run MJLab in this repo's environment:
+
+```bash
+uv run --extra cu128 textop-tracking play-live \
+  --checkpoint-file /path/to/model.pt \
+  --host 127.0.0.1 \
+  --port 8765
+```
+
+The live producer sends 50 Hz-indexed motion chunks. MJLab consumes them at the
+online command rate, clamps stale future frames during underruns, and reports
+online buffer/source diagnostics through command metrics.
 
 To run a headless local evaluation against the normalized TextOp motion:
 

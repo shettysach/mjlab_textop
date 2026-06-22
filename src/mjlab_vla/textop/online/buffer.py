@@ -33,6 +33,12 @@ class TextOpRollingMotionBuffer:
         return self._latest_index
 
     @property
+    def earliest_index(self) -> int | None:
+        if not self._joint_pos:
+            return None
+        return min(self._joint_pos)
+
+    @property
     def frame_count(self) -> int:
         return len(self._joint_pos)
 

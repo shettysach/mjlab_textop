@@ -67,7 +67,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
             raise ValueError(
                 f"start_frame must be non-negative, got {self.cfg.start_frame}"
             )
-        self._validate_replay_source_fps(env)
+        self._validate_source_fps(env)
 
         self.robot = env.scene[cfg.entity_name]
         self.robot_anchor_body_index = self.robot.body_names.index(cfg.anchor_body_name)
@@ -90,6 +90,30 @@ class OnlineTextOpMotionCommand(CommandTerm):
             self.num_envs, device=self.device
         )
         self.metrics["online_consecutive_stale_steps"] = torch.zeros(
+            self.num_envs, device=self.device
+        )
+        self.metrics["online_current_frame"] = torch.zeros(
+            self.num_envs, device=self.device
+        )
+        self.metrics["online_latest_frame"] = torch.zeros(
+            self.num_envs, device=self.device
+        )
+        self.metrics["online_lag_frames"] = torch.zeros(
+            self.num_envs, device=self.device
+        )
+        self.metrics["online_started"] = torch.zeros(
+            self.num_envs, device=self.device
+        )
+        self.metrics["online_queue_depth"] = torch.zeros(
+            self.num_envs, device=self.device
+        )
+        self.metrics["online_blocks_received"] = torch.zeros(
+            self.num_envs, device=self.device
+        )
+        self.metrics["online_blocks_dropped"] = torch.zeros(
+            self.num_envs, device=self.device
+        )
+        self.metrics["online_bad_messages"] = torch.zeros(
             self.num_envs, device=self.device
         )
 
@@ -143,6 +167,29 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self.metrics["online_consecutive_stale_steps"][:] = float(
             self._consecutive_stale_steps
         )
+        latest_index = self.buffer.latest_index
+        self.metrics["online_current_frame"][:] = float(self.current_frame)
+        self.metrics["online_latest_frame"][:] = float(
+            -1 if latest_index is None else latest_index
+        )
+        self.metrics["online_lag_frames"][:] = float(
+            0 if latest_index is None else latest_index - self.current_frame
+        )
+        self.metrics["online_started"][:] = float(self._started)
+        diagnostics = getattr(self.cfg.source, "diagnostics", None)
+        if diagnostics is not None:
+            self.metrics["online_queue_depth"][:] = float(
+                getattr(diagnostics, "queue_depth", 0)
+            )
+            self.metrics["online_blocks_received"][:] = float(
+                getattr(diagnostics, "blocks_received", 0)
+            )
+            self.metrics["online_blocks_dropped"][:] = float(
+                getattr(diagnostics, "blocks_dropped", 0)
+            )
+            self.metrics["online_bad_messages"][:] = float(
+                getattr(diagnostics, "bad_messages", 0)
+            )
 
     def _resample_command(self, env_ids: torch.Tensor) -> None:
         if len(env_ids) == 0:
@@ -266,9 +313,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self.robot.write_root_state_to_sim(root_state, env_ids=env_ids)
         self.robot.reset(env_ids=env_ids)
 
-    def _validate_replay_source_fps(self, env: ManagerBasedRlEnv) -> None:
-        if self.cfg.source_mode != "replay":
-            return
+    def _validate_source_fps(self, env: ManagerBasedRlEnv) -> None:
         fps = getattr(self.cfg.source, "fps", None)
         if fps is None:
             return

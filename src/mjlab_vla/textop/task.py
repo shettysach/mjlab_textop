@@ -77,9 +77,10 @@ def make_online_textop_g1_flat_tracking_env_cfg(
     return cfg
 
 
-def register_online_textop_replay_task(
+def register_online_textop_task(
     *,
     source: TextOpOnlineSource,
+    source_mode: TextOpOnlineSourceMode,
     future_steps: int = TEXTOP_FUTURE_STEPS,
     num_envs: int = 1,
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
@@ -87,12 +88,13 @@ def register_online_textop_replay_task(
     ),
     max_stale_steps: int = 25,
 ) -> str:
-    task_name = f"{ONLINE_TEXTOP_TASK_NAME}-Replay-{uuid4().hex}"
+    mode_name = source_mode.capitalize()
+    task_name = f"{ONLINE_TEXTOP_TASK_NAME}-{mode_name}-{uuid4().hex}"
     env_cfg = make_online_textop_g1_flat_tracking_env_cfg(
         play=True,
         future_steps=future_steps,
         source=source,
-        source_mode="replay",
+        source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         max_stale_steps=max_stale_steps,
     )
@@ -106,6 +108,26 @@ def register_online_textop_replay_task(
         runner_cls=MotionTrackingOnPolicyRunner,
     )
     return task_name
+
+
+def register_online_textop_replay_task(
+    *,
+    source: TextOpOnlineSource,
+    future_steps: int = TEXTOP_FUTURE_STEPS,
+    num_envs: int = 1,
+    anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
+        "align_to_robot_start"
+    ),
+    max_stale_steps: int = 25,
+) -> str:
+    return register_online_textop_task(
+        source=source,
+        source_mode="replay",
+        future_steps=future_steps,
+        num_envs=num_envs,
+        anchor_alignment=anchor_alignment,
+        max_stale_steps=max_stale_steps,
+    )
 
 
 # Match the current offline TextOp tracker convention - pelvis

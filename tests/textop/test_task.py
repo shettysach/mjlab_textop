@@ -13,6 +13,7 @@ from mjlab_vla.textop.task import (
     TEXTOP_TASK_NAME,
     ensure_textop_task_registered,
     register_online_textop_replay_task,
+    register_online_textop_task,
 )
 
 
@@ -67,6 +68,15 @@ def test_online_textop_replay_task_uses_replay_source_mode() -> None:
     env_cfg = load_env_cfg(task_name, play=True)
 
     assert env_cfg.commands["motion"].source_mode == "replay"
+
+
+def test_online_textop_live_task_uses_live_source_mode() -> None:
+    source = QueueTextOpOnlineSource([], fps=50.0)
+
+    task_name = register_online_textop_task(source=source, source_mode="live")
+    env_cfg = load_env_cfg(task_name, play=True)
+
+    assert env_cfg.commands["motion"].source_mode == "live"
 
 
 def test_online_textop_task_removes_full_body_tracking_terms() -> None:
