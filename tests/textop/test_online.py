@@ -405,13 +405,14 @@ def test_online_command_live_attaches_to_earliest_full_future_window() -> None:
             motion_block(index=103, frames=5),
         ]
     )
+    env = fake_env(robot_anchor_pos=(10.0, 20.0, 30.0))
     command = OnlineTextOpMotionCommand(
         OnlineTextOpMotionCommandCfg(
             source=source,
             source_mode="live",
             future_steps=5,
         ),
-        fake_env(),
+        env,
     )
 
     command._update_command()
@@ -419,6 +420,24 @@ def test_online_command_live_attaches_to_earliest_full_future_window() -> None:
     assert command._started is True
     assert command.current_frame == 100
     assert command._last_stale_steps == 0
+    robot = env.scene["robot"]
+    torch.testing.assert_close(
+        robot.written_joint_pos,
+        command.future_joint_pos[:, 0],
+    )
+    torch.testing.assert_close(
+        robot.written_joint_vel,
+        command.future_joint_vel[:, 0],
+    )
+    torch.testing.assert_close(
+        robot.written_root_state[:, :7],
+        torch.cat(
+            [command.future_anchor_pos_w[:, 0], command.future_anchor_quat_w[:, 0]],
+            dim=-1,
+        ),
+    )
+    torch.testing.assert_close(robot.written_root_state[:, 7:], torch.zeros(1, 6))
+    torch.testing.assert_close(robot.reset_env_ids, torch.tensor([0]))
 
 
 def test_online_command_live_reset_attaches_to_next_full_future_window() -> None:

@@ -227,6 +227,9 @@ class OnlineTextOpMotionCommand(CommandTerm):
             if start_frame is not None:
                 self.current_frame = start_frame
                 self._align_reference_anchor()
+                if self.cfg.reset_robot_to_reference:
+                    env_ids = torch.arange(self.num_envs, device=self.device)
+                    self._reset_robot_to_reference(env_ids)
                 self._started = True
                 return
 
@@ -310,7 +313,9 @@ class OnlineTextOpMotionCommand(CommandTerm):
         joint_pos = torch.clip(joint_pos, soft_limits[:, :, 0], soft_limits[:, :, 1])
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
 
-        root_pos = anchor_pos_w[0].repeat(len(env_ids), 1)
+        root_pos = (anchor_pos_w[0] + self._anchor_pos_offset_w).repeat(
+            len(env_ids), 1
+        )
         root_quat = anchor_quat_w[0].repeat(len(env_ids), 1)
         root_vel = torch.zeros(len(env_ids), 6, device=self.device, dtype=root_pos.dtype)
         root_state = torch.cat([root_pos, root_quat, root_vel], dim=-1)
