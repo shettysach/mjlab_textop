@@ -45,20 +45,7 @@ def future_anchor_pos_b(
     command_name: str = "motion",
 ) -> torch.Tensor:
     command = _get_textop_future_reference_command(env, command_name)
-
-    robot_anchor_pos_w = command.robot_anchor_pos_w[:, None, :].expand_as(
-        command.future_anchor_pos_w
-    )
-    robot_anchor_quat_w = command.robot_anchor_quat_w[:, None, :].expand_as(
-        command.future_anchor_quat_w
-    )
-
-    pos_b, _ = subtract_frame_transforms(
-        robot_anchor_pos_w,
-        robot_anchor_quat_w,
-        command.future_anchor_pos_w,
-        command.future_anchor_quat_w,
-    )
+    pos_b, _ = _future_anchor_pose_b(command)
 
     return pos_b.reshape(env.num_envs, -1)
 
@@ -68,23 +55,27 @@ def future_anchor_ori_b(
     command_name: str = "motion",
 ) -> torch.Tensor:
     command = _get_textop_future_reference_command(env, command_name)
+    _, ori_b = _future_anchor_pose_b(command)
 
+    mat = matrix_from_quat(ori_b)
+    return mat[..., :2].reshape(env.num_envs, -1)
+
+
+def _future_anchor_pose_b(
+    command: TextOpFutureReferenceCommand,
+) -> tuple[torch.Tensor, torch.Tensor]:
     robot_anchor_pos_w = command.robot_anchor_pos_w[:, None, :].expand_as(
         command.future_anchor_pos_w
     )
     robot_anchor_quat_w = command.robot_anchor_quat_w[:, None, :].expand_as(
         command.future_anchor_quat_w
     )
-
-    _, ori_b = subtract_frame_transforms(
+    return subtract_frame_transforms(
         robot_anchor_pos_w,
         robot_anchor_quat_w,
         command.future_anchor_pos_w,
         command.future_anchor_quat_w,
     )
-
-    mat = matrix_from_quat(ori_b)
-    return mat[..., :2].reshape(env.num_envs, -1)
 
 
 DEFAULT_ASSET_CFG = SceneEntityCfg("robot")

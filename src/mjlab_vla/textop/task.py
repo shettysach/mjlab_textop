@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Literal
+from uuid import uuid4
 
 from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
 from mjlab.tasks.registry import list_tasks, register_mjlab_task
@@ -69,6 +70,36 @@ def make_online_textop_g1_flat_tracking_env_cfg(
     _configure_online_textop_tracking_terms(cfg)
 
     return cfg
+
+
+def register_online_textop_replay_task(
+    *,
+    source: TextOpOnlineSource,
+    future_steps: int = TEXTOP_FUTURE_STEPS,
+    num_envs: int = 1,
+    anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
+        "align_to_robot_start"
+    ),
+    max_stale_steps: int = 25,
+) -> str:
+    task_name = f"{ONLINE_TEXTOP_TASK_NAME}-Replay-{uuid4().hex}"
+    env_cfg = make_online_textop_g1_flat_tracking_env_cfg(
+        play=True,
+        future_steps=future_steps,
+        source=source,
+        anchor_alignment=anchor_alignment,
+        max_stale_steps=max_stale_steps,
+    )
+    env_cfg.scene.num_envs = num_envs
+
+    register_mjlab_task(
+        task_id=task_name,
+        env_cfg=env_cfg,
+        play_env_cfg=env_cfg,
+        rl_cfg=unitree_g1_tracking_ppo_runner_cfg(),
+        runner_cls=MotionTrackingOnPolicyRunner,
+    )
+    return task_name
 
 
 # Match the current offline TextOp tracker convention - pelvis

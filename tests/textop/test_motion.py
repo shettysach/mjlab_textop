@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import torch
+from builders import write_mjlab_motion_npz
 from mjlab.tasks.tracking.mdp.commands import MotionLoader
 
 from mjlab_vla.textop.contract import (
@@ -12,6 +13,7 @@ from mjlab_vla.textop.contract import (
     TEXTOP_REQUIRED_INPUT_KEYS,
 )
 from mjlab_vla.textop.motion import (
+    load_mjlab_motion,
     load_textop_motion,
     reindex_textop_g1_joints_to_mjlab,
 )
@@ -293,3 +295,20 @@ def test_mjlab_motion_loader_accepts_normalized_npz(tmp_path):
 
     assert loader.joint_pos.shape == (2, 29)
     assert loader.body_pos_w.shape == (2, 3, 3)
+
+
+def test_load_mjlab_motion_accepts_normalized_npz(tmp_path):
+    motion_file = tmp_path / "motion.npz"
+    joint_pos, joint_vel, body_pos_w, body_quat_w = write_mjlab_motion_npz(
+        motion_file,
+        frames=2,
+        bodies=30,
+    )
+
+    motion = load_mjlab_motion(motion_file)
+
+    np.testing.assert_allclose(motion.joint_pos, joint_pos)
+    np.testing.assert_allclose(motion.joint_vel, joint_vel)
+    np.testing.assert_allclose(motion.body_pos_w, body_pos_w)
+    np.testing.assert_allclose(motion.body_quat_w, body_quat_w)
+    assert motion.num_frames == 2
