@@ -29,7 +29,8 @@ class TextOpOnlineSource(Protocol):
 
 class QueueTextOpOnlineSource:
     def __init__(self, blocks: list[TextOpMotionBlock] | None = None) -> None:
-        self._blocks: deque[TextOpMotionBlock] = deque(blocks or [])
+        self._initial_blocks = tuple(blocks or [])
+        self._blocks: deque[TextOpMotionBlock] = deque(self._initial_blocks)
 
     def append(self, block: TextOpMotionBlock) -> None:
         self._blocks.append(block)
@@ -38,3 +39,6 @@ class QueueTextOpOnlineSource:
         if not self._blocks:
             return None
         return self._blocks.popleft()
+
+    def reset(self) -> None:
+        self._blocks = deque(self._initial_blocks)

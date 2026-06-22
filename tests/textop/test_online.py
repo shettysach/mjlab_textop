@@ -245,6 +245,11 @@ def test_online_command_reset_clears_buffer_by_default() -> None:
     assert command.buffer.frame_count == 0
     assert command.current_frame == 0
 
+    command._update_command()
+
+    assert command.buffer.frame_count == 8
+    assert command.future_joint_pos.shape == (1, 5, 29)
+
 
 def test_use_online_textop_motion_command_preserves_injected_source() -> None:
     source = QueueTextOpOnlineSource([motion_block(frames=8)])

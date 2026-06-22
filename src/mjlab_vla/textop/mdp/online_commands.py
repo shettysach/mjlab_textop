@@ -136,6 +136,9 @@ class OnlineTextOpMotionCommand(CommandTerm):
             return
         if self.cfg.clear_buffer_on_reset:
             self.buffer.clear()
+            reset_source = getattr(self.cfg.source, "reset", None)
+            if callable(reset_source):
+                reset_source()
         self.current_frame = int(self.cfg.start_frame)
         self._started = False
         self._startup_wait_steps = 0
