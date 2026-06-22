@@ -139,7 +139,10 @@ def run_producer(args: argparse.Namespace) -> None:
         print(f"MJLab consumer connected from {addr}")
         with conn:
             frame_index = 0
+            next_send_time = time.monotonic()
+            block_count = 0
             while not prompt.stop:
+                block_start_time = time.monotonic()
                 with torch.no_grad():
                     text_embedding = encode_text(clip_model, [prompt.text]).float()
                     future_motion, motion_dict, abs_pose = generate_next_motion(
@@ -165,7 +168,21 @@ def run_producer(args: argparse.Namespace) -> None:
                     textop_block_to_ndjson_message(block, fps=args.fps).encode("utf-8")
                 )
                 frame_index += block.joint_pos.shape[0]
-                time.sleep(max(0.0, block.joint_pos.shape[0] / args.fps))
+                block_count += 1
+
+                block_duration = block.joint_pos.shape[0] / args.fps
+                next_send_time += block_duration
+                sleep_seconds = next_send_time - time.monotonic()
+                if args.log_every_blocks > 0 and block_count % args.log_every_blocks == 0:
+                    generation_ms = (time.monotonic() - block_start_time) * 1000.0
+                    lag_ms = max(0.0, -sleep_seconds * 1000.0)
+                    print(
+                        "stream "
+                        f"block={block_count} frame={frame_index} "
+                        f"prompt={prompt.text!r} gen_ms={generation_ms:.1f} "
+                        f"lag_ms={lag_ms:.1f}"
+                    )
+                time.sleep(max(0.0, sleep_seconds))
 
 
 def parse_args() -> argparse.Namespace:
@@ -181,6 +198,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fps", type=float, default=50.0)
     parser.add_argument("--guidance-scale", type=float, default=5.0)
     parser.add_argument("--prompt", default="stand")
+    parser.add_argument(
+        "--log-every-blocks",
+        type=int,
+        default=20,
+        help="Print producer timing every N streamed blocks. Use 0 to disable.",
+    )
     return parser.parse_args()
 
 
