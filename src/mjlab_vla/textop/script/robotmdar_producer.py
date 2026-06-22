@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import socket
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -50,6 +51,7 @@ MUJOCO_TO_ISAACLAB_REINDEX = (
 class PromptState:
     text: str = "stand"
     stop: bool = False
+    input_active: bool = False
 
 
 def expand_dof_23_to_29(value: np.ndarray) -> np.ndarray:
@@ -173,7 +175,11 @@ def run_producer(args: argparse.Namespace) -> None:
                 block_duration = block.joint_pos.shape[0] / args.fps
                 next_send_time += block_duration
                 sleep_seconds = next_send_time - time.monotonic()
-                if args.log_every_blocks > 0 and block_count % args.log_every_blocks == 0:
+                if (
+                    args.log_every_blocks > 0
+                    and block_count % args.log_every_blocks == 0
+                    and not prompt.input_active
+                ):
                     generation_ms = (time.monotonic() - block_start_time) * 1000.0
                     lag_ms = max(0.0, -sleep_seconds * 1000.0)
                     print(
@@ -181,6 +187,10 @@ def run_producer(args: argparse.Namespace) -> None:
                         f"block={block_count} frame={frame_index} "
                         f"prompt={prompt.text!r} gen_ms={generation_ms:.1f} "
                         f"lag_ms={lag_ms:.1f}"
+                        "\nEnter text prompt (or q to exit): ",
+                        file=sys.stderr,
+                        end="",
+                        flush=True,
                     )
                 time.sleep(max(0.0, sleep_seconds))
 
@@ -257,10 +267,13 @@ def _register_hydra_resolvers(OmegaConf) -> None:
 def _prompt_loop(prompt: PromptState) -> None:
     while not prompt.stop:
         try:
+            prompt.input_active = True
             text = input("Enter text prompt (or q to exit): ").strip()
         except (EOFError, KeyboardInterrupt):
             prompt.stop = True
             return
+        finally:
+            prompt.input_active = False
         if text.lower() in {"q", "quit", "exit"}:
             prompt.stop = True
         elif text:
