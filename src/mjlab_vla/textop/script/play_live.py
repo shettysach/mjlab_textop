@@ -9,6 +9,10 @@ from mjlab.scripts.play import PlayConfig, run_play
 
 from mjlab_vla.textop.contract import TEXTOP_FUTURE_STEPS
 from mjlab_vla.textop.online.live import SocketTextOpOnlineSource, SocketTextOpSourceCfg
+from mjlab_vla.textop.online.live_registry import (
+    register_live_textop_source,
+    unregister_live_textop_source,
+)
 from mjlab_vla.textop.task import (
     ensure_textop_task_registered,
     register_online_textop_task,
@@ -47,9 +51,10 @@ def play_live_textop_motion(
         )
     )
     source.start()
+    source_key = register_live_textop_source(source)
     try:
         task_name = register_online_textop_task(
-            source=source,
+            source_key=source_key,
             source_mode="live",
             future_steps=cfg.future_steps,
             num_envs=cfg.num_envs,
@@ -66,4 +71,5 @@ def play_live_textop_motion(
         )
         run_play(task_name, play_cfg)
     finally:
+        unregister_live_textop_source(source_key)
         source.close()

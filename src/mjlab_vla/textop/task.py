@@ -52,6 +52,7 @@ def make_online_textop_g1_flat_tracking_env_cfg(
     play: bool = True,
     future_steps: int = TEXTOP_FUTURE_STEPS,
     source: TextOpOnlineSource | None = None,
+    source_key: str | None = None,
     source_mode: TextOpOnlineSourceMode = "live",
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
@@ -65,6 +66,7 @@ def make_online_textop_g1_flat_tracking_env_cfg(
         command_name="motion",
         future_steps=future_steps,
         source=source,
+        source_key=source_key,
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         max_stale_steps=max_stale_steps,
@@ -79,7 +81,8 @@ def make_online_textop_g1_flat_tracking_env_cfg(
 
 def register_online_textop_task(
     *,
-    source: TextOpOnlineSource,
+    source: TextOpOnlineSource | None = None,
+    source_key: str | None = None,
     source_mode: TextOpOnlineSourceMode,
     future_steps: int = TEXTOP_FUTURE_STEPS,
     num_envs: int = 1,
@@ -94,6 +97,7 @@ def register_online_textop_task(
         play=True,
         future_steps=future_steps,
         source=source,
+        source_key=source_key,
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         max_stale_steps=max_stale_steps,
