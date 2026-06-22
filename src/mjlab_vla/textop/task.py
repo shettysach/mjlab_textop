@@ -18,7 +18,10 @@ from mjlab_vla.textop.mdp.observations import (
     projected_gravity,
 )
 from mjlab_vla.textop.mdp.offline_commands import use_textop_motion_command
-from mjlab_vla.textop.mdp.online_commands import use_online_textop_motion_command
+from mjlab_vla.textop.mdp.online_commands import (
+    TextOpOnlineSourceMode,
+    use_online_textop_motion_command,
+)
 from mjlab_vla.textop.online.source import TextOpOnlineSource
 
 TEXTOP_TASK_NAME = "Mjlab-TextOp-Flat-Unitree-G1"
@@ -49,6 +52,7 @@ def make_online_textop_g1_flat_tracking_env_cfg(
     play: bool = True,
     future_steps: int = TEXTOP_FUTURE_STEPS,
     source: TextOpOnlineSource | None = None,
+    source_mode: TextOpOnlineSourceMode = "live",
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     ),
@@ -61,6 +65,7 @@ def make_online_textop_g1_flat_tracking_env_cfg(
         command_name="motion",
         future_steps=future_steps,
         source=source,
+        source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         max_stale_steps=max_stale_steps,
     )
@@ -87,6 +92,7 @@ def register_online_textop_replay_task(
         play=True,
         future_steps=future_steps,
         source=source,
+        source_mode="replay",
         anchor_alignment=anchor_alignment,
         max_stale_steps=max_stale_steps,
     )

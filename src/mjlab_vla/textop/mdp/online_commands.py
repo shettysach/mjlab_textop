@@ -13,8 +13,11 @@ from mjlab_vla.textop.online.buffer import (
 )
 from mjlab_vla.textop.online.source import (
     QueueTextOpOnlineSource,
+    ResettableTextOpOnlineSource,
     TextOpOnlineSource,
 )
+
+TextOpOnlineSourceMode = Literal["replay", "live"]
 
 
 @dataclass(kw_only=True)
@@ -24,6 +27,7 @@ class OnlineTextOpMotionCommandCfg(CommandTermCfg):
     anchor_body_name: str = "pelvis"
     future_steps: int = TEXTOP_FUTURE_STEPS
     source: TextOpOnlineSource = field(default_factory=QueueTextOpOnlineSource)
+    source_mode: TextOpOnlineSourceMode = "live"
     start_frame: int = 0
     startup_timeout_steps: int = 250
     max_stale_steps: int = 25
@@ -37,6 +41,13 @@ class OnlineTextOpMotionCommandCfg(CommandTermCfg):
     def __post_init__(self) -> None:
         if self.future_steps <= 0:
             raise ValueError(f"future_steps must be positive, got {self.future_steps}")
+        if self.source_mode not in ("replay", "live"):
+            raise ValueError(f"Unknown source_mode: {self.source_mode}")
+        if self.source_mode == "replay" and not isinstance(
+            self.source,
+            ResettableTextOpOnlineSource,
+        ):
+            raise TypeError("Replay online source must implement reset()")
 
     def build(self, env: ManagerBasedRlEnv) -> OnlineTextOpMotionCommand:
         return OnlineTextOpMotionCommand(self, env)
@@ -136,9 +147,9 @@ class OnlineTextOpMotionCommand(CommandTerm):
             return
         if self.cfg.clear_buffer_on_reset:
             self.buffer.clear()
-            reset_source = getattr(self.cfg.source, "reset", None)
-            if callable(reset_source):
-                reset_source()
+            if self.cfg.source_mode == "replay":
+                assert isinstance(self.cfg.source, ResettableTextOpOnlineSource)
+                self.cfg.source.reset()
         self.current_frame = int(self.cfg.start_frame)
         self._started = False
         self._startup_wait_steps = 0
@@ -228,6 +239,7 @@ def use_online_textop_motion_command(
     command_name: str = "motion",
     future_steps: int = TEXTOP_FUTURE_STEPS,
     source: TextOpOnlineSource | None = None,
+    source_mode: TextOpOnlineSourceMode = "live",
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     ),
@@ -243,6 +255,7 @@ def use_online_textop_motion_command(
         anchor_body_name=anchor_body_name,
         future_steps=future_steps,
         source=source,
+        source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         max_stale_steps=max_stale_steps,
     )

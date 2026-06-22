@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+import numpy as np
 from mjlab.tasks.registry import list_tasks, load_env_cfg, load_runner_cls
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
 from mjlab_vla.textop.contract import TEXTOP_FUTURE_STEPS
 from mjlab_vla.textop.mdp.offline_commands import TextOpMotionCommandCfg
 from mjlab_vla.textop.mdp.online_commands import OnlineTextOpMotionCommandCfg
+from mjlab_vla.textop.online.source import QueueTextOpOnlineSource, TextOpMotionBlock
 from mjlab_vla.textop.task import (
     ONLINE_TEXTOP_TASK_NAME,
     TEXTOP_TASK_NAME,
     ensure_textop_task_registered,
+    register_online_textop_replay_task,
 )
 
 
@@ -41,6 +44,29 @@ def test_online_textop_task_uses_online_motion_command() -> None:
     assert isinstance(motion_cmd, OnlineTextOpMotionCommandCfg)
     assert motion_cmd.future_steps == TEXTOP_FUTURE_STEPS
     assert motion_cmd.anchor_body_name == "pelvis"
+    assert motion_cmd.source_mode == "live"
+
+
+def test_online_textop_replay_task_uses_replay_source_mode() -> None:
+    source = QueueTextOpOnlineSource(
+        [
+            TextOpMotionBlock(
+                index=0,
+                joint_pos=np.zeros((5, 29), dtype=np.float32),
+                joint_vel=np.zeros((5, 29), dtype=np.float32),
+                anchor_pos_w=np.zeros((5, 3), dtype=np.float32),
+                anchor_quat_w=np.tile(
+                    np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32),
+                    (5, 1),
+                ),
+            )
+        ]
+    )
+
+    task_name = register_online_textop_replay_task(source=source)
+    env_cfg = load_env_cfg(task_name, play=True)
+
+    assert env_cfg.commands["motion"].source_mode == "replay"
 
 
 def test_online_textop_task_removes_full_body_tracking_terms() -> None:

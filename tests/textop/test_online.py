@@ -23,6 +23,16 @@ from mjlab_vla.textop.online.replay import (
 )
 
 
+class _LiveTextOpOnlineSource:
+    def __init__(self, blocks: list[TextOpMotionBlock]) -> None:
+        self.blocks = list(blocks)
+
+    def poll(self) -> TextOpMotionBlock | None:
+        if not self.blocks:
+            return None
+        return self.blocks.pop(0)
+
+
 def test_rolling_buffer_reindexes_and_slices_first_five_frames() -> None:
     block = motion_block(frames=8)
     buffer = TextOpRollingMotionBuffer()
@@ -230,10 +240,22 @@ def test_online_command_rejects_too_many_consecutive_stale_windows() -> None:
         _ = command.future_joint_pos
 
 
-def test_online_command_reset_clears_buffer_by_default() -> None:
+def test_online_command_rejects_replay_source_without_reset() -> None:
+    with pytest.raises(TypeError, match="implement reset"):
+        OnlineTextOpMotionCommandCfg(
+            source=_LiveTextOpOnlineSource([motion_block(frames=8)]),
+            source_mode="replay",
+        )
+
+
+def test_online_command_replay_reset_rewinds_source() -> None:
     source = QueueTextOpOnlineSource([motion_block(frames=8)])
     command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(source=source, future_steps=5),
+        OnlineTextOpMotionCommandCfg(
+            source=source,
+            source_mode="replay",
+            future_steps=5,
+        ),
         fake_env(),
     )
     command._update_command()
@@ -251,6 +273,29 @@ def test_online_command_reset_clears_buffer_by_default() -> None:
     assert command.future_joint_pos.shape == (1, 5, 29)
 
 
+def test_online_command_live_reset_does_not_rewind_source() -> None:
+    source = _LiveTextOpOnlineSource([motion_block(frames=8)])
+    command = OnlineTextOpMotionCommand(
+        OnlineTextOpMotionCommandCfg(
+            source=source,
+            source_mode="live",
+            future_steps=5,
+            startup_timeout_steps=1,
+        ),
+        fake_env(),
+    )
+    command._update_command()
+
+    assert command.buffer.frame_count == 8
+
+    command._resample_command(torch.tensor([0]))
+
+    assert command.buffer.frame_count == 0
+    command._update_command()
+    with pytest.raises(RuntimeError, match="did not receive enough contiguous"):
+        command._update_command()
+
+
 def test_use_online_textop_motion_command_preserves_injected_source() -> None:
     source = QueueTextOpOnlineSource([motion_block(frames=8)])
     env_cfg = SimpleNamespace(
@@ -262,3 +307,4 @@ def test_use_online_textop_motion_command_preserves_injected_source() -> None:
     use_online_textop_motion_command(env_cfg, source=source)
 
     assert env_cfg.commands["motion"].source is source
+    assert env_cfg.commands["motion"].source_mode == "live"

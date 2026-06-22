@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 import numpy as np
 
@@ -25,6 +25,12 @@ class TextOpMotionBlock:
 class TextOpOnlineSource(Protocol):
     def poll(self) -> TextOpMotionBlock | None:
         """Return the next available block, or None when no block is ready."""
+
+
+@runtime_checkable
+class ResettableTextOpOnlineSource(TextOpOnlineSource, Protocol):
+    def reset(self) -> None:
+        """Reset a finite source to its initial frame."""
 
 
 class QueueTextOpOnlineSource:
