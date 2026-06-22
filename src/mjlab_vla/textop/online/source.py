@@ -34,9 +34,15 @@ class ResettableTextOpOnlineSource(TextOpOnlineSource, Protocol):
 
 
 class QueueTextOpOnlineSource:
-    def __init__(self, blocks: list[TextOpMotionBlock] | None = None) -> None:
+    def __init__(
+        self,
+        blocks: list[TextOpMotionBlock] | None = None,
+        *,
+        fps: float | None = None,
+    ) -> None:
         self._initial_blocks = tuple(blocks or [])
         self._blocks: deque[TextOpMotionBlock] = deque(self._initial_blocks)
+        self.fps = fps
 
     def append(self, block: TextOpMotionBlock) -> None:
         self._blocks.append(block)

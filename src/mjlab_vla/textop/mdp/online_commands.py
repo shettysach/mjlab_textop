@@ -34,6 +34,7 @@ class OnlineTextOpMotionCommandCfg(CommandTermCfg):
     max_poll_blocks: int = 16
     max_buffer_frames: int | None = 512
     clear_buffer_on_reset: bool = True
+    reset_robot_to_reference: bool = True
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     )
@@ -66,6 +67,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
             raise ValueError(
                 f"start_frame must be non-negative, got {self.cfg.start_frame}"
             )
+        self._validate_replay_source_fps(env)
 
         self.robot = env.scene[cfg.entity_name]
         self.robot_anchor_body_index = self.robot.body_names.index(cfg.anchor_body_name)
@@ -150,6 +152,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
             if self.cfg.source_mode == "replay":
                 assert isinstance(self.cfg.source, ResettableTextOpOnlineSource)
                 self.cfg.source.reset()
+                self._poll_source()
         self.current_frame = int(self.cfg.start_frame)
         self._started = False
         self._startup_wait_steps = 0
@@ -157,6 +160,13 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._consecutive_stale_steps = 0
         self._last_stale_frame = None
         self._anchor_pos_offset_w.zero_()
+        if self.cfg.source_mode == "replay" and self.buffer.can_start(
+            self.current_frame,
+            self.cfg.future_steps,
+        ):
+            if self.cfg.reset_robot_to_reference:
+                self._reset_robot_to_reference(env_ids)
+            self._started = True
 
     def _update_command(self) -> None:
         self._poll_source()
@@ -231,6 +241,37 @@ class OnlineTextOpMotionCommand(CommandTerm):
 
         _, _, anchor_pos_w, _, _ = self.buffer.get_future(self.current_frame, 1)
         self._anchor_pos_offset_w = self.robot_anchor_pos_w[0] - anchor_pos_w[0]
+
+    def _reset_robot_to_reference(self, env_ids: torch.Tensor) -> None:
+        joint_pos, joint_vel, anchor_pos_w, anchor_quat_w, _ = self.buffer.get_future(
+            self.current_frame,
+            1,
+        )
+        joint_pos = joint_pos[0].repeat(len(env_ids), 1)
+        joint_vel = joint_vel[0].repeat(len(env_ids), 1)
+        soft_limits = self.robot.data.soft_joint_pos_limits[env_ids]
+        joint_pos = torch.clip(joint_pos, soft_limits[:, :, 0], soft_limits[:, :, 1])
+        self.robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+
+        root_pos = anchor_pos_w[0].repeat(len(env_ids), 1)
+        root_quat = anchor_quat_w[0].repeat(len(env_ids), 1)
+        root_vel = torch.zeros(len(env_ids), 6, device=self.device, dtype=root_pos.dtype)
+        root_state = torch.cat([root_pos, root_quat, root_vel], dim=-1)
+        self.robot.write_root_state_to_sim(root_state, env_ids=env_ids)
+        self.robot.reset(env_ids=env_ids)
+
+    def _validate_replay_source_fps(self, env: ManagerBasedRlEnv) -> None:
+        if self.cfg.source_mode != "replay":
+            return
+        fps = getattr(self.cfg.source, "fps", None)
+        if fps is None:
+            return
+        expected_fps = 1.0 / float(env.step_dt)
+        if abs(float(fps) - expected_fps) > 1.0e-4:
+            raise ValueError(
+                "Replay TextOp source FPS must match env control rate: "
+                f"{float(fps):g} != {expected_fps:g}"
+            )
 
 
 def use_online_textop_motion_command(

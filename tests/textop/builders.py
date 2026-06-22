@@ -38,6 +38,7 @@ def motion_block(
 def fake_env(
     num_envs: int = 1,
     robot_anchor_pos: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    step_dt: float = 0.02,
 ):
     body_pos = torch.tensor([[robot_anchor_pos]], dtype=torch.float32).repeat(
         num_envs, 1, 1
@@ -49,16 +50,37 @@ def fake_env(
             body_link_quat_w=torch.tensor([[[1.0, 0.0, 0.0, 0.0]]]).repeat(
                 num_envs, 1, 1
             ),
+            soft_joint_pos_limits=torch.tensor(
+                [[[-float("inf"), float("inf")]]], dtype=torch.float32
+            ).repeat(num_envs, 29, 1),
         ),
     )
+
+    def write_joint_state_to_sim(joint_pos, joint_vel, *, env_ids):
+        robot.written_joint_pos = joint_pos
+        robot.written_joint_vel = joint_vel
+        robot.written_joint_env_ids = env_ids
+
+    def write_root_state_to_sim(root_state, *, env_ids):
+        robot.written_root_state = root_state
+        robot.written_root_env_ids = env_ids
+
+    def reset(env_ids):
+        robot.reset_env_ids = env_ids
+
+    robot.write_joint_state_to_sim = write_joint_state_to_sim
+    robot.write_root_state_to_sim = write_root_state_to_sim
+    robot.reset = reset
+
     return SimpleNamespace(
         num_envs=num_envs,
         device="cpu",
+        step_dt=step_dt,
         scene={"robot": robot},
     )
 
 
-def write_mjlab_motion_npz(path, frames: int = 10, bodies: int = 1):
+def write_mjlab_motion_npz(path, frames: int = 10, bodies: int = 1, fps: float = 50.0):
     joint_pos = np.arange(frames * 29, dtype=np.float32).reshape(frames, 29)
     joint_vel = joint_pos + 1000.0
     body_pos_w = np.zeros((frames, bodies, 3), dtype=np.float32)
@@ -71,5 +93,6 @@ def write_mjlab_motion_npz(path, frames: int = 10, bodies: int = 1):
         joint_vel=joint_vel,
         body_pos_w=body_pos_w,
         body_quat_w=body_quat_w,
+        fps=np.array([fps], dtype=np.float32),
     )
     return joint_pos, joint_vel, body_pos_w, body_quat_w

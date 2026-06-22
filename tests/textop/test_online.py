@@ -142,6 +142,7 @@ def test_mjlab_npz_replay_source_chunks_and_round_trips_joint_order(tmp_path) ->
     joint_pos, _, _, _ = write_mjlab_motion_npz(path, frames=10)
 
     source = make_mjlab_npz_replay_source(path, block_size=8)
+    assert source.fps == 50.0
     buffer = TextOpRollingMotionBuffer()
     while (block := source.poll()) is not None:
         buffer.append_block(block)
@@ -248,15 +249,30 @@ def test_online_command_rejects_replay_source_without_reset() -> None:
         )
 
 
+def test_online_command_rejects_replay_source_fps_mismatch() -> None:
+    source = QueueTextOpOnlineSource([motion_block(frames=8)], fps=25.0)
+
+    with pytest.raises(ValueError, match="FPS must match env control rate"):
+        OnlineTextOpMotionCommand(
+            OnlineTextOpMotionCommandCfg(
+                source=source,
+                source_mode="replay",
+                future_steps=5,
+            ),
+            fake_env(step_dt=0.02),
+        )
+
+
 def test_online_command_replay_reset_rewinds_source() -> None:
     source = QueueTextOpOnlineSource([motion_block(frames=8)])
+    env = fake_env()
     command = OnlineTextOpMotionCommand(
         OnlineTextOpMotionCommandCfg(
             source=source,
             source_mode="replay",
             future_steps=5,
         ),
-        fake_env(),
+        env,
     )
     command._update_command()
 
@@ -264,13 +280,25 @@ def test_online_command_replay_reset_rewinds_source() -> None:
 
     command._resample_command(torch.tensor([0]))
 
-    assert command.buffer.frame_count == 0
-    assert command.current_frame == 0
-
-    command._update_command()
-
     assert command.buffer.frame_count == 8
+    assert command.current_frame == 0
+    assert command._started is True
     assert command.future_joint_pos.shape == (1, 5, 29)
+    robot = env.scene["robot"]
+    torch.testing.assert_close(
+        robot.written_joint_pos,
+        command.future_joint_pos[:, 0],
+    )
+    torch.testing.assert_close(
+        robot.written_joint_vel,
+        command.future_joint_vel[:, 0],
+    )
+    torch.testing.assert_close(
+        robot.written_root_state[:, :7],
+        torch.cat([command.future_anchor_pos_w[:, 0], command.future_anchor_quat_w[:, 0]], dim=-1),
+    )
+    torch.testing.assert_close(robot.written_root_state[:, 7:], torch.zeros(1, 6))
+    torch.testing.assert_close(robot.reset_env_ids, torch.tensor([0]))
 
 
 def test_online_command_live_reset_does_not_rewind_source() -> None:
