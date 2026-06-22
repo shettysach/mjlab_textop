@@ -13,10 +13,12 @@ from mjlab_vla.textop.mdp.online_commands import (
     OnlineTextOpMotionCommandCfg,
     use_online_textop_motion_command,
 )
-from mjlab_vla.textop.online import (
-    QueueTextOpOnlineSource,
+from mjlab_vla.textop.online.buffer import (
     TextOpMotionBlock,
     TextOpRollingMotionBuffer,
+)
+from mjlab_vla.textop.online.replay import (
+    QueueTextOpOnlineSource,
     make_mjlab_npz_replay_source,
 )
 
@@ -26,8 +28,8 @@ def test_rolling_buffer_reindexes_and_slices_first_five_frames() -> None:
     buffer = TextOpRollingMotionBuffer()
 
     buffer.append_block(block)
-    joint_pos, joint_vel, anchor_pos_w, anchor_quat_w, stale_steps = (
-        buffer.get_future(0, 5)
+    joint_pos, joint_vel, anchor_pos_w, anchor_quat_w, stale_steps = buffer.get_future(
+        0, 5
     )
 
     assert stale_steps == 0

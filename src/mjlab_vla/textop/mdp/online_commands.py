@@ -8,10 +8,12 @@ from mjlab.envs import ManagerBasedRlEnv
 from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
 
 from mjlab_vla.textop.contract import TEXTOP_FUTURE_STEPS
-from mjlab_vla.textop.online import (
+from mjlab_vla.textop.online.buffer import (
+    TextOpRollingMotionBuffer,
+)
+from mjlab_vla.textop.online.source import (
     QueueTextOpOnlineSource,
     TextOpOnlineSource,
-    TextOpRollingMotionBuffer,
 )
 
 
@@ -220,15 +222,13 @@ def use_online_textop_motion_command(
     motion_cfg = env_cfg.commands[command_name]
     entity_name = getattr(motion_cfg, "entity_name", "robot")
     anchor_body_name = getattr(motion_cfg, "anchor_body_name", "pelvis")
-    kwargs = {}
-    if source is not None:
-        kwargs["source"] = source
+    source = source if source is not None else QueueTextOpOnlineSource()
 
     env_cfg.commands[command_name] = OnlineTextOpMotionCommandCfg(
         entity_name=entity_name,
         anchor_body_name=anchor_body_name,
         future_steps=future_steps,
+        source=source,
         anchor_alignment=anchor_alignment,
         max_stale_steps=max_stale_steps,
-        **kwargs,
     )

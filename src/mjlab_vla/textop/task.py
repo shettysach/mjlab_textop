@@ -19,7 +19,7 @@ from mjlab_vla.textop.mdp.observations import (
 )
 from mjlab_vla.textop.mdp.offline_commands import use_textop_motion_command
 from mjlab_vla.textop.mdp.online_commands import use_online_textop_motion_command
-from mjlab_vla.textop.online import TextOpOnlineSource
+from mjlab_vla.textop.online.source import TextOpOnlineSource
 
 TEXTOP_TASK_NAME = "Mjlab-TextOp-Flat-Unitree-G1"
 ONLINE_TEXTOP_TASK_NAME = "Mjlab-OnlineTextOp-Flat-Unitree-G1"

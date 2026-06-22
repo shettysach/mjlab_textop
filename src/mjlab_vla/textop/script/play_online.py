@@ -8,7 +8,7 @@ import tyro
 from mjlab.scripts.play import PlayConfig, run_play
 
 from mjlab_vla.textop.contract import TEXTOP_FUTURE_STEPS
-from mjlab_vla.textop.online import make_mjlab_npz_replay_source
+from mjlab_vla.textop.online.replay import make_mjlab_npz_replay_source
 from mjlab_vla.textop.task import (
     ensure_textop_task_registered,
     register_online_textop_replay_task,
