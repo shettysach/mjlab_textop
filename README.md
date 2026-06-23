@@ -54,37 +54,27 @@ CPU and CUDA torch indexes during lock resolution.
 
 ## Commands
 
-For low-level TextOp tracker motions, download the TextOp NPZ explicitly:
+### `normalize`
+
+Download a TextOp tracker NPZ and convert it into MJLab's native tracking format:
 
 ```bash
 uvx hf download Yochish/TextOp-Data \
   --repo-type dataset \
   --include 'TextOpTracker/artifacts/Data10k-open/homejrhangmr_dataset_pbhc_contact_maskACCADFemale1Walking_c3dB3-walk1_posespkl/motion.npz' \
   --local-dir /tmp/textop-data
-```
 
-Then normalize the TextOp NPZ into MJLab's native tracking format:
-
-```bash
-uv run --extra cu128 mjlab-textop normalize
-```
-
-Then use the registered TextOp-flavored MJLab task:
-
-```bash
-uv run --extra cpu play Mjlab-TextOp-Flat-Unitree-G1 \
-  --agent zero \
-  --motion-file /tmp/textop_walk_mjlab.npz \
-  --num-envs 1 \
-  --no-terminations True
+uv run --extra cu128 mjlab-textop normalize \
+  --motion-file /tmp/textop-data/TextOpTracker/artifacts/Data10k-open/homejrhangmr_dataset_pbhc_contact_maskACCADFemale1Walking_c3dB3-walk1_posespkl/motion.npz
 ```
 
 The normalizer expects TextOp's canonical tracker NPZ fields. It reorders
 TextOp IsaacLab G1 joints into MJLab/MuJoCo order and replays root plus joints
 through MJLab so body references are written in MJLab's own body order.
 
-For the downloaded and normalized TextOp walking motion on a GPU machine, use
-MJLab's native training command with the registered TextOp task:
+### `train`
+
+Train the TextOp tracking task on the normalized motion:
 
 ```bash
 uv run --extra cu128 train Mjlab-TextOp-Flat-Unitree-G1 \
@@ -95,18 +85,7 @@ uv run --extra cu128 train Mjlab-TextOp-Flat-Unitree-G1 \
   --agent.run-name walk_scratch
 ```
 
-Useful overrides:
-
-```bash
-uv run --extra cu128 train Mjlab-TextOp-Flat-Unitree-G1 \
-  --env.commands.motion.motion-file /tmp/textop_walk_mjlab.npz \
-  --env.scene.num-envs 8192 \
-  --agent.max-iterations 30000 \
-  --agent.experiment-name textop_tracking \
-  --agent.run-name walk_scratch_long
-```
-
-To finetune from a previous MJLab run:
+To finetune from a previous run:
 
 ```bash
 uv run --extra cu128 train Mjlab-TextOp-Flat-Unitree-G1 \
@@ -118,7 +97,9 @@ uv run --extra cu128 train Mjlab-TextOp-Flat-Unitree-G1 \
   --agent.run-name walk_finetune
 ```
 
-To view a trained MJLab checkpoint, use MJLab's native play command:
+### `play`
+
+View a trained checkpoint with the native MJLab viewer:
 
 ```bash
 uv run --extra cu128 play Mjlab-TextOp-Flat-Unitree-G1 \
@@ -126,7 +107,9 @@ uv run --extra cu128 play Mjlab-TextOp-Flat-Unitree-G1 \
   --motion-file /tmp/textop_walk_mjlab.npz
 ```
 
-To replay the normalized motion through the online TextOp path:
+### `play-online`
+
+Replay the normalized motion through the online TextOp reference buffer:
 
 ```bash
 uv run --extra cu128 mjlab-textop play-online \
@@ -134,14 +117,37 @@ uv run --extra cu128 mjlab-textop play-online \
   --normalized-motion-file /tmp/textop_walk_mjlab.npz
 ```
 
-To run a live text-to-motion simulation demo without ROS2, use two terminals.
-The RobotMDAR producer should run in the TextOp/RobotMDAR Python environment:
+### `play-live`
+
+Run a live text-to-motion demo over localhost NDJSON. Start the RobotMDAR
+producer in the TextOp/RobotMDAR Python environment:
+
+#### Setup
 
 ```bash
-mjlab-textop-robotmdar \
-  --ckpt /path/to/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
-  --datadir /path/to/TextOpRobotMDAR/dataset/BABEL-AMASS-ROBOT-23dof-FULL-50fps \
-  --skeleton-asset-root /path/to/TextOpRobotMDAR/description/robots/g1
+cd ../ # Don't clone within the mjlab_textop repo
+git clone https://github.com/TeleHuman/TextOp.git
+cd TextOp
+
+uv sync --python 3.10
+uv pip install -e ./deps/isaac_utils
+uv pip install git+https://github.com/openai/CLIP.git
+uv pip install ./TextOpRobotMDAR
+
+# Download the checkpoint files
+uvx hf download Yochish/TextOp-Data \
+  --repo-type dataset \
+  --local-dir /tmp/textop-data \
+  --include 'TextOpRobotMDAR/logs/**' \
+  --include 'TextOpRobotMDAR/dataset/**' \
+  --include 'TextOpRobotMDAR/description/**'
+
+uv run --extra cu128mjlab-textop-robotmdar \
+  --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
+  --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/BABEL-AMASS-ROBOT-23dof-FULL-50fps \
+  --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1
+
+export PYTHONPATH="../mjlab_textop/src:$PYTHONPATH"
 ```
 
 Then run MJLab in this repo's environment:
@@ -157,7 +163,9 @@ The live producer sends 50 Hz-indexed motion chunks. MJLab consumes them at the
 online command rate, clamps stale future frames during underruns, and reports
 online buffer/source diagnostics through command metrics.
 
-To run a headless local evaluation against the normalized TextOp motion:
+### `eval`
+
+Run a headless evaluation against the normalized motion:
 
 ```bash
 uv run --extra cu128 mjlab-textop eval \
@@ -168,11 +176,3 @@ uv run --extra cu128 mjlab-textop eval \
 
 Evaluation reuses MJLab's tracking metrics: success rate, global MPKPE,
 root-relative MPKPE, joint velocity error, and end-effector pose errors.
-
-To normalize a different downloaded TextOp motion:
-
-```bash
-uv run --extra cu128 mjlab-textop normalize \
-  --motion-rel path/inside/textop-data/motion.npz \
-  --normalized-motion-file /tmp/other_textop_mjlab.npz
-```

@@ -50,11 +50,7 @@ def verify_path(path: str, label: str) -> Path:
 def run_textop_motion(cfg: TextOpCommand) -> None:
     match cfg:
         case NormalizeCommand():
-            input_path = resolve_path(cfg.data_dir) / cfg.motion_rel
-            input_file = verify_resolved(
-                input_path,
-                "TextOp motion file",
-            )
+            input_file = verify_path(cfg.motion_file, "TextOp motion file")
             output_file = resolve_path(cfg.normalized_motion_file)
             normalize_textop_npz(input_file, output_file, device=cfg.device)
             return

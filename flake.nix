@@ -1,5 +1,5 @@
 {
-  description = "Python development shell with uv and ty";
+  description = "Local CPU dev env";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

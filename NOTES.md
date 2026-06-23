@@ -1,2 +1,0 @@
-- TextOpTracker is built on BeyondMimic 
-- TextOpRobotMDAR is based on DART adapted for robot configs

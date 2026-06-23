@@ -73,7 +73,10 @@ def run_producer(args: argparse.Namespace) -> None:
     future_len = int(cfg.data.future_len)
     history_len = int(cfg.data.history_len)
     history_motion = val_data.normalize(
-        runtime.get_zero_feature().to(args.device).reshape(1, 1, -1).repeat(
+        runtime.get_zero_feature()
+        .to(args.device)
+        .reshape(1, 1, -1)
+        .repeat(
             1,
             history_len,
             1,
