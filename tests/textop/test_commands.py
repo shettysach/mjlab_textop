@@ -6,7 +6,7 @@ import pytest
 import torch
 from mjlab.tasks.tracking.mdp.commands import MotionCommand, MotionCommandCfg
 
-from mjlab_vla.textop.mdp.offline_commands import (
+from mjlab_textop.core.mdp.offline_commands import (
     TextOpMotionCommand,
     TextOpMotionCommandCfg,
     make_future_time_steps,
@@ -44,7 +44,7 @@ def test_textop_motion_command_cfg_rejects_invalid_future_steps() -> None:
 
 
 def test_online_textop_motion_command_cfg_rejects_invalid_future_steps() -> None:
-    from mjlab_vla.textop.mdp.online_commands import OnlineTextOpMotionCommandCfg
+    from mjlab_textop.core.mdp.online_commands import OnlineTextOpMotionCommandCfg
 
     with pytest.raises(ValueError, match="future_steps must be positive"):
         OnlineTextOpMotionCommandCfg(

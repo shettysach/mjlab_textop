@@ -7,17 +7,17 @@ import pytest
 import torch
 from builders import fake_env, motion_block, write_mjlab_motion_npz
 
-from mjlab_vla.textop.contract import TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
-from mjlab_vla.textop.mdp.online_commands import (
+from mjlab_textop.core.contract import TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
+from mjlab_textop.core.mdp.online_commands import (
     OnlineTextOpMotionCommand,
     OnlineTextOpMotionCommandCfg,
     use_online_textop_motion_command,
 )
-from mjlab_vla.textop.online.buffer import (
+from mjlab_textop.core.online.buffer import (
     TextOpMotionBlock,
     TextOpRollingMotionBuffer,
 )
-from mjlab_vla.textop.online.replay import (
+from mjlab_textop.core.online.replay import (
     QueueTextOpOnlineSource,
     make_mjlab_npz_replay_source,
 )

@@ -3,7 +3,7 @@ from __future__ import annotations
 from threading import Lock
 from uuid import uuid4
 
-from mjlab_vla.textop.online.source import TextOpOnlineSource
+from mjlab_textop.core.online.source import TextOpOnlineSource
 
 _LIVE_SOURCES: dict[str, TextOpOnlineSource] = {}
 _LOCK = Lock()

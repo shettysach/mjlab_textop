@@ -3,7 +3,7 @@ requires = ["uv_build>=0.8.19,<0.9.0"]
 build-backend = "uv_build"
 
 [project]
-name = "mjlab-vla"
+name = "mjlab-textop"
 version = "0.1.0"
 description = "TextOp motion normalization utilities for MJLab"
 readme = "README.md"
@@ -18,11 +18,11 @@ cpu = ["mjlab", "torch>=2.7.0"]
 cu128 = ["mjlab", "torch>=2.7.0"]
 
 [project.scripts]
-textop-tracking = "mjlab_vla.cli.textop:main"
-robotmdar-producer = "mjlab_vla.cli.robotmdar_producer:main"
+mjlab-textop = "mjlab_textop.scripts.textop:main"
+mjlab-textop-robotmdar = "mjlab_textop.scripts.robotmdar_producer:main"
 
 [project.entry-points."mjlab.tasks"]
-mjlab_vla_textop = "mjlab_vla.textop.task"
+mjlab_textop = "mjlab_textop.core.task"
 
 [tool.uv.sources]
 mjlab = { git = "https://github.com/mujocolab/mjlab", rev = "0cdc56246999409b83622764f5b38edb660cf16e" }

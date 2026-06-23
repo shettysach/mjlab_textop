@@ -9,8 +9,8 @@ from mjlab.scene import Scene
 from mjlab.sim.sim import Simulation, SimulationCfg
 from mjlab.tasks.tracking.config.g1.env_cfgs import unitree_g1_flat_tracking_env_cfg
 
-from mjlab_vla.textop.contract import MJLAB_G1_JOINT_NAMES
-from mjlab_vla.textop.motion import load_textop_motion
+from mjlab_textop.core.contract import MJLAB_G1_JOINT_NAMES
+from mjlab_textop.core.motion import load_textop_motion
 
 
 def normalize_textop_npz(

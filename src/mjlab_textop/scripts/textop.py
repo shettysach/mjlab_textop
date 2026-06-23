@@ -5,21 +5,17 @@ from typing import TypeAlias
 
 import tyro
 
-from mjlab_vla.cli.eval import EvalCommand, evaluate_textop_motion
-from mjlab_vla.cli.normalize import NormalizeCommand
-from mjlab_vla.cli.play import PlayCommand, play_textop_motion
-from mjlab_vla.cli.play_live import PlayLiveCommand, play_live_textop_motion
-from mjlab_vla.cli.play_online import (
+from mjlab_textop.core.normalize import normalize_textop_npz
+from mjlab_textop.scripts.eval import EvalCommand, evaluate_textop_motion
+from mjlab_textop.scripts.normalize import NormalizeCommand
+from mjlab_textop.scripts.play_live import PlayLiveCommand, play_live_textop_motion
+from mjlab_textop.scripts.play_online import (
     PlayOnlineCommand,
     play_online_textop_motion,
 )
-from mjlab_vla.cli.train import TrainCommand, train_textop_motion
-from mjlab_vla.textop.normalize import normalize_textop_npz
 
 TextOpCommand: TypeAlias = (
     NormalizeCommand
-    | TrainCommand
-    | PlayCommand
     | PlayOnlineCommand
     | PlayLiveCommand
     | EvalCommand
@@ -28,8 +24,6 @@ TextOpCommand: TypeAlias = (
 TextOpCommandType = tyro.extras.subcommand_type_from_defaults(
     {
         "normalize": NormalizeCommand(),
-        "train": TrainCommand(),
-        "play": PlayCommand(),
         "play-online": PlayOnlineCommand(),
         "play-live": PlayLiveCommand(),
         "eval": EvalCommand(),
@@ -63,30 +57,6 @@ def run_textop_motion(cfg: TextOpCommand) -> None:
             )
             output_file = resolve_path(cfg.normalized_motion_file)
             normalize_textop_npz(input_file, output_file, device=cfg.device)
-            return
-
-        case TrainCommand():
-            motion_file = verify_path(
-                cfg.normalized_motion_file,
-                "Normalized motion file",
-            )
-            train_textop_motion(cfg, motion_file=motion_file)
-            return
-
-        case PlayCommand():
-            motion_file = verify_path(
-                cfg.normalized_motion_file,
-                "Normalized motion file",
-            )
-            checkpoint_file = verify_path(
-                cfg.checkpoint_file,
-                "Checkpoint file",
-            )
-            play_textop_motion(
-                cfg,
-                motion_file=motion_file,
-                checkpoint_file=checkpoint_file,
-            )
             return
 
         case PlayOnlineCommand():

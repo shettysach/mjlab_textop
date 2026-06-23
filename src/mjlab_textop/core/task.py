@@ -10,19 +10,19 @@ from mjlab.tasks.tracking.config.g1.rl_cfg import unitree_g1_tracking_ppo_runner
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 from mjlab.utils.noise import UniformNoiseCfg as Unoise
 
-from mjlab_vla.textop.contract import TEXTOP_FUTURE_STEPS
-from mjlab_vla.textop.mdp.observations import (
+from mjlab_textop.core.contract import TEXTOP_FUTURE_STEPS
+from mjlab_textop.core.mdp.observations import (
     future_anchor_ori_b,
     future_anchor_pos_b,
     future_joint_window,
     projected_gravity,
 )
-from mjlab_vla.textop.mdp.offline_commands import use_textop_motion_command
-from mjlab_vla.textop.mdp.online_commands import (
+from mjlab_textop.core.mdp.offline_commands import use_textop_motion_command
+from mjlab_textop.core.mdp.online_commands import (
     TextOpOnlineSourceMode,
     use_online_textop_motion_command,
 )
-from mjlab_vla.textop.online.source import TextOpOnlineSource
+from mjlab_textop.core.online.source import TextOpOnlineSource
 
 TEXTOP_TASK_NAME = "Mjlab-TextOp-Flat-Unitree-G1"
 ONLINE_TEXTOP_TASK_NAME = "Mjlab-OnlineTextOp-Flat-Unitree-G1"

@@ -16,7 +16,7 @@ No `play-online`.
 So the repo has online internals, but no clear command like:
 
 ```bash id="lv4bsx"
-uv run --extra cpu textop-tracking play-online ...
+uv run --extra cpu mjlab-textop play-online ...
 ```
 
 This matters because the weekly task wants a TextOp-like demo. Right now, a reviewer can see online code and tests, but not easily run an online TextOp-like flow.
@@ -26,7 +26,7 @@ This matters because the weekly task wants a TextOp-like demo. Right now, a revi
 Add:
 
 ```text id="pn23aj"
-src/mjlab_vla/cli/play_online.py
+src/mjlab_textop/scripts/play_online.py
 ```
 
 and add `PlayOnlineCommand` to `textop.py`.

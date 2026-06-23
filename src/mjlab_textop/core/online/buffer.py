@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import torch
 
-from mjlab_vla.textop.motion import (
+from mjlab_textop.core.motion import (
     normalize_quat,
     reindex_textop_g1_joints_to_mjlab,
     validate_frame_vector_array,
     validate_g1_joint_frames,
 )
-from mjlab_vla.textop.online.source import TextOpMotionBlock
+from mjlab_textop.core.online.source import TextOpMotionBlock
 
 
 class TextOpRollingMotionBuffer:

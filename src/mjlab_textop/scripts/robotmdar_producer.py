@@ -11,8 +11,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from mjlab_vla.textop.online.live import textop_block_to_ndjson_message
-from mjlab_vla.textop.robotmdar import (
+from mjlab_textop.core.online.live import textop_block_to_ndjson_message
+from mjlab_textop.core.robotmdar import (
     robotmdar_motion_dict_to_block,
     slice_motion_dict_tail,
 )

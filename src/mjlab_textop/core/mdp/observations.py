@@ -6,7 +6,7 @@ from mjlab.envs.mdp.observations import projected_gravity as mjlab_projected_gra
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.utils.lab_api.math import matrix_from_quat, subtract_frame_transforms
 
-from mjlab_vla.textop.mdp.future_reference import TextOpFutureReferenceCommand
+from mjlab_textop.core.mdp.future_reference import TextOpFutureReferenceCommand
 
 
 def _get_textop_future_reference_command(

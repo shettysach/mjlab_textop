@@ -7,13 +7,16 @@ from typing import Literal
 import tyro
 from mjlab.scripts.play import PlayConfig, run_play
 
-from mjlab_vla.textop.contract import TEXTOP_FUTURE_STEPS
-from mjlab_vla.textop.online.live import SocketTextOpOnlineSource, SocketTextOpSourceCfg
-from mjlab_vla.textop.online.live_registry import (
+from mjlab_textop.core.contract import TEXTOP_FUTURE_STEPS
+from mjlab_textop.core.online.live import (
+    SocketTextOpOnlineSource,
+    SocketTextOpSourceCfg,
+)
+from mjlab_textop.core.online.live_registry import (
     register_live_textop_source,
     unregister_live_textop_source,
 )
-from mjlab_vla.textop.task import (
+from mjlab_textop.core.task import (
     ensure_textop_task_registered,
     register_online_textop_task,
 )

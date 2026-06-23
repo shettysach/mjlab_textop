@@ -2,23 +2,23 @@ version = 1
 revision = 3
 requires-python = ">=3.11, <3.14"
 resolution-markers = [
-    "python_full_version >= '3.13' and sys_platform != 'darwin' and extra != 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128'",
-    "python_full_version == '3.12.*' and sys_platform != 'darwin' and extra != 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128'",
-    "python_full_version < '3.12' and sys_platform != 'darwin' and extra != 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128'",
-    "python_full_version >= '3.13' and sys_platform == 'darwin' and extra != 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128'",
-    "python_full_version == '3.12.*' and sys_platform == 'darwin' and extra != 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128'",
-    "python_full_version < '3.12' and sys_platform == 'darwin' and extra != 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128'",
-    "python_full_version >= '3.13' and sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cpu' and extra != 'extra-9-mjlab-vla-cu128'",
-    "python_full_version == '3.12.*' and sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cpu' and extra != 'extra-9-mjlab-vla-cu128'",
-    "python_full_version < '3.12' and sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cpu' and extra != 'extra-9-mjlab-vla-cu128'",
-    "python_full_version >= '3.13' and sys_platform == 'darwin' and extra == 'extra-9-mjlab-vla-cpu' and extra != 'extra-9-mjlab-vla-cu128'",
-    "python_full_version == '3.12.*' and sys_platform == 'darwin' and extra == 'extra-9-mjlab-vla-cpu' and extra != 'extra-9-mjlab-vla-cu128'",
-    "python_full_version < '3.12' and sys_platform == 'darwin' and extra == 'extra-9-mjlab-vla-cpu' and extra != 'extra-9-mjlab-vla-cu128'",
-    "extra != 'extra-9-mjlab-vla-cpu' and extra != 'extra-9-mjlab-vla-cu128'",
+    "python_full_version >= '3.13' and sys_platform != 'darwin' and extra != 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128'",
+    "python_full_version == '3.12.*' and sys_platform != 'darwin' and extra != 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128'",
+    "python_full_version < '3.12' and sys_platform != 'darwin' and extra != 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128'",
+    "python_full_version >= '3.13' and sys_platform == 'darwin' and extra != 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128'",
+    "python_full_version == '3.12.*' and sys_platform == 'darwin' and extra != 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128'",
+    "python_full_version < '3.12' and sys_platform == 'darwin' and extra != 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128'",
+    "python_full_version >= '3.13' and sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cpu' and extra != 'extra-9-mjlab-textop-cu128'",
+    "python_full_version == '3.12.*' and sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cpu' and extra != 'extra-9-mjlab-textop-cu128'",
+    "python_full_version < '3.12' and sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cpu' and extra != 'extra-9-mjlab-textop-cu128'",
+    "python_full_version >= '3.13' and sys_platform == 'darwin' and extra == 'extra-9-mjlab-textop-cpu' and extra != 'extra-9-mjlab-textop-cu128'",
+    "python_full_version == '3.12.*' and sys_platform == 'darwin' and extra == 'extra-9-mjlab-textop-cpu' and extra != 'extra-9-mjlab-textop-cu128'",
+    "python_full_version < '3.12' and sys_platform == 'darwin' and extra == 'extra-9-mjlab-textop-cpu' and extra != 'extra-9-mjlab-textop-cu128'",
+    "extra != 'extra-9-mjlab-textop-cpu' and extra != 'extra-9-mjlab-textop-cu128'",
 ]
 conflicts = [[
-    { package = "mjlab-vla", extra = "cpu" },
-    { package = "mjlab-vla", extra = "cu128" },
+    { package = "mjlab-textop", extra = "cpu" },
+    { package = "mjlab-textop", extra = "cu128" },
 ]]
 
 [manifest]
@@ -360,7 +360,7 @@ name = "cuda-bindings"
 version = "12.9.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cuda-pathfinder", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "cuda-pathfinder", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/40/f3/f9d1095f90d2a4df24cfcafe7487fd9444c6dacb94e3722be6fedd8ac26c/cuda_bindings-12.9.7-cp311-cp311-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:16043ef5b15ab88fe9954c5c2061b1d8007591b27f2c916331056de0ebc6187e", size = 7114834, upload-time = "2026-05-27T18:44:07.746Z" },
@@ -395,37 +395,37 @@ wheels = [
 
 [package.optional-dependencies]
 cublas = [
-    { name = "nvidia-cublas-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-vla-cu128') or (sys_platform == 'win32' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "nvidia-cublas-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-textop-cu128') or (sys_platform == 'win32' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 cudart = [
-    { name = "nvidia-cuda-runtime-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-vla-cu128') or (sys_platform == 'win32' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "nvidia-cuda-runtime-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-textop-cu128') or (sys_platform == 'win32' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 cufft = [
-    { name = "nvidia-cufft-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-vla-cu128') or (sys_platform == 'win32' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "nvidia-cufft-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-textop-cu128') or (sys_platform == 'win32' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 cufile = [
-    { name = "nvidia-cufile-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "nvidia-cufile-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 cupti = [
-    { name = "nvidia-cuda-cupti-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-vla-cu128') or (sys_platform == 'win32' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "nvidia-cuda-cupti-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-textop-cu128') or (sys_platform == 'win32' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 curand = [
-    { name = "nvidia-curand-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-vla-cu128') or (sys_platform == 'win32' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "nvidia-curand-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-textop-cu128') or (sys_platform == 'win32' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 cusolver = [
-    { name = "nvidia-cusolver-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-vla-cu128') or (sys_platform == 'win32' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "nvidia-cusolver-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-textop-cu128') or (sys_platform == 'win32' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 cusparse = [
-    { name = "nvidia-cusparse-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-vla-cu128') or (sys_platform == 'win32' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "nvidia-cusparse-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-textop-cu128') or (sys_platform == 'win32' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 nvjitlink = [
-    { name = "nvidia-nvjitlink-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-vla-cu128') or (sys_platform == 'win32' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-textop-cu128') or (sys_platform == 'win32' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 nvrtc = [
-    { name = "nvidia-cuda-nvrtc-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-vla-cu128') or (sys_platform == 'win32' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "nvidia-cuda-nvrtc-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-textop-cu128') or (sys_platform == 'win32' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 nvtx = [
-    { name = "nvidia-nvtx-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-vla-cu128') or (sys_platform == 'win32' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "nvidia-nvtx-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-textop-cu128') or (sys_platform == 'win32' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 
 [[package]]
@@ -1031,9 +1031,9 @@ dependencies = [
     { name = "scipy" },
     { name = "tensorboard" },
     { name = "tensordict" },
-    { name = "torch", version = "2.11.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "torch", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'darwin' and extra == 'extra-9-mjlab-vla-cpu') or (sys_platform == 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "torch", version = "2.12.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cpu') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "torch", version = "2.11.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "torch", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'darwin' and extra == 'extra-9-mjlab-textop-cpu') or (sys_platform == 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "torch", version = "2.12.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cpu') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
     { name = "torchrunx" },
     { name = "tqdm" },
     { name = "trimesh" },
@@ -1044,7 +1044,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mjlab-vla"
+name = "mjlab-textop"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
@@ -1055,13 +1055,13 @@ dependencies = [
 [package.optional-dependencies]
 cpu = [
     { name = "mjlab" },
-    { name = "torch", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'darwin' and extra == 'extra-9-mjlab-vla-cpu') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "torch", version = "2.12.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cpu') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "torch", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'darwin' and extra == 'extra-9-mjlab-textop-cpu') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "torch", version = "2.12.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cpu') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 cu128 = [
     { name = "mjlab" },
-    { name = "torch", version = "2.11.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "torch", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "torch", version = "2.11.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "torch", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 
 [package.dev-dependencies]
@@ -1078,8 +1078,8 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.4.6" },
     { name = "torch", marker = "sys_platform == 'darwin' and extra == 'cpu'", specifier = ">=2.7.0" },
     { name = "torch", marker = "sys_platform == 'darwin' and extra == 'cu128'", specifier = ">=2.7.0" },
-    { name = "torch", marker = "sys_platform != 'darwin' and extra == 'cpu'", specifier = ">=2.7.0", index = "https://download.pytorch.org/whl/cpu", conflict = { package = "mjlab-vla", extra = "cpu" } },
-    { name = "torch", marker = "sys_platform != 'darwin' and extra == 'cu128'", specifier = ">=2.7.0", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "mjlab-vla", extra = "cu128" } },
+    { name = "torch", marker = "sys_platform != 'darwin' and extra == 'cpu'", specifier = ">=2.7.0", index = "https://download.pytorch.org/whl/cpu", conflict = { package = "mjlab-textop", extra = "cpu" } },
+    { name = "torch", marker = "sys_platform != 'darwin' and extra == 'cu128'", specifier = ">=2.7.0", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "mjlab-textop", extra = "cu128" } },
     { name = "tyro", specifier = ">=1.0.14" },
 ]
 provides-extras = ["cpu", "cu128"]
@@ -1185,7 +1185,7 @@ version = "3.10.0.dev934375150"
 source = { registry = "https://py.mujoco.org/" }
 dependencies = [
     { name = "absl-py" },
-    { name = "etils", extra = ["epath"], marker = "extra == 'extra-9-mjlab-vla-cpu' or extra == 'extra-9-mjlab-vla-cu128'" },
+    { name = "etils", extra = ["epath"], marker = "extra == 'extra-9-mjlab-textop-cpu' or extra == 'extra-9-mjlab-textop-cu128'" },
     { name = "glfw" },
     { name = "numpy" },
     { name = "pyopengl" },
@@ -1211,7 +1211,7 @@ version = "3.9.0.1"
 source = { git = "https://github.com/google-deepmind/mujoco_warp?rev=e65a72e49a978a3051e7942bc5591df355ba0b5c#e65a72e49a978a3051e7942bc5591df355ba0b5c" }
 dependencies = [
     { name = "absl-py" },
-    { name = "etils", extra = ["epath"], marker = "extra == 'extra-9-mjlab-vla-cpu' or extra == 'extra-9-mjlab-vla-cu128'" },
+    { name = "etils", extra = ["epath"], marker = "extra == 'extra-9-mjlab-textop-cpu' or extra == 'extra-9-mjlab-textop-cu128'" },
     { name = "mujoco" },
     { name = "numpy" },
     { name = "warp-lang" },
@@ -1329,7 +1329,7 @@ name = "nvidia-cudnn-cu12"
 version = "9.19.0.56"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "nvidia-cublas-cu12", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/09/b8/277c51962ee46fa3e5b203ac5f76107c650f781d6891e681e28e6f3e9fe6/nvidia_cudnn_cu12-9.19.0.56-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:08caaf27fe556aca82a3ee3b5aa49a77e7de0cfcb7ff4e5c29da426387a8267e", size = 656910700, upload-time = "2026-02-03T20:40:25.508Z" },
@@ -1342,7 +1342,7 @@ name = "nvidia-cufft-cu12"
 version = "11.3.3.83"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/60/bc/7771846d3a0272026c416fbb7e5f4c1f146d6d80704534d0b187dd6f4800/nvidia_cufft_cu12-11.3.3.83-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:848ef7224d6305cdb2a4df928759dca7b1201874787083b6e7550dd6765ce69a", size = 193109211, upload-time = "2025-03-07T01:44:56.873Z" },
@@ -1374,9 +1374,9 @@ name = "nvidia-cusolver-cu12"
 version = "11.7.3.90"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "nvidia-cusparse-cu12", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "nvidia-nvjitlink-cu12", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "nvidia-cublas-cu12", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "nvidia-cusparse-cu12", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c8/32/f7cd6ce8a7690544d084ea21c26e910a97e077c9b7f07bf5de623ee19981/nvidia_cusolver_cu12-11.7.3.90-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:db9ed69dbef9715071232caa9b69c52ac7de3a95773c2db65bdba85916e4e5c0", size = 267229841, upload-time = "2025-03-07T01:46:54.356Z" },
@@ -1389,7 +1389,7 @@ name = "nvidia-cusparse-cu12"
 version = "12.5.8.93"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/bc/f7/cd777c4109681367721b00a106f491e0d0d15cfa1fd59672ce580ce42a97/nvidia_cusparse_cu12-12.5.8.93-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:9b6c161cb130be1a07a27ea6923df8141f3c295852f4b260c65f18f3e0a091dc", size = 288117129, upload-time = "2025-03-07T01:47:40.407Z" },
@@ -1913,7 +1913,7 @@ name = "pytest"
 version = "9.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
     { name = "iniconfig" },
     { name = "packaging" },
     { name = "pluggy" },
@@ -2021,11 +2021,11 @@ dependencies = [
     { name = "onnxscript" },
     { name = "tensorboard" },
     { name = "tensordict" },
-    { name = "torch", version = "2.11.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "torch", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'darwin' and extra == 'extra-9-mjlab-vla-cpu') or (sys_platform == 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "torch", version = "2.12.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cpu') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "torchvision", version = "0.26.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "torchvision", version = "0.27.1", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or extra == 'extra-9-mjlab-vla-cpu'" },
+    { name = "torch", version = "2.11.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "torch", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'darwin' and extra == 'extra-9-mjlab-textop-cpu') or (sys_platform == 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "torch", version = "2.12.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cpu') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "torchvision", version = "0.26.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "torchvision", version = "0.27.1", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or extra == 'extra-9-mjlab-textop-cpu'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0f/51/2d4c95b3642c0f659fbcddcd17fa0401903733250fa382f51f9b913bb85f/rsl_rl_lib-5.4.0.tar.gz", hash = "sha256:e1aa5cd5771f2d9a9e7a7ba5456b942ab588410cfd397b3c63e32d00a0744f0d", size = 65902, upload-time = "2026-05-27T10:42:39.656Z" }
 wheels = [
@@ -2215,9 +2215,9 @@ dependencies = [
     { name = "orjson", marker = "python_full_version < '3.13'" },
     { name = "packaging" },
     { name = "pyvers" },
-    { name = "torch", version = "2.11.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "torch", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'darwin' and extra == 'extra-9-mjlab-vla-cpu') or (sys_platform == 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "torch", version = "2.12.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cpu') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "torch", version = "2.11.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "torch", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'darwin' and extra == 'extra-9-mjlab-textop-cpu') or (sys_platform == 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "torch", version = "2.12.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cpu') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/21/7e/dbe7b63268e2dc1116f44f4bfa083eb28e7f1e264977c3503dd86a6802a1/tensordict-0.13.0-cp311-cp311-macosx_14_0_arm64.whl", hash = "sha256:716a4b1b18e481566c0d0994a5a0afd02093600d41cefe7a221c9d0b92518741", size = 910806, upload-time = "2026-06-04T14:46:52.088Z" },
@@ -2248,20 +2248,20 @@ resolution-markers = [
     "python_full_version < '3.12' and sys_platform != 'darwin'",
 ]
 dependencies = [
-    { name = "cuda-bindings", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "cuda-toolkit", extra = ["cublas", "cudart", "cufft", "cufile", "cupti", "curand", "cusolver", "cusparse", "nvjitlink", "nvrtc", "nvtx"], marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "filelock", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "fsspec", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "jinja2", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "networkx", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "nvidia-cudnn-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "nvidia-cusparselt-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "nvidia-nccl-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "nvidia-nvshmem-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "setuptools", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "sympy", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "triton", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "typing-extensions", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "cuda-bindings", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "cuda-toolkit", extra = ["cublas", "cudart", "cufft", "cufile", "cupti", "curand", "cusolver", "cusparse", "nvjitlink", "nvrtc", "nvtx"], marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "filelock", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "fsspec", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "jinja2", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "networkx", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "nvidia-cudnn-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "nvidia-cusparselt-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "nvidia-nccl-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "nvidia-nvshmem-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "setuptools", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "sympy", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "triton", marker = "(sys_platform == 'linux' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "typing-extensions", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 wheels = [
     { url = "https://download-r2.pytorch.org/whl/cu128/torch-2.11.0%2Bcu128-cp311-cp311-manylinux_2_28_aarch64.whl", hash = "sha256:d76f08e212285bd84c4c5a3472417f8eb4ee72e4067a604f7508dbfa2119771f", upload-time = "2026-04-27T17:36:45Z" },
@@ -2321,13 +2321,13 @@ resolution-markers = [
     "python_full_version < '3.12' and sys_platform != 'darwin'",
 ]
 dependencies = [
-    { name = "filelock", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cpu') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "fsspec", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cpu') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "jinja2", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cpu') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "networkx", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cpu') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "setuptools", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cpu') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "sympy", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cpu') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "typing-extensions", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cpu') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "filelock", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cpu') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "fsspec", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cpu') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "jinja2", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cpu') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "networkx", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cpu') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "setuptools", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cpu') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "sympy", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cpu') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "typing-extensions", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cpu') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 wheels = [
     { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.12.1%2Bcpu-cp311-cp311-linux_s390x.whl", hash = "sha256:c6cf299bad55b045abdc0969f298385845c25bc8ace587215e5538d6a73e7712", upload-time = "2026-06-18T01:56:56Z" },
@@ -2353,9 +2353,9 @@ dependencies = [
     { name = "cloudpickle" },
     { name = "fabric" },
     { name = "numpy" },
-    { name = "torch", version = "2.11.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "torch", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'darwin' and extra == 'extra-9-mjlab-vla-cpu') or (sys_platform == 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "torch", version = "2.12.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cpu') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "torch", version = "2.11.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "torch", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'darwin' and extra == 'extra-9-mjlab-textop-cpu') or (sys_platform == 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "torch", version = "2.12.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cpu') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
     { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/65/60/ce6ccaf618e56775905e75e3fe7f2c8adfb61916d2946e854850c1d19a0d/torchrunx-0.3.4.tar.gz", hash = "sha256:6f2333fa17f7ef1f43f6c65d2b008b8479b29d972a8ed209da613d830dffdc45", size = 41312, upload-time = "2025-11-19T02:36:13.54Z" }
@@ -2373,9 +2373,9 @@ resolution-markers = [
     "python_full_version < '3.12' and sys_platform != 'darwin'",
 ]
 dependencies = [
-    { name = "numpy", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "pillow", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "torch", version = "2.11.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "numpy", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "pillow", marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "torch", version = "2.11.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b4/bd/d552a2521bade3295b2c6e7a4a0d1022261cab7ca7011f4e2a330dbb3caa/torchvision-0.26.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:55bd6ad4ae77be01ba67a410b05b51f53b0d0ee45f146eb6a0dfb9007e70ab3c", size = 1863499, upload-time = "2026-03-23T18:12:58.696Z" },
@@ -2409,10 +2409,10 @@ resolution-markers = [
     "python_full_version < '3.12' and sys_platform != 'darwin'",
 ]
 dependencies = [
-    { name = "numpy", marker = "(sys_platform == 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or extra == 'extra-9-mjlab-vla-cpu'" },
-    { name = "pillow", marker = "(sys_platform == 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or extra == 'extra-9-mjlab-vla-cpu'" },
-    { name = "torch", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'darwin' and extra == 'extra-9-mjlab-vla-cpu') or (sys_platform == 'darwin' and extra == 'extra-9-mjlab-vla-cu128') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
-    { name = "torch", version = "2.12.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-vla-cpu') or (extra == 'extra-9-mjlab-vla-cpu' and extra == 'extra-9-mjlab-vla-cu128')" },
+    { name = "numpy", marker = "(sys_platform == 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or extra == 'extra-9-mjlab-textop-cpu'" },
+    { name = "pillow", marker = "(sys_platform == 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or extra == 'extra-9-mjlab-textop-cpu'" },
+    { name = "torch", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'darwin' and extra == 'extra-9-mjlab-textop-cpu') or (sys_platform == 'darwin' and extra == 'extra-9-mjlab-textop-cu128') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
+    { name = "torch", version = "2.12.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-9-mjlab-textop-cpu') or (extra == 'extra-9-mjlab-textop-cpu' and extra == 'extra-9-mjlab-textop-cu128')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/64/46/bc0ebd93282aeedc1759f054a252c6fadf14b42a0535db3233c85cce4ae5/torchvision-0.27.1-cp311-cp311-macosx_14_0_arm64.whl", hash = "sha256:ad8743a9c12c8c124ad0a1491e54c3ca0c749e91e374e3d92136060b22c9e0f4", size = 1852118, upload-time = "2026-06-17T21:09:32.448Z" },

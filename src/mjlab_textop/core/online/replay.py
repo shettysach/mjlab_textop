@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mjlab_vla.textop.contract import TEXTOP_ROOT_BODY_INDEX
-from mjlab_vla.textop.motion import (
+from mjlab_textop.core.contract import TEXTOP_ROOT_BODY_INDEX
+from mjlab_textop.core.motion import (
     load_mjlab_motion,
     reindex_mjlab_g1_joints_to_textop,
 )
-from mjlab_vla.textop.online.source import (
+from mjlab_textop.core.online.source import (
     QueueTextOpOnlineSource,
     TextOpMotionBlock,
 )

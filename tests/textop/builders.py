@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import numpy as np
 import torch
 
-from mjlab_vla.textop.online.buffer import TextOpMotionBlock
+from mjlab_textop.core.online.buffer import TextOpMotionBlock
 
 
 def motion_block(

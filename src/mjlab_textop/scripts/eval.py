@@ -21,7 +21,7 @@ from mjlab.tasks.tracking.mdp.metrics import (
 )
 from mjlab.utils.torch import configure_torch_backends
 
-from mjlab_vla.textop.task import TEXTOP_TASK_NAME, ensure_textop_task_registered
+from mjlab_textop.core.task import TEXTOP_TASK_NAME, ensure_textop_task_registered
 
 
 @dataclass(kw_only=True)

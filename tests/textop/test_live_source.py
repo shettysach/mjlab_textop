@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from builders import motion_block
 
-from mjlab_vla.textop.online.live import (
+from mjlab_textop.core.online.live import (
     SocketTextOpOnlineSource,
     SocketTextOpSourceCfg,
     parse_textop_block_message,

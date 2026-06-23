@@ -1,4 +1,4 @@
-# MJLab VLA
+# MJLab TextOp
 
 Utilities for running low-level TextOp tracker motions through MJLab's native
 Unitree G1 tracking stack.
@@ -16,22 +16,22 @@ The integration supports three paths:
 
 ```text
 TextOp tracker NPZ
-  -> textop-tracking normalize
+  -> mjlab-textop normalize
   -> MJLab-native motion.npz
   -> Mjlab-TextOp-Flat-Unitree-G1
   -> TextOpMotionCommand
   -> TextOp-style future reference observations
 
 RobotMDAR text prompt
-  -> robotmdar-producer
+  -> mjlab-textop-robotmdar
   -> localhost NDJSON TextOpMotionBlock stream
-  -> textop-tracking play-live
+  -> mjlab-textop play-live
   -> OnlineTextOpMotionCommand
   -> TextOp-style future reference observations
 ```
 
-The reusable TextOp integration code lives under `src/mjlab_vla/textop/`.
-Installed command-line entry points live under `src/mjlab_vla/cli/` and reuse
+The reusable TextOp integration code lives under `src/mjlab_textop/core/`.
+Installed command-line entry points live under `src/mjlab_textop/scripts/` and reuse
 the library modules.
 
 ## Dependencies
@@ -66,7 +66,7 @@ uvx hf download Yochish/TextOp-Data \
 Then normalize the TextOp NPZ into MJLab's native tracking format:
 
 ```bash
-uv run --extra cu128 textop-tracking normalize
+uv run --extra cu128 mjlab-textop normalize
 ```
 
 Then use the registered TextOp-flavored MJLab task:
@@ -83,43 +83,53 @@ The normalizer expects TextOp's canonical tracker NPZ fields. It reorders
 TextOp IsaacLab G1 joints into MJLab/MuJoCo order and replays root plus joints
 through MJLab so body references are written in MJLab's own body order.
 
-For the downloaded and normalized TextOp walking motion on a GPU machine, train
-a TextOp-style MJLab tracking policy from scratch:
+For the downloaded and normalized TextOp walking motion on a GPU machine, use
+MJLab's native training command with the registered TextOp task:
 
 ```bash
-uv run --extra cu128 textop-tracking train
+uv run --extra cu128 train Mjlab-TextOp-Flat-Unitree-G1 \
+  --env.commands.motion.motion-file /tmp/textop_walk_mjlab.npz \
+  --env.scene.num-envs 4096 \
+  --agent.max-iterations 10000 \
+  --agent.experiment-name textop_tracking \
+  --agent.run-name walk_scratch
 ```
 
 Useful overrides:
 
 ```bash
-uv run --extra cu128 textop-tracking train \
-  --num-envs 8192 \
-  --max-iterations 30000 \
-  --run-name walk_scratch_long
+uv run --extra cu128 train Mjlab-TextOp-Flat-Unitree-G1 \
+  --env.commands.motion.motion-file /tmp/textop_walk_mjlab.npz \
+  --env.scene.num-envs 8192 \
+  --agent.max-iterations 30000 \
+  --agent.experiment-name textop_tracking \
+  --agent.run-name walk_scratch_long
 ```
 
 To finetune from a previous MJLab run:
 
 ```bash
-uv run --extra cu128 textop-tracking train \
-  --resume \
-  --load-run '.*walk_scratch.*' \
-  --load-checkpoint 'model_.*.pt' \
-  --run-name walk_finetune
+uv run --extra cu128 train Mjlab-TextOp-Flat-Unitree-G1 \
+  --env.commands.motion.motion-file /tmp/textop_walk_mjlab.npz \
+  --agent.resume True \
+  --agent.load-run '.*walk_scratch.*' \
+  --agent.load-checkpoint 'model_.*.pt' \
+  --agent.experiment-name textop_tracking \
+  --agent.run-name walk_finetune
 ```
 
-To view a trained MJLab checkpoint:
+To view a trained MJLab checkpoint, use MJLab's native play command:
 
 ```bash
-uv run --extra cu128 textop-tracking play \
-  --checkpoint-file /path/to/model.pt
+uv run --extra cu128 play Mjlab-TextOp-Flat-Unitree-G1 \
+  --checkpoint-file /path/to/model.pt \
+  --motion-file /tmp/textop_walk_mjlab.npz
 ```
 
 To replay the normalized motion through the online TextOp path:
 
 ```bash
-uv run --extra cu128 textop-tracking play-online \
+uv run --extra cu128 mjlab-textop play-online \
   --checkpoint-file /path/to/model.pt \
   --normalized-motion-file /tmp/textop_walk_mjlab.npz
 ```
@@ -128,7 +138,7 @@ To run a live text-to-motion simulation demo without ROS2, use two terminals.
 The RobotMDAR producer should run in the TextOp/RobotMDAR Python environment:
 
 ```bash
-robotmdar-producer \
+mjlab-textop-robotmdar \
   --ckpt /path/to/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
   --datadir /path/to/TextOpRobotMDAR/dataset/BABEL-AMASS-ROBOT-23dof-FULL-50fps \
   --skeleton-asset-root /path/to/TextOpRobotMDAR/description/robots/g1
@@ -137,7 +147,7 @@ robotmdar-producer \
 Then run MJLab in this repo's environment:
 
 ```bash
-uv run --extra cu128 textop-tracking play-live \
+uv run --extra cu128 mjlab-textop play-live \
   --checkpoint-file /path/to/model.pt \
   --host 127.0.0.1 \
   --port 8765
@@ -150,7 +160,7 @@ online buffer/source diagnostics through command metrics.
 To run a headless local evaluation against the normalized TextOp motion:
 
 ```bash
-uv run --extra cu128 textop-tracking eval \
+uv run --extra cu128 mjlab-textop eval \
   --checkpoint-file /path/to/model.pt \
   --num-envs 1024 \
   --output-file logs/textop_eval.json
@@ -162,7 +172,7 @@ root-relative MPKPE, joint velocity error, and end-effector pose errors.
 To normalize a different downloaded TextOp motion:
 
 ```bash
-uv run --extra cu128 textop-tracking normalize \
+uv run --extra cu128 mjlab-textop normalize \
   --motion-rel path/inside/textop-data/motion.npz \
   --normalized-motion-file /tmp/other_textop_mjlab.npz
 ```

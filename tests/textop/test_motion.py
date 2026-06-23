@@ -5,14 +5,14 @@ import torch
 from builders import write_mjlab_motion_npz
 from mjlab.tasks.tracking.mdp.commands import MotionLoader
 
-from mjlab_vla.textop.contract import (
+from mjlab_textop.core.contract import (
     MJLAB_G1_JOINT_NAMES,
     TEXTOP_FUTURE_STEPS,
     TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
     TEXTOP_OPTIONAL_INPUT_KEYS,
     TEXTOP_REQUIRED_INPUT_KEYS,
 )
-from mjlab_vla.textop.motion import (
+from mjlab_textop.core.motion import (
     load_mjlab_motion,
     load_textop_motion,
     reindex_textop_g1_joints_to_mjlab,

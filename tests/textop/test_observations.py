@@ -6,7 +6,7 @@ import pytest
 import torch
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
-from mjlab_vla.textop.mdp.observations import (
+from mjlab_textop.core.mdp.observations import (
     future_anchor_ori_b,
     future_anchor_pos_b,
     future_joint_window,

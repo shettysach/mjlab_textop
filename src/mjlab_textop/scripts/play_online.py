@@ -7,9 +7,9 @@ from typing import Literal
 import tyro
 from mjlab.scripts.play import PlayConfig, run_play
 
-from mjlab_vla.textop.contract import TEXTOP_FUTURE_STEPS
-from mjlab_vla.textop.online.replay import make_mjlab_npz_replay_source
-from mjlab_vla.textop.task import (
+from mjlab_textop.core.contract import TEXTOP_FUTURE_STEPS
+from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
+from mjlab_textop.core.task import (
     ensure_textop_task_registered,
     register_online_textop_replay_task,
 )

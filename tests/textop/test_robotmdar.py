@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mjlab_vla.textop.motion import reindex_mjlab_g1_joints_to_textop
-from mjlab_vla.textop.robotmdar import (
+from mjlab_textop.core.motion import reindex_mjlab_g1_joints_to_textop
+from mjlab_textop.core.robotmdar import (
     ROBOTMDAR_G1_DOF_INDEX,
     expand_robotmdar_dof_to_mjlab_g1,
     robotmdar_motion_dict_to_block,

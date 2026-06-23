@@ -4,9 +4,9 @@ from typing import Any
 
 import numpy as np
 
-from mjlab_vla.textop.contract import TEXTOP_G1_JOINT_COUNT
-from mjlab_vla.textop.motion import reindex_mjlab_g1_joints_to_textop
-from mjlab_vla.textop.online.source import TextOpMotionBlock
+from mjlab_textop.core.contract import TEXTOP_G1_JOINT_COUNT
+from mjlab_textop.core.motion import reindex_mjlab_g1_joints_to_textop
+from mjlab_textop.core.online.source import TextOpMotionBlock
 
 ROBOTMDAR_DOF_COUNT = 23
 ROBOTMDAR_G1_DOF_INDEX: tuple[int, ...] = (

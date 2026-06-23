@@ -7,12 +7,12 @@ import torch
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
 
-from mjlab_vla.textop.contract import TEXTOP_FUTURE_STEPS, TEXTOP_G1_JOINT_COUNT
-from mjlab_vla.textop.online.buffer import (
+from mjlab_textop.core.contract import TEXTOP_FUTURE_STEPS, TEXTOP_G1_JOINT_COUNT
+from mjlab_textop.core.online.buffer import (
     TextOpRollingMotionBuffer,
 )
-from mjlab_vla.textop.online.live_registry import get_live_textop_source
-from mjlab_vla.textop.online.source import (
+from mjlab_textop.core.online.live_registry import get_live_textop_source
+from mjlab_textop.core.online.source import (
     QueueTextOpOnlineSource,
     ResettableTextOpOnlineSource,
     TextOpOnlineSource,
