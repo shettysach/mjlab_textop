@@ -23,15 +23,16 @@ TextOp tracker NPZ
   -> TextOp-style future reference observations
 
 RobotMDAR text prompt
-  -> python -m mjlab_vla.textop.script.robotmdar_producer
+  -> robotmdar-producer
   -> localhost NDJSON TextOpMotionBlock stream
   -> textop-tracking play-live
   -> OnlineTextOpMotionCommand
   -> TextOp-style future reference observations
 ```
 
-The TextOp integration code lives under `src/mjlab_vla/textop/`:
-`contract.py`, `mdp/`, `task.py`, and the command-line scripts in `script/`.
+The reusable TextOp integration code lives under `src/mjlab_vla/textop/`.
+Installed command-line entry points live under `src/mjlab_vla/cli/` and reuse
+the library modules.
 
 ## Dependencies
 
@@ -127,7 +128,7 @@ To run a live text-to-motion simulation demo without ROS2, use two terminals.
 The RobotMDAR producer should run in the TextOp/RobotMDAR Python environment:
 
 ```bash
-python -m mjlab_vla.textop.script.robotmdar_producer \
+robotmdar-producer \
   --ckpt /path/to/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
   --datadir /path/to/TextOpRobotMDAR/dataset/BABEL-AMASS-ROBOT-23dof-FULL-50fps \
   --skeleton-asset-root /path/to/TextOpRobotMDAR/description/robots/g1

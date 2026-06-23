@@ -26,10 +26,10 @@ This matters because the weekly task wants a TextOp-like demo. Right now, a revi
 Add:
 
 ```text id="pn23aj"
-src/mjlab_vla/textop/script/play_online.py
+src/mjlab_vla/cli/play_online.py
 ```
 
-and add `PlayOnlineCommand` to `cli.py`.
+and add `PlayOnlineCommand` to `textop.py`.
 
 For v1, it can use a fake/replay source from an NPZ or synthetic block list. It does not need ROS2 yet.
 

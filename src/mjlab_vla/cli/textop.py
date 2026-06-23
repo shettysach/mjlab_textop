@@ -5,16 +5,16 @@ from typing import TypeAlias
 
 import tyro
 
-from mjlab_vla.textop.normalize import normalize_textop_npz
-from mjlab_vla.textop.script.eval import EvalCommand, evaluate_textop_motion
-from mjlab_vla.textop.script.normalize import NormalizeCommand
-from mjlab_vla.textop.script.play import PlayCommand, play_textop_motion
-from mjlab_vla.textop.script.play_live import PlayLiveCommand, play_live_textop_motion
-from mjlab_vla.textop.script.play_online import (
+from mjlab_vla.cli.eval import EvalCommand, evaluate_textop_motion
+from mjlab_vla.cli.normalize import NormalizeCommand
+from mjlab_vla.cli.play import PlayCommand, play_textop_motion
+from mjlab_vla.cli.play_live import PlayLiveCommand, play_live_textop_motion
+from mjlab_vla.cli.play_online import (
     PlayOnlineCommand,
     play_online_textop_motion,
 )
-from mjlab_vla.textop.script.train import TrainCommand, train_textop_motion
+from mjlab_vla.cli.train import TrainCommand, train_textop_motion
+from mjlab_vla.textop.normalize import normalize_textop_npz
 
 TextOpCommand: TypeAlias = (
     NormalizeCommand

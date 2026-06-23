@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11,<3.14"
 dependencies = [
     "numpy>=2.4.6",
+    "tyro>=1.0.14",
 ]
 
 [project.optional-dependencies]
@@ -17,7 +18,8 @@ cpu = ["mjlab", "torch>=2.7.0"]
 cu128 = ["mjlab", "torch>=2.7.0"]
 
 [project.scripts]
-textop-tracking = "mjlab_vla.textop.script.cli:main"
+textop-tracking = "mjlab_vla.cli.textop:main"
+robotmdar-producer = "mjlab_vla.cli.robotmdar_producer:main"
 
 [project.entry-points."mjlab.tasks"]
 mjlab_vla_textop = "mjlab_vla.textop.task"

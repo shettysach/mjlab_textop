@@ -1049,6 +1049,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "numpy" },
+    { name = "tyro" },
 ]
 
 [package.optional-dependencies]
@@ -1079,6 +1080,7 @@ requires-dist = [
     { name = "torch", marker = "sys_platform == 'darwin' and extra == 'cu128'", specifier = ">=2.7.0" },
     { name = "torch", marker = "sys_platform != 'darwin' and extra == 'cpu'", specifier = ">=2.7.0", index = "https://download.pytorch.org/whl/cpu", conflict = { package = "mjlab-vla", extra = "cpu" } },
     { name = "torch", marker = "sys_platform != 'darwin' and extra == 'cu128'", specifier = ">=2.7.0", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "mjlab-vla", extra = "cu128" } },
+    { name = "tyro", specifier = ">=1.0.14" },
 ]
 provides-extras = ["cpu", "cu128"]
 
