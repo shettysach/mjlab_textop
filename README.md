@@ -65,7 +65,8 @@ uvx hf download Yochish/TextOp-Data \
   --local-dir /tmp/textop-data
 
 uv run --extra cu128 mjlab-textop normalize \
-  --motion-file /tmp/textop-data/TextOpTracker/artifacts/Data10k-open/homejrhangmr_dataset_pbhc_contact_maskACCADFemale1Walking_c3dB3-walk1_posespkl/motion.npz
+  --motion-file /tmp/textop-data/TextOpTracker/artifacts/Data10k-open/homejrhangmr_dataset_pbhc_contact_maskACCADFemale1Walking_c3dB3-walk1_posespkl/motion.npz \
+  --normalized-motion-file ./outputs/walk_mjlab.npz
 ```
 
 The normalizer expects TextOp's canonical tracker NPZ fields. It reorders
@@ -74,22 +75,27 @@ through MJLab so body references are written in MJLab's own body order.
 
 ### `train`
 
-Train the TextOp tracking task on the normalized motion:
+Train the TextOp tracking task on the normalized motion. Checkpoints are
+saved to `logs/rsl_rl/textop_tracking/<timestamp>_walk_scratch/model_<iter>.pt`.
 
 ```bash
 uv run --extra cu128 train Mjlab-TextOp-Flat-Unitree-G1 \
-  --env.commands.motion.motion-file /tmp/textop_walk_mjlab.npz \
+  --env.commands.motion.motion-file ./outputs/walk_mjlab.npz \
   --env.scene.num-envs 4096 \
   --agent.max-iterations 10000 \
   --agent.experiment-name textop_tracking \
   --agent.run-name walk_scratch
+
+# Checkpoint saved to:
+#   logs/rsl_rl/textop_tracking/<timestamp>_walk_scratch/model_<iteration>.pt
+export CHECKPOINT=$(ls -t logs/rsl_rl/textop_tracking/*_walk_scratch/model_*.pt | head -1)
 ```
 
 To finetune from a previous run:
 
 ```bash
 uv run --extra cu128 train Mjlab-TextOp-Flat-Unitree-G1 \
-  --env.commands.motion.motion-file /tmp/textop_walk_mjlab.npz \
+  --env.commands.motion.motion-file ./outputs/walk_mjlab.npz \
   --agent.resume True \
   --agent.load-run '.*walk_scratch.*' \
   --agent.load-checkpoint 'model_.*.pt' \
@@ -103,8 +109,8 @@ View a trained checkpoint with the native MJLab viewer:
 
 ```bash
 uv run --extra cu128 play Mjlab-TextOp-Flat-Unitree-G1 \
-  --checkpoint-file /path/to/model.pt \
-  --motion-file /tmp/textop_walk_mjlab.npz
+  --checkpoint-file $CHECKPOINT \
+  --motion-file ./outputs/walk_mjlab.npz
 ```
 
 ### `play-online`
@@ -113,8 +119,8 @@ Replay the normalized motion through the online TextOp reference buffer:
 
 ```bash
 uv run --extra cu128 mjlab-textop play-online \
-  --checkpoint-file /path/to/model.pt \
-  --normalized-motion-file /tmp/textop_walk_mjlab.npz
+  --checkpoint-file $CHECKPOINT \
+  --normalized-motion-file ./outputs/walk_mjlab.npz
 ```
 
 ### `play-live`
@@ -156,7 +162,7 @@ Then run MJLab in this repo's environment:
 
 ```bash
 uv run --extra cu128 mjlab-textop play-live \
-  --checkpoint-file /path/to/model.pt \
+  --checkpoint-file $CHECKPOINT \
   --host 127.0.0.1 \
   --port 8765
 ```
@@ -171,7 +177,8 @@ Run a headless evaluation against the normalized motion:
 
 ```bash
 uv run --extra cu128 mjlab-textop eval \
-  --checkpoint-file /path/to/model.pt \
+  --checkpoint-file $CHECKPOINT \
+  --normalized-motion-file ./outputs/walk_mjlab.npz \
   --num-envs 1024 \
   --output-file logs/textop_eval.json
 ```
