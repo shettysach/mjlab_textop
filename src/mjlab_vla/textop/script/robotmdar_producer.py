@@ -5,45 +5,16 @@ import socket
 import sys
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-
-import numpy as np
+from typing import Any
 
 from mjlab_vla.textop.online.live import textop_block_to_ndjson_message
-from mjlab_vla.textop.online.source import TextOpMotionBlock
-
-MUJOCO_TO_ISAACLAB_REINDEX = (
-    0,
-    6,
-    12,
-    1,
-    7,
-    13,
-    2,
-    8,
-    14,
-    3,
-    9,
-    15,
-    22,
-    4,
-    10,
-    16,
-    23,
-    5,
-    11,
-    17,
-    24,
-    18,
-    25,
-    19,
-    26,
-    20,
-    27,
-    21,
-    28,
+from mjlab_vla.textop.robotmdar import (
+    robotmdar_motion_dict_to_block,
+    slice_motion_dict_tail,
 )
 
 
@@ -54,44 +25,25 @@ class PromptState:
     input_active: bool = False
 
 
-def expand_dof_23_to_29(value: np.ndarray) -> np.ndarray:
-    value = np.asarray(value, dtype=np.float32)
-    if value.ndim != 2 or value.shape[1] != 23:
-        raise ValueError(f"Expected [T, 23] RobotMDAR DoF array, got {value.shape}")
-    out = np.zeros((value.shape[0], 29), dtype=np.float32)
-    out[:, :19] = value[:, :19]
-    out[:, 22:26] = value[:, 19:23]
-    return out
-
-
-def robotmdar_motion_dict_to_block(motion_dict, index: int) -> TextOpMotionBlock:
-    joint_pos_mj = expand_dof_23_to_29(_to_numpy(motion_dict["dof_pos"][0]))
-    joint_vel_mj = expand_dof_23_to_29(_to_numpy(motion_dict["dof_vel"][0]))
-    root_rot_xyzw = _to_numpy(motion_dict["root_rot"][0])
-    return TextOpMotionBlock(
-        index=index,
-        joint_pos=joint_pos_mj[:, MUJOCO_TO_ISAACLAB_REINDEX],
-        joint_vel=joint_vel_mj[:, MUJOCO_TO_ISAACLAB_REINDEX],
-        anchor_pos_w=_to_numpy(motion_dict["root_trans_offset"][0]),
-        anchor_quat_w=root_rot_xyzw[:, [3, 0, 1, 2]],
-    )
+@dataclass(frozen=True)
+class RobotMdarRuntime:
+    torch: Any
+    OmegaConf: Any
+    instantiate: Callable[..., Any]
+    seed: Any
+    ClassifierFreeWrapper: type
+    generate_next_motion: Callable[..., Any]
+    load_and_freeze_clip: Callable[..., Any]
+    encode_text: Callable[..., Any]
+    get_zero_abs_pose: Callable[..., Any]
+    get_zero_feature: Callable[..., Any]
 
 
 def run_producer(args: argparse.Namespace) -> None:
-    imports = _load_robotmdar_imports()
-    torch = imports["torch"]
-    OmegaConf = imports["OmegaConf"]
-    instantiate = imports["instantiate"]
-    seed = imports["seed"]
-    ClassifierFreeWrapper = imports["ClassifierFreeWrapper"]
-    generate_next_motion = imports["generate_next_motion"]
-    load_and_freeze_clip = imports["load_and_freeze_clip"]
-    encode_text = imports["encode_text"]
-    get_zero_abs_pose = imports["get_zero_abs_pose"]
-    get_zero_feature = imports["get_zero_feature"]
+    runtime = _load_robotmdar_runtime()
 
-    _register_hydra_resolvers(OmegaConf)
-    cfg = OmegaConf.load(Path(args.ckpt).parent / ".hydra" / "config.yaml")
+    _register_hydra_resolvers(runtime.OmegaConf)
+    cfg = runtime.OmegaConf.load(Path(args.ckpt).parent / ".hydra" / "config.yaml")
     cfg.device = args.device
     cfg.ckpt.dar = args.ckpt
     cfg.train.manager.device = args.device
@@ -104,30 +56,30 @@ def run_producer(args: argparse.Namespace) -> None:
     cfg.use_full_sample = True
     cfg.guidance_scale = args.guidance_scale
 
-    seed.set(cfg.seed)
-    clip_model = load_and_freeze_clip("ViT-B/32", device=args.device)
-    val_data = instantiate(cfg.data.val)
-    vae = instantiate(cfg.vae)
-    denoiser = instantiate(cfg.denoiser)
-    schedule_sampler = instantiate(cfg.diffusion.schedule_sampler)
+    runtime.seed.set(cfg.seed)
+    clip_model = runtime.load_and_freeze_clip("ViT-B/32", device=args.device)
+    val_data = runtime.instantiate(cfg.data.val)
+    vae = runtime.instantiate(cfg.vae)
+    denoiser = runtime.instantiate(cfg.denoiser)
+    schedule_sampler = runtime.instantiate(cfg.diffusion.schedule_sampler)
     diffusion = schedule_sampler.diffusion
     vae.eval()
     denoiser.eval()
 
-    manager = instantiate(cfg.train.manager)
+    manager = runtime.instantiate(cfg.train.manager)
     manager.hold_model(vae, denoiser, None, val_data)
-    cfg_denoiser = ClassifierFreeWrapper(denoiser)
+    cfg_denoiser = runtime.ClassifierFreeWrapper(denoiser)
 
     future_len = int(cfg.data.future_len)
     history_len = int(cfg.data.history_len)
     history_motion = val_data.normalize(
-        get_zero_feature().to(args.device).reshape(1, 1, -1).repeat(
+        runtime.get_zero_feature().to(args.device).reshape(1, 1, -1).repeat(
             1,
             history_len,
             1,
         )
     )
-    abs_pose = get_zero_abs_pose((1,), device=args.device)
+    abs_pose = runtime.get_zero_abs_pose((1,), device=args.device)
     prompt = PromptState(text=args.prompt)
     input_thread = threading.Thread(target=_prompt_loop, args=(prompt,), daemon=True)
     input_thread.start()
@@ -145,9 +97,11 @@ def run_producer(args: argparse.Namespace) -> None:
             block_count = 0
             while not prompt.stop:
                 block_start_time = time.monotonic()
-                with torch.no_grad():
-                    text_embedding = encode_text(clip_model, [prompt.text]).float()
-                    future_motion, motion_dict, abs_pose = generate_next_motion(
+                with runtime.torch.no_grad():
+                    text_embedding = runtime.encode_text(
+                        clip_model, [prompt.text]
+                    ).float()
+                    future_motion, motion_dict, abs_pose = runtime.generate_next_motion(
                         vae=vae,
                         denoiser=cfg_denoiser,
                         diffusion=diffusion,
@@ -163,8 +117,8 @@ def run_producer(args: argparse.Namespace) -> None:
                     )
                 history_motion = future_motion[:, -history_len:, :]
                 block = robotmdar_motion_dict_to_block(
-                    _slice_motion_dict_tail(motion_dict, future_len),
-                    frame_index,
+                    slice_motion_dict_tail(motion_dict, future_len),
+                    index=frame_index,
                 )
                 conn.sendall(
                     textop_block_to_ndjson_message(block, fps=args.fps).encode("utf-8")
@@ -221,7 +175,7 @@ def main() -> None:
     run_producer(parse_args())
 
 
-def _load_robotmdar_imports() -> dict[str, object]:
+def _load_robotmdar_runtime() -> RobotMdarRuntime:
     try:
         import torch
         from hydra.utils import instantiate
@@ -237,18 +191,18 @@ def _load_robotmdar_imports() -> dict[str, object]:
         raise ImportError(
             "RobotMDAR producer must be run in the TextOp/RobotMDAR environment."
         ) from exc
-    return {
-        "torch": torch,
-        "instantiate": instantiate,
-        "OmegaConf": OmegaConf,
-        "seed": seed,
-        "get_zero_abs_pose": get_zero_abs_pose,
-        "get_zero_feature": get_zero_feature,
-        "ClassifierFreeWrapper": ClassifierFreeWrapper,
-        "generate_next_motion": generate_next_motion,
-        "encode_text": encode_text,
-        "load_and_freeze_clip": load_and_freeze_clip,
-    }
+    return RobotMdarRuntime(
+        torch=torch,
+        instantiate=instantiate,
+        OmegaConf=OmegaConf,
+        seed=seed,
+        get_zero_abs_pose=get_zero_abs_pose,
+        get_zero_feature=get_zero_feature,
+        ClassifierFreeWrapper=ClassifierFreeWrapper,
+        generate_next_motion=generate_next_motion,
+        encode_text=encode_text,
+        load_and_freeze_clip=load_and_freeze_clip,
+    )
 
 
 def _register_hydra_resolvers(OmegaConf) -> None:
@@ -278,22 +232,6 @@ def _prompt_loop(prompt: PromptState) -> None:
             prompt.stop = True
         elif text:
             prompt.text = text
-
-
-def _slice_motion_dict_tail(motion_dict, frames: int):
-    result = {}
-    for key, value in motion_dict.items():
-        if hasattr(value, "shape") and len(value.shape) >= 2:
-            result[key] = value[:, -frames:]
-        else:
-            result[key] = value
-    return result
-
-
-def _to_numpy(value) -> np.ndarray:
-    if hasattr(value, "detach"):
-        value = value.detach().cpu().numpy()
-    return np.asarray(value, dtype=np.float32)
 
 
 if __name__ == "__main__":
