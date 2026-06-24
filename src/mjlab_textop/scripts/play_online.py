@@ -25,6 +25,7 @@ class PlayOnlineCommand:
     future_steps: int = TEXTOP_FUTURE_STEPS
     block_size: int = 8
     max_stale_steps: int = 25
+    reset_robot_to_reference: bool = True
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     )
@@ -44,6 +45,7 @@ def play_online_textop_motion(
         num_envs=cfg.num_envs,
         anchor_alignment=cfg.anchor_alignment,
         max_stale_steps=cfg.max_stale_steps,
+        reset_robot_to_reference=cfg.reset_robot_to_reference,
     )
 
     play_cfg = PlayConfig(

@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from mjlab_textop.core.contract import MJLAB_G1_JOINT_NAMES
 from mjlab_textop.core.motion import (
     load_mjlab_motion,
     reindex_mjlab_g1_joints_to_textop,
@@ -11,11 +12,30 @@ from mjlab_textop.core.motion import (
 from mjlab_textop.core.online.source import TextOpMotionBlock
 from mjlab_textop.core.robotmdar import (
     ROBOTMDAR_G1_DOF_INDEX,
+    ROBOTMDAR_G1_DOF_NAMES,
     expand_robotmdar_dof_to_mjlab_g1,
     robotmdar_motion_dict_to_block,
     save_textop_motion_blocks_as_mjlab_npz,
     slice_motion_dict_tail,
 )
+
+
+def test_robotmdar_dof_indices_are_derived_from_joint_names() -> None:
+    assert ROBOTMDAR_G1_DOF_INDEX == tuple(
+        MJLAB_G1_JOINT_NAMES.index(name) for name in ROBOTMDAR_G1_DOF_NAMES
+    )
+    assert tuple(
+        name
+        for name in MJLAB_G1_JOINT_NAMES
+        if name not in ROBOTMDAR_G1_DOF_NAMES
+    ) == (
+        "left_wrist_roll_joint",
+        "left_wrist_pitch_joint",
+        "left_wrist_yaw_joint",
+        "right_wrist_roll_joint",
+        "right_wrist_pitch_joint",
+        "right_wrist_yaw_joint",
+    )
 
 
 def test_expand_robotmdar_dof_to_mjlab_g1_places_known_dofs() -> None:
@@ -25,8 +45,12 @@ def test_expand_robotmdar_dof_to_mjlab_g1_places_known_dofs() -> None:
 
     assert mjlab_dof.shape == (2, 29)
     np.testing.assert_allclose(mjlab_dof[:, ROBOTMDAR_G1_DOF_INDEX], robotmdar_dof)
-    np.testing.assert_allclose(mjlab_dof[:, 19:22], 0.0)
-    np.testing.assert_allclose(mjlab_dof[:, 26:29], 0.0)
+    missing_joint_indices = [
+        MJLAB_G1_JOINT_NAMES.index(name)
+        for name in MJLAB_G1_JOINT_NAMES
+        if name not in ROBOTMDAR_G1_DOF_NAMES
+    ]
+    np.testing.assert_allclose(mjlab_dof[:, missing_joint_indices], 0.0)
 
 
 def test_expand_robotmdar_dof_to_mjlab_g1_rejects_wrong_shape() -> None:

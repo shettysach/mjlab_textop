@@ -58,6 +58,7 @@ def make_online_textop_g1_flat_tracking_env_cfg(
         "align_to_robot_start"
     ),
     max_stale_steps: int = 25,
+    reset_robot_to_reference: bool = True,
 ):
     cfg = unitree_g1_flat_tracking_env_cfg(play=play)
 
@@ -70,6 +71,7 @@ def make_online_textop_g1_flat_tracking_env_cfg(
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         max_stale_steps=max_stale_steps,
+        reset_robot_to_reference=reset_robot_to_reference,
     )
     _configure_textop_anchor(cfg)
     _configure_textop_actor_observations(cfg)
@@ -90,6 +92,7 @@ def register_online_textop_task(
         "align_to_robot_start"
     ),
     max_stale_steps: int = 25,
+    reset_robot_to_reference: bool = True,
 ) -> str:
     mode_name = source_mode.capitalize()
     task_name = f"{ONLINE_TEXTOP_TASK_NAME}-{mode_name}-{uuid4().hex}"
@@ -101,6 +104,7 @@ def register_online_textop_task(
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         max_stale_steps=max_stale_steps,
+        reset_robot_to_reference=reset_robot_to_reference,
     )
     env_cfg.scene.num_envs = num_envs
 
@@ -123,6 +127,7 @@ def register_online_textop_replay_task(
         "align_to_robot_start"
     ),
     max_stale_steps: int = 25,
+    reset_robot_to_reference: bool = True,
 ) -> str:
     return register_online_textop_task(
         source=source,
@@ -131,6 +136,7 @@ def register_online_textop_replay_task(
         num_envs=num_envs,
         anchor_alignment=anchor_alignment,
         max_stale_steps=max_stale_steps,
+        reset_robot_to_reference=reset_robot_to_reference,
     )
 
 

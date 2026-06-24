@@ -505,3 +505,19 @@ def test_use_online_textop_motion_command_preserves_injected_source() -> None:
 
     assert env_cfg.commands["motion"].source is source
     assert env_cfg.commands["motion"].source_mode == "live"
+
+
+def test_use_online_textop_motion_command_can_disable_reference_reset() -> None:
+    env_cfg = SimpleNamespace(
+        commands={
+            "motion": SimpleNamespace(entity_name="robot", anchor_body_name="pelvis")
+        }
+    )
+
+    use_online_textop_motion_command(
+        env_cfg,
+        source_mode="replay",
+        reset_robot_to_reference=False,
+    )
+
+    assert env_cfg.commands["motion"].reset_robot_to_reference is False

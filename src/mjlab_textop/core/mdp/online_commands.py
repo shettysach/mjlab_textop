@@ -349,6 +349,7 @@ def use_online_textop_motion_command(
         "align_to_robot_start"
     ),
     max_stale_steps: int = 25,
+    reset_robot_to_reference: bool = True,
 ) -> None:
     motion_cfg = env_cfg.commands[command_name]
     entity_name = getattr(motion_cfg, "entity_name", "robot")
@@ -364,4 +365,5 @@ def use_online_textop_motion_command(
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         max_stale_steps=max_stale_steps,
+        reset_robot_to_reference=reset_robot_to_reference,
     )

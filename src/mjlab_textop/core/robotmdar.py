@@ -6,7 +6,7 @@ from typing import Any
 
 import numpy as np
 
-from mjlab_textop.core.contract import TEXTOP_G1_JOINT_COUNT
+from mjlab_textop.core.contract import MJLAB_G1_JOINT_NAMES, TEXTOP_G1_JOINT_COUNT
 from mjlab_textop.core.motion import (
     reindex_mjlab_g1_joints_to_textop,
     reindex_textop_g1_joints_to_mjlab,

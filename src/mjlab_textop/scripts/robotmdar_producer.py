@@ -21,7 +21,7 @@ from mjlab_textop.core.robotmdar import (
 
 @dataclass
 class PromptState:
-    text: str = "walk"
+    text: str
     stop: bool = False
     input_active: bool = False
 
@@ -192,7 +192,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--fps", type=float, default=50.0)
     parser.add_argument("--guidance-scale", type=float, default=5.0)
-    parser.add_argument("--prompt", default="stand")
+    parser.add_argument("--prompt", default="walk")
     parser.add_argument("--record-output", type=Path, default=None)
     parser.add_argument("--log-every-blocks", type=int, default=20)
     return parser.parse_args()
