@@ -43,6 +43,7 @@ def make_textop_g1_flat_tracking_env_cfg(
     _configure_textop_anchor(cfg)
     _configure_textop_actor_observations(cfg)
     _configure_textop_critic_observations(cfg)
+    _configure_online_textop_tracking_terms(cfg)
 
     return cfg
 
