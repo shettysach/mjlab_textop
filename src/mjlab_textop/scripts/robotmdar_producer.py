@@ -14,13 +14,14 @@ from typing import Any
 from mjlab_textop.core.online.live import textop_block_to_ndjson_message
 from mjlab_textop.core.robotmdar import (
     robotmdar_motion_dict_to_block,
+    save_textop_motion_blocks_as_mjlab_npz,
     slice_motion_dict_tail,
 )
 
 
 @dataclass
 class PromptState:
-    text: str = "stand"
+    text: str = "walk"
     stop: bool = False
     input_active: bool = False
 
@@ -86,70 +87,97 @@ def run_producer(args: argparse.Namespace) -> None:
     prompt = PromptState(text=args.prompt)
     input_thread = threading.Thread(target=_prompt_loop, args=(prompt,), daemon=True)
     input_thread.start()
+    recorded_blocks = []
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
-        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server.bind((args.host, args.port))
-        server.listen(1)
-        print(f"Waiting for MJLab consumer on {args.host}:{args.port}")
-        conn, addr = server.accept()
-        print(f"MJLab consumer connected from {addr}")
-        with conn:
-            frame_index = 0
-            next_send_time = time.monotonic()
-            block_count = 0
-            while not prompt.stop:
-                block_start_time = time.monotonic()
-                with runtime.torch.no_grad():
-                    text_embedding = runtime.encode_text(
-                        clip_model, [prompt.text]
-                    ).float()
-                    future_motion, motion_dict, abs_pose = runtime.generate_next_motion(
-                        vae=vae,
-                        denoiser=cfg_denoiser,
-                        diffusion=diffusion,
-                        val_data=val_data,
-                        text_embedding=text_embedding,
-                        history_motion=history_motion,
-                        abs_pose=abs_pose,
-                        future_len=future_len,
-                        use_full_sample=True,
-                        guidance_scale=args.guidance_scale,
-                        ret_fk=True,
-                        ret_fk_full=False,
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+            server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server.bind((args.host, args.port))
+            server.listen(1)
+            print(f"Waiting for MJLab consumer on {args.host}:{args.port}")
+            conn, addr = server.accept()
+            print(f"MJLab consumer connected from {addr}")
+            with conn:
+                frame_index = 0
+                next_send_time = time.monotonic()
+                block_count = 0
+                while not prompt.stop:
+                    block_start_time = time.monotonic()
+                    with runtime.torch.no_grad():
+                        text_embedding = runtime.encode_text(
+                            clip_model, [prompt.text]
+                        ).float()
+                        future_motion, motion_dict, abs_pose = (
+                            runtime.generate_next_motion(
+                                vae=vae,
+                                denoiser=cfg_denoiser,
+                                diffusion=diffusion,
+                                val_data=val_data,
+                                text_embedding=text_embedding,
+                                history_motion=history_motion,
+                                abs_pose=abs_pose,
+                                future_len=future_len,
+                                use_full_sample=True,
+                                guidance_scale=args.guidance_scale,
+                                ret_fk=True,
+                                ret_fk_full=False,
+                            )
+                        )
+                    history_motion = future_motion[:, -history_len:, :]
+                    block = robotmdar_motion_dict_to_block(
+                        slice_motion_dict_tail(motion_dict, future_len),
+                        index=frame_index,
                     )
-                history_motion = future_motion[:, -history_len:, :]
-                block = robotmdar_motion_dict_to_block(
-                    slice_motion_dict_tail(motion_dict, future_len),
-                    index=frame_index,
-                )
-                conn.sendall(
-                    textop_block_to_ndjson_message(block, fps=args.fps).encode("utf-8")
-                )
-                frame_index += block.joint_pos.shape[0]
-                block_count += 1
+                    recorded_blocks.append(block)
+                    conn.sendall(
+                        textop_block_to_ndjson_message(block, fps=args.fps).encode(
+                            "utf-8"
+                        )
+                    )
+                    frame_index += block.joint_pos.shape[0]
+                    block_count += 1
 
-                block_duration = block.joint_pos.shape[0] / args.fps
-                next_send_time += block_duration
-                sleep_seconds = next_send_time - time.monotonic()
-                if (
-                    args.log_every_blocks > 0
-                    and block_count % args.log_every_blocks == 0
-                    and not prompt.input_active
-                ):
-                    generation_ms = (time.monotonic() - block_start_time) * 1000.0
-                    lag_ms = max(0.0, -sleep_seconds * 1000.0)
-                    print(
-                        "stream "
-                        f"block={block_count} frame={frame_index} "
-                        f"prompt={prompt.text!r} gen_ms={generation_ms:.1f} "
-                        f"lag_ms={lag_ms:.1f}"
-                        "\nEnter text prompt (or q to exit): ",
-                        file=sys.stderr,
-                        end="",
-                        flush=True,
-                    )
-                time.sleep(max(0.0, sleep_seconds))
+                    block_duration = block.joint_pos.shape[0] / args.fps
+                    next_send_time += block_duration
+                    sleep_seconds = next_send_time - time.monotonic()
+                    if (
+                        args.log_every_blocks > 0
+                        and block_count % args.log_every_blocks == 0
+                        and not prompt.input_active
+                    ):
+                        generation_ms = (time.monotonic() - block_start_time) * 1000.0
+                        lag_ms = max(0.0, -sleep_seconds * 1000.0)
+                        print(
+                            "stream "
+                            f"block={block_count} frame={frame_index} "
+                            f"prompt={prompt.text!r} gen_ms={generation_ms:.1f} "
+                            f"lag_ms={lag_ms:.1f}"
+                            "\nEnter text prompt (or q to exit): ",
+                            file=sys.stderr,
+                            end="",
+                            flush=True,
+                        )
+                    time.sleep(max(0.0, sleep_seconds))
+    except KeyboardInterrupt:
+        prompt.stop = True
+        print("Stopping RobotMDAR producer.", file=sys.stderr)
+    finally:
+        if args.record_output is not None:
+            if recorded_blocks:
+                save_textop_motion_blocks_as_mjlab_npz(
+                    args.record_output,
+                    recorded_blocks,
+                    fps=args.fps,
+                )
+                print(
+                    f"Recorded {len(recorded_blocks)} RobotMDAR blocks to "
+                    f"{args.record_output}",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    "No RobotMDAR blocks recorded; skipping NPZ write.", file=sys.stderr
+                )
 
 
 def parse_args() -> argparse.Namespace:
@@ -165,12 +193,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fps", type=float, default=50.0)
     parser.add_argument("--guidance-scale", type=float, default=5.0)
     parser.add_argument("--prompt", default="stand")
-    parser.add_argument(
-        "--log-every-blocks",
-        type=int,
-        default=20,
-        help="Print producer timing every N streamed blocks. Use 0 to disable.",
-    )
+    parser.add_argument("--record-output", type=Path, default=None)
+    parser.add_argument("--log-every-blocks", type=int, default=20)
     return parser.parse_args()
 
 

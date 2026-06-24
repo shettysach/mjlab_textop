@@ -3,11 +3,17 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mjlab_textop.core.motion import reindex_mjlab_g1_joints_to_textop
+from mjlab_textop.core.motion import (
+    load_mjlab_motion,
+    reindex_mjlab_g1_joints_to_textop,
+    reindex_textop_g1_joints_to_mjlab,
+)
+from mjlab_textop.core.online.source import TextOpMotionBlock
 from mjlab_textop.core.robotmdar import (
     ROBOTMDAR_G1_DOF_INDEX,
     expand_robotmdar_dof_to_mjlab_g1,
     robotmdar_motion_dict_to_block,
+    save_textop_motion_blocks_as_mjlab_npz,
     slice_motion_dict_tail,
 )
 
@@ -71,3 +77,47 @@ def test_slice_motion_dict_tail_slices_batched_time_arrays() -> None:
 
     np.testing.assert_allclose(result["batched"], batched[:, -2:])
     assert result["scalar"] is scalar
+
+
+def test_save_textop_motion_blocks_as_mjlab_npz_records_replay_motion(tmp_path) -> None:
+    textop_joint_pos = np.arange(4 * 29, dtype=np.float32).reshape(4, 29)
+    textop_joint_vel = textop_joint_pos + 1000.0
+    anchor_pos_w = np.arange(4 * 3, dtype=np.float32).reshape(4, 3)
+    anchor_quat_w = np.tile(
+        np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32),
+        (4, 1),
+    )
+    blocks = [
+        TextOpMotionBlock(
+            index=2,
+            joint_pos=textop_joint_pos[2:4],
+            joint_vel=textop_joint_vel[2:4],
+            anchor_pos_w=anchor_pos_w[2:4],
+            anchor_quat_w=anchor_quat_w[2:4],
+        ),
+        TextOpMotionBlock(
+            index=0,
+            joint_pos=textop_joint_pos[0:2],
+            joint_vel=textop_joint_vel[0:2],
+            anchor_pos_w=anchor_pos_w[0:2],
+            anchor_quat_w=anchor_quat_w[0:2],
+        ),
+    ]
+    output_file = tmp_path / "robotmdar_recorded.npz"
+
+    save_textop_motion_blocks_as_mjlab_npz(output_file, blocks, fps=50.0)
+
+    motion = load_mjlab_motion(output_file)
+    assert motion.fps == 50.0
+    assert motion.joint_pos.shape == (4, 29)
+    assert motion.joint_vel.shape == (4, 29)
+    assert motion.body_pos_w.shape == (4, 1, 3)
+    assert motion.body_quat_w.shape == (4, 1, 4)
+    np.testing.assert_allclose(
+        motion.joint_pos, reindex_textop_g1_joints_to_mjlab(textop_joint_pos)
+    )
+    np.testing.assert_allclose(
+        motion.joint_vel, reindex_textop_g1_joints_to_mjlab(textop_joint_vel)
+    )
+    np.testing.assert_allclose(motion.body_pos_w[:, 0, :], anchor_pos_w)
+    np.testing.assert_allclose(motion.body_quat_w[:, 0, :], anchor_quat_w)
