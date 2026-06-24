@@ -66,7 +66,7 @@ uvx hf download Yochish/TextOp-Data \
 
 uv run --extra cu128 mjlab-textop normalize \
   --motion-file /tmp/textop-data/TextOpTracker/artifacts/Data10k-open/homejrhangmr_dataset_pbhc_contact_maskACCADFemale1Walking_c3dB3-walk1_posespkl/motion.npz \
-  --motion-file ./outputs/walk_mjlab.npz
+  --normalized-motion-file ./outputs/walk_mjlab.npz
 ```
 
 The normalizer expects TextOp's canonical tracker NPZ fields. It reorders
