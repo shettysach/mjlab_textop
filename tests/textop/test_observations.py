@@ -4,13 +4,13 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+from mjlab.envs.mdp.observations import projected_gravity
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
 from mjlab_textop.core.mdp.observations import (
     future_anchor_ori_b,
     future_anchor_pos_b,
     future_joint_window,
-    projected_gravity,
 )
 
 
@@ -148,7 +148,9 @@ def test_future_anchor_ori_b_identity_orientation() -> None:
 def test_projected_gravity_reuses_mjlab_observation() -> None:
     expected = torch.tensor([[0.0, 0.0, -1.0]], dtype=torch.float32)
     env = SimpleNamespace(
-        scene={"robot": SimpleNamespace(data=SimpleNamespace(projected_gravity_b=expected))}
+        scene={
+            "robot": SimpleNamespace(data=SimpleNamespace(projected_gravity_b=expected))
+        }
     )
 
     out = projected_gravity(env, asset_cfg=SceneEntityCfg("robot"))

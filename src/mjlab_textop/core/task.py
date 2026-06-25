@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Literal
 from uuid import uuid4
 
+from mjlab.envs.mdp.observations import projected_gravity
 from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
 from mjlab.tasks.registry import list_tasks, register_mjlab_task
 from mjlab.tasks.tracking.config.g1.env_cfgs import unitree_g1_flat_tracking_env_cfg
@@ -15,7 +16,6 @@ from mjlab_textop.core.mdp.observations import (
     future_anchor_ori_b,
     future_anchor_pos_b,
     future_joint_window,
-    projected_gravity,
 )
 from mjlab_textop.core.mdp.offline_commands import use_textop_motion_command
 from mjlab_textop.core.mdp.online_commands import (

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import torch
 from mjlab.envs import ManagerBasedRlEnv
-from mjlab.envs.mdp.observations import projected_gravity as mjlab_projected_gravity
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.utils.lab_api.math import matrix_from_quat, subtract_frame_transforms
 
@@ -76,13 +75,3 @@ def _future_anchor_pose_b(
         command.future_anchor_pos_w,
         command.future_anchor_quat_w,
     )
-
-
-DEFAULT_ASSET_CFG = SceneEntityCfg("robot")
-
-
-def projected_gravity(
-    env: ManagerBasedRlEnv,
-    asset_cfg: SceneEntityCfg = DEFAULT_ASSET_CFG,
-) -> torch.Tensor:
-    return mjlab_projected_gravity(env, asset_cfg=asset_cfg)
