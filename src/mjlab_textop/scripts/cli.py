@@ -6,6 +6,10 @@ from typing import TypeAlias
 import tyro
 
 from mjlab_textop.core.normalize import normalize
+from mjlab_textop.scripts.debug_live import (
+    DebugLiveCommand,
+    debug_live_textop_stream,
+)
 from mjlab_textop.scripts.normalize import NormalizeCommand
 from mjlab_textop.scripts.play_live import PlayLiveCommand, play_live_textop_motion
 from mjlab_textop.scripts.play_online import (
@@ -25,6 +29,7 @@ TextOpCommand: TypeAlias = (
     | PlayLiveCommand
     | PlayOnlineOnnxCommand
     | PlayLiveOnnxCommand
+    | DebugLiveCommand
 )
 
 TextOpCommandType = tyro.extras.subcommand_type_from_defaults(
@@ -34,6 +39,7 @@ TextOpCommandType = tyro.extras.subcommand_type_from_defaults(
         "play-live": PlayLiveCommand(),
         "play-online-onnx": PlayOnlineOnnxCommand(),
         "play-live-onnx": PlayLiveOnnxCommand(),
+        "debug-live": DebugLiveCommand(),
     },
 )
 
@@ -118,6 +124,18 @@ def run_command(cfg: TextOpCommand) -> None:
             play_live_textop_onnx(
                 cfg,
                 policy_file=policy_file,
+            )
+            return
+
+        case DebugLiveCommand():
+            compare_motion_file = (
+                verify_path(cfg.compare_motion_file, "Compare motion file")
+                if cfg.compare_motion_file is not None
+                else None
+            )
+            debug_live_textop_stream(
+                cfg,
+                compare_motion_file=compare_motion_file,
             )
             return
 
