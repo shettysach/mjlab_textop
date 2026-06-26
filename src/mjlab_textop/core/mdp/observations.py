@@ -40,6 +40,25 @@ def future_joint_window(
     )
 
 
+def future_joint_window_textop_order(
+    env: ManagerBasedRlEnv,
+    command_name: str = "motion",
+) -> torch.Tensor:
+    command = _get_textop_future_reference_command(env, command_name)
+    index = _mjlab_to_textop_index(command.future_joint_pos.device)
+
+    joint_pos = command.future_joint_pos.index_select(-1, index)
+    joint_vel = command.future_joint_vel.index_select(-1, index)
+
+    return torch.cat(
+        [
+            joint_pos.reshape(env.num_envs, -1),
+            joint_vel.reshape(env.num_envs, -1),
+        ],
+        dim=-1,
+    )
+
+
 def future_anchor_pos_b(
     env: ManagerBasedRlEnv,
     command_name: str = "motion",

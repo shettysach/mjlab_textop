@@ -16,6 +16,7 @@ from mjlab_textop.core.mdp.observations import (
     future_anchor_ori_b,
     future_anchor_pos_b,
     future_joint_window,
+    future_joint_window_textop_order,
     joint_pos_rel_textop_order,
     joint_vel_rel_textop_order,
     last_action_textop_order,
@@ -252,7 +253,7 @@ def _configure_textop_onnx_actor_observations(cfg) -> None:
     old_actor = cfg.observations["actor"]
     terms = {
         "future_joint_window": ObservationTermCfg(
-            func=future_joint_window,
+            func=future_joint_window_textop_order,
             params={"command_name": "motion"},
         ),
         "future_anchor_pos_b": ObservationTermCfg(
