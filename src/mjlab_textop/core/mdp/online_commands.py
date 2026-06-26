@@ -87,6 +87,8 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._startup_wait_steps = 0
         self._last_stale_steps = 0
         self._consecutive_stale_steps = 0
+        self._total_clamped_steps = 0
+        self._clamped_window_count = 0
         self._last_stale_frame: int | None = None
         self._anchor_pos_offset_w = torch.zeros(3, device=self.device)
 
@@ -96,7 +98,25 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self.metrics["online_stale_steps"] = torch.zeros(
             self.num_envs, device=self.device
         )
+        self.metrics["online_clamped_steps"] = torch.zeros(
+            self.num_envs, device=self.device
+        )
         self.metrics["online_consecutive_stale_steps"] = torch.zeros(
+            self.num_envs, device=self.device
+        )
+        self.metrics["online_consecutive_clamped_steps"] = torch.zeros(
+            self.num_envs, device=self.device
+        )
+        self.metrics["online_total_stale_steps"] = torch.zeros(
+            self.num_envs, device=self.device
+        )
+        self.metrics["online_total_clamped_steps"] = torch.zeros(
+            self.num_envs, device=self.device
+        )
+        self.metrics["online_stale_window_count"] = torch.zeros(
+            self.num_envs, device=self.device
+        )
+        self.metrics["online_clamped_window_count"] = torch.zeros(
             self.num_envs, device=self.device
         )
         self.metrics["online_current_frame"] = torch.zeros(
@@ -105,10 +125,19 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self.metrics["online_latest_frame"] = torch.zeros(
             self.num_envs, device=self.device
         )
+        self.metrics["online_latest_buffered_frame"] = torch.zeros(
+            self.num_envs, device=self.device
+        )
         self.metrics["online_lag_frames"] = torch.zeros(
             self.num_envs, device=self.device
         )
         self.metrics["online_started"] = torch.zeros(self.num_envs, device=self.device)
+        self.metrics["online_is_started"] = torch.zeros(
+            self.num_envs, device=self.device
+        )
+        self.metrics["online_future_steps"] = torch.zeros(
+            self.num_envs, device=self.device
+        )
         self.metrics["online_queue_depth"] = torch.zeros(
             self.num_envs, device=self.device
         )
@@ -169,18 +198,33 @@ class OnlineTextOpMotionCommand(CommandTerm):
     def _update_metrics(self) -> None:
         self.metrics["online_buffer_frames"][:] = float(self.buffer.frame_count)
         self.metrics["online_stale_steps"][:] = float(self._last_stale_steps)
+        self.metrics["online_clamped_steps"][:] = float(self._last_stale_steps)
         self.metrics["online_consecutive_stale_steps"][:] = float(
             self._consecutive_stale_steps
         )
+        self.metrics["online_consecutive_clamped_steps"][:] = float(
+            self._consecutive_stale_steps
+        )
+        self.metrics["online_total_stale_steps"][:] = float(self._total_clamped_steps)
+        self.metrics["online_total_clamped_steps"][:] = float(
+            self._total_clamped_steps
+        )
+        self.metrics["online_stale_window_count"][:] = float(
+            self._clamped_window_count
+        )
+        self.metrics["online_clamped_window_count"][:] = float(
+            self._clamped_window_count
+        )
         latest_index = self.buffer.latest_index
+        latest_buffered_frame = -1 if latest_index is None else latest_index
+        lag_frames = 0 if latest_index is None else latest_index - self.current_frame
         self.metrics["online_current_frame"][:] = float(self.current_frame)
-        self.metrics["online_latest_frame"][:] = float(
-            -1 if latest_index is None else latest_index
-        )
-        self.metrics["online_lag_frames"][:] = float(
-            0 if latest_index is None else latest_index - self.current_frame
-        )
+        self.metrics["online_latest_frame"][:] = float(latest_buffered_frame)
+        self.metrics["online_latest_buffered_frame"][:] = float(latest_buffered_frame)
+        self.metrics["online_lag_frames"][:] = float(lag_frames)
         self.metrics["online_started"][:] = float(self._started)
+        self.metrics["online_is_started"][:] = float(self._started)
+        self.metrics["online_future_steps"][:] = float(self.cfg.future_steps)
         diagnostics = getattr(self.cfg.source, "diagnostics", None)
         if diagnostics is not None:
             self.metrics["online_queue_depth"][:] = float(
@@ -210,6 +254,8 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._startup_wait_steps = 0
         self._last_stale_steps = 0
         self._consecutive_stale_steps = 0
+        self._total_clamped_steps = 0
+        self._clamped_window_count = 0
         self._last_stale_frame = None
         self._anchor_pos_offset_w.zero_()
         if self.cfg.source_mode == "replay" and self.buffer.can_start(
@@ -275,6 +321,8 @@ class OnlineTextOpMotionCommand(CommandTerm):
         if self._last_stale_frame != self.current_frame:
             if stale_steps > 0:
                 self._consecutive_stale_steps += 1
+                self._total_clamped_steps += int(stale_steps)
+                self._clamped_window_count += 1
             else:
                 self._consecutive_stale_steps = 0
             self._last_stale_frame = self.current_frame

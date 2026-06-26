@@ -249,9 +249,14 @@ def test_online_command_clamps_too_many_consecutive_stale_windows() -> None:
 
     command._update_command()
     future = command.future_joint_pos
+    command._update_metrics()
 
     assert command._consecutive_stale_steps > command.cfg.max_stale_steps
     assert future.shape == (1, 5, 29)
+    assert command.metrics["online_clamped_steps"].item() == 4.0
+    assert command.metrics["online_consecutive_clamped_steps"].item() == 2.0
+    assert command.metrics["online_total_clamped_steps"].item() == 7.0
+    assert command.metrics["online_clamped_window_count"].item() == 2.0
 
 
 def test_online_command_replay_allows_stale_windows_at_clip_end() -> None:
@@ -357,11 +362,17 @@ def test_online_command_updates_live_diagnostics_metrics() -> None:
     assert command.metrics["online_started"].item() == 1.0
     assert command.metrics["online_current_frame"].item() == 0.0
     assert command.metrics["online_latest_frame"].item() == 7.0
+    assert command.metrics["online_latest_buffered_frame"].item() == 7.0
     assert command.metrics["online_lag_frames"].item() == 7.0
     assert command.metrics["online_queue_depth"].item() == 3.0
     assert command.metrics["online_blocks_received"].item() == 4.0
     assert command.metrics["online_blocks_dropped"].item() == 1.0
     assert command.metrics["online_bad_messages"].item() == 2.0
+    assert command.metrics["online_future_steps"].item() == 5.0
+    assert command.metrics["online_is_started"].item() == 1.0
+    assert command.metrics["online_clamped_steps"].item() == 0.0
+    assert command.metrics["online_total_clamped_steps"].item() == 0.0
+    assert command.metrics["online_clamped_window_count"].item() == 0.0
 
 
 def test_online_command_replay_reset_rewinds_source() -> None:
