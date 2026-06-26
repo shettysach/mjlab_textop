@@ -52,7 +52,9 @@ class TextOpRollingMotionBuffer:
     def append_block(self, block: TextOpMotionBlock) -> None:
         joint_pos = validate_g1_joint_frames("joint_pos", block.joint_pos)
         joint_vel = validate_g1_joint_frames("joint_vel", block.joint_vel)
-        anchor_pos_w = validate_frame_vector_array("anchor_pos_w", block.anchor_pos_w, 3)
+        anchor_pos_w = validate_frame_vector_array(
+            "anchor_pos_w", block.anchor_pos_w, 3
+        )
         anchor_quat_w = normalize_quat(
             validate_frame_vector_array("anchor_quat_w", block.anchor_quat_w, 4)
         )

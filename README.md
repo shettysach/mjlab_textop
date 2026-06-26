@@ -29,7 +29,7 @@ CPU and CUDA torch indexes during lock resolution.
 Generate a raw RobotMDAR reference record without starting an MJLab socket consumer. 
 Run this in the TextOp/RobotMDAR Python environment with this package on `PYTHONPATH`:
 
-##### Setup
+##### TextOpRobotMDAR Setup
 
 ```bash
 cd .. # Don't clone within the mjlab_textop repo
@@ -42,6 +42,13 @@ uv pip install torch
 uv pip install -e ./deps/isaac_utils
 uv pip install git+https://github.com/openai/CLIP.git
 uv pip install -e ./TextOpRobotMDAR
+
+uvx hf download Yochish/TextOp-Data \
+  --repo-type dataset \
+  --local-dir /tmp/textop-data \
+  --include 'TextOpRobotMDAR/logs/**' \
+  --include 'TextOpRobotMDAR/dataset/**' \
+  --include 'TextOpRobotMDAR/description/**'
 ```
 
 ```bash
@@ -58,7 +65,7 @@ uv run python -m mjlab_textop.scripts.robotmdar_record \
 The raw record stores `joint_pos`, `joint_vel`, `anchor_pos_w`, and
 `anchor_quat_w`. Joint arrays remain in TextOp/IsaacLab G1 order.
 
-##### `normalize-robotmdar-npz`
+#### `normalize-robotmdar-npz`
 
 Convert a raw RobotMDAR record into the full MJLab train-ready NPZ. Run this in
 the MJLab environment:
@@ -130,11 +137,22 @@ uv run --extra cu128 mjlab-textop play-online \
 
 #### `play-online-onnx`
 
+##### ONNX Setup
+
+```bash
+uvx hf download Yochish/TextOp-Data \
+TextOpTracker/logs/rsl_rl/Pretrained/checkpoints/latest.onnx \
+--repo-type dataset \
+--local-dir /tmp
+
+$ONNX_PATH=/tmp/TextOpTracker/logs/rsl_rl/Pretrained/checkpoints/latest.onnx
+```
+
 Replay the normalized motion through TextOp's released `latest.onnx` policy:
 
 ```bash
 uv run --extra cu128 mjlab-textop play-online-onnx \
-  --policy-file /tmp/latest.onnx \
+  --policy-file $ONNX_PATH \
   --motion-file ./outputs/walk_forward.npz
 ```
 
@@ -145,9 +163,7 @@ This path uses the ONNX actor directly and does not load an RSL-RL checkpoint.
 Run a live text-to-motion demo over localhost NDJSON. 
 Start the RobotMDAR producer in the TextOp/RobotMDAR Python environment:
 
-#### Setup
-
-Same as [robotmdar-record setup](#setup)
+Setup - [TextOpRobotMDAR Setup](#textoprobotmdar-setup)
 
 ```bash
 # In TextOp directory
@@ -171,12 +187,14 @@ online buffer/source diagnostics through command metrics.
 
 #### `play-live-onnx`
 
+Setup - [ONNX Setup](#onnx-setup)
+
 Run the live RobotMDAR-to-TextOp stream against TextOp's released `latest.onnx`
 policy:
 
 ```bash
 uv run --extra cu128 mjlab-textop play-live-onnx \
-  --policy-file /tmp/latest.onnx \
+  --policy-file $ONNX_PATH \
   --host 127.0.0.1 \
   --port 8765
 ```
