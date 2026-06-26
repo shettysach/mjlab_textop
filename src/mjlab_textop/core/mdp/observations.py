@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import torch
 from mjlab.envs import ManagerBasedRlEnv
-from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.utils.lab_api.math import matrix_from_quat, subtract_frame_transforms
 
 from mjlab_textop.core.mdp.future_reference import TextOpFutureReferenceCommand

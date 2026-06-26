@@ -11,10 +11,6 @@ from mjlab.tasks.tracking.config.g1.env_cfgs import unitree_g1_flat_tracking_env
 
 from mjlab_textop.core.contract import MJLAB_G1_JOINT_NAMES
 from mjlab_textop.core.motion import reindex_textop_g1_joints_to_mjlab
-from mjlab_textop.core.normalize_tracker_npz import (
-    _append_frame,
-    _validate_normalized_output,
-)
 from mjlab_textop.core.robotmdar_record import load_robotmdar_raw_record
 
 
@@ -125,3 +121,51 @@ def _finite_difference_linear_velocity(pos: np.ndarray, fps: float) -> np.ndarra
         vel[:-1] = (pos[1:] - pos[:-1]) * fps
         vel[-1] = vel[-2]
     return vel
+
+
+def _append_frame(
+    log: dict[str, list[np.ndarray] | list[float] | np.ndarray], robot: Entity
+) -> None:
+    assert isinstance(log["joint_pos"], list)
+    assert isinstance(log["joint_vel"], list)
+    assert isinstance(log["body_pos_w"], list)
+    assert isinstance(log["body_quat_w"], list)
+    assert isinstance(log["body_lin_vel_w"], list)
+    assert isinstance(log["body_ang_vel_w"], list)
+
+    log["joint_pos"].append(robot.data.joint_pos[0, :].cpu().numpy().copy())
+    log["joint_vel"].append(robot.data.joint_vel[0, :].cpu().numpy().copy())
+    log["body_pos_w"].append(robot.data.body_link_pos_w[0, :].cpu().numpy().copy())
+    log["body_quat_w"].append(robot.data.body_link_quat_w[0, :].cpu().numpy().copy())
+    log["body_lin_vel_w"].append(
+        robot.data.body_link_lin_vel_w[0, :].cpu().numpy().copy()
+    )
+    log["body_ang_vel_w"].append(
+        robot.data.body_link_ang_vel_w[0, :].cpu().numpy().copy()
+    )
+
+
+def _validate_normalized_output(path: Path) -> None:
+    data = np.load(path)
+    required = (
+        "fps",
+        "joint_pos",
+        "joint_vel",
+        "body_pos_w",
+        "body_quat_w",
+        "body_lin_vel_w",
+        "body_ang_vel_w",
+    )
+    missing = [key for key in required if key not in data]
+    if missing:
+        raise ValueError(f"Normalized MJLab motion is missing keys: {missing}")
+
+    num_frames = data["joint_pos"].shape[0]
+    for key in required:
+        if key == "fps":
+            continue
+        if data[key].shape[0] != num_frames:
+            raise ValueError(
+                f"Normalized output key {key} has inconsistent frame count: "
+                f"{data[key].shape[0]} vs {num_frames}"
+            )

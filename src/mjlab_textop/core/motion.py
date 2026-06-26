@@ -8,8 +8,6 @@ import numpy as np
 from mjlab_textop.core.contract import (
     TEXTOP_G1_JOINT_COUNT,
     TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
-    TEXTOP_OPTIONAL_INPUT_KEYS,
-    TEXTOP_REQUIRED_INPUT_KEYS,
     TEXTOP_ROOT_BODY_INDEX,
 )
 
@@ -17,20 +15,13 @@ MJLAB_TO_TEXTOP_G1_JOINT_INDEX: tuple[int, ...] = tuple(
     int(i) for i in np.argsort(TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)
 )
 
-
-@dataclass(frozen=True)
-class TextOpMotion:
-    fps: float
-    joint_pos: np.ndarray
-    joint_vel: np.ndarray
-    root_pos_w: np.ndarray
-    root_quat_w: np.ndarray
-    root_lin_vel_w: np.ndarray
-    root_ang_vel_w: np.ndarray
-
-    @property
-    def num_frames(self) -> int:
-        return int(self.joint_pos.shape[0])
+MJLAB_REQUIRED_INPUT_KEYS: tuple[str, ...] = (
+    "fps",
+    "joint_pos",
+    "joint_vel",
+    "body_pos_w",
+    "body_quat_w",
+)
 
 
 @dataclass(frozen=True)
@@ -68,52 +59,6 @@ def reindex_mjlab_g1_joints_to_textop(values: np.ndarray) -> np.ndarray:
     return values[..., MJLAB_TO_TEXTOP_G1_JOINT_INDEX]
 
 
-def load_textop_motion(path: str | Path, fps: float | None = None) -> TextOpMotion:
-    """Load a canonical TextOp tracker NPZ and normalize joint order for MJLab."""
-
-    data = np.load(Path(path))
-    resolved_fps = _resolve_fps(data, fps)
-    _require_keys(data, TEXTOP_REQUIRED_INPUT_KEYS)
-
-    joint_pos = validate_g1_joint_frames("joint_pos", data["joint_pos"])
-    joint_vel = validate_g1_joint_frames("joint_vel", data["joint_vel"])
-
-    body_pos_w = np.asarray(data["body_pos_w"], dtype=np.float32)
-    body_quat_w = normalize_quat(np.asarray(data["body_quat_w"], dtype=np.float32))
-    _validate_body_arrays(body_pos_w, body_quat_w)
-    _validate_optional_body_velocity_arrays(data, body_pos_w)
-
-    root_pos_w = body_pos_w[:, TEXTOP_ROOT_BODY_INDEX].astype(np.float32)
-    root_quat_w = body_quat_w[:, TEXTOP_ROOT_BODY_INDEX].astype(np.float32)
-    root_lin_vel_w = _read_root_body_velocity(
-        data, "body_lin_vel_w", body_pos_w, resolved_fps
-    )
-    root_ang_vel_w = _read_root_body_velocity(
-        data, "body_ang_vel_w", body_pos_w, resolved_fps
-    )
-
-    motion = TextOpMotion(
-        fps=resolved_fps,
-        joint_pos=reindex_textop_g1_joints_to_mjlab(joint_pos),
-        joint_vel=reindex_textop_g1_joints_to_mjlab(joint_vel),
-        root_pos_w=root_pos_w,
-        root_quat_w=root_quat_w,
-        root_lin_vel_w=root_lin_vel_w,
-        root_ang_vel_w=root_ang_vel_w,
-    )
-    _validate_frame_count(
-        {
-            "joint_pos": motion.joint_pos,
-            "joint_vel": motion.joint_vel,
-            "root_pos_w": motion.root_pos_w,
-            "root_quat_w": motion.root_quat_w,
-            "root_lin_vel_w": motion.root_lin_vel_w,
-            "root_ang_vel_w": motion.root_ang_vel_w,
-        }
-    )
-    return motion
-
-
 def load_mjlab_motion(path: str | Path) -> MjlabMotion:
     """Load a normalized MJLab tracking NPZ.
 
@@ -121,7 +66,7 @@ def load_mjlab_motion(path: str | Path) -> MjlabMotion:
     """
 
     data = np.load(Path(path))
-    _require_keys(data, TEXTOP_REQUIRED_INPUT_KEYS)
+    _require_keys(data, MJLAB_REQUIRED_INPUT_KEYS)
 
     motion = MjlabMotion(
         fps=_resolve_optional_fps(data),
@@ -142,17 +87,6 @@ def load_mjlab_motion(path: str | Path) -> MjlabMotion:
     return motion
 
 
-def _resolve_fps(data: np.lib.npyio.NpzFile, fps: float | None) -> float:
-    if fps is not None:
-        return _validate_fps_value(fps)
-    if "fps" not in data:
-        raise ValueError("TextOp NPZ must contain `fps`, or pass an explicit fps value")
-    fps_array = np.asarray(data["fps"], dtype=np.float32).reshape(-1)
-    if fps_array.size == 0:
-        raise ValueError(f"Invalid fps value: {data['fps']}")
-    return _validate_fps_value(float(fps_array[0]))
-
-
 def _resolve_optional_fps(data: np.lib.npyio.NpzFile) -> float | None:
     if "fps" not in data:
         return None
@@ -171,7 +105,7 @@ def _validate_fps_value(fps: float) -> float:
 def _require_keys(data: np.lib.npyio.NpzFile, keys: tuple[str, ...]) -> None:
     missing = [key for key in keys if key not in data]
     if missing:
-        raise ValueError(f"TextOp NPZ is missing required keys: {missing}")
+        raise ValueError(f"Motion NPZ is missing required keys: {missing}")
 
 
 def _validate_body_arrays(body_pos_w: np.ndarray, body_quat_w: np.ndarray) -> None:
@@ -195,48 +129,6 @@ def _validate_body_arrays(body_pos_w: np.ndarray, body_quat_w: np.ndarray) -> No
         raise ValueError("body arrays must contain at least one frame")
     if not np.all(np.isfinite(body_pos_w)) or not np.all(np.isfinite(body_quat_w)):
         raise ValueError("body arrays contain non-finite values")
-
-
-def _validate_optional_body_velocity_arrays(
-    data: np.lib.npyio.NpzFile, body_pos_w: np.ndarray
-) -> None:
-    for key in TEXTOP_OPTIONAL_INPUT_KEYS:
-        if key == "fps":
-            continue
-        if key not in data:
-            continue
-        value = validate_body_vector_array(key, data[key])
-        if value.shape[-1] != 3:
-            raise ValueError(f"{key} must be shaped [T, B, 3], got {value.shape}")
-        if value.shape[:2] != body_pos_w.shape[:2]:
-            raise ValueError(
-                f"{key}/body_pos_w frame-body shapes differ: "
-                f"{value.shape[:2]} vs {body_pos_w.shape[:2]}"
-            )
-
-
-def _read_root_body_velocity(
-    data: np.lib.npyio.NpzFile,
-    key: str,
-    body_pos_w: np.ndarray,
-    fps: float,
-) -> np.ndarray:
-    if key in data:
-        return np.asarray(data[key], dtype=np.float32)[:, TEXTOP_ROOT_BODY_INDEX]
-
-    if key == "body_lin_vel_w":
-        return _finite_difference_linear_velocity(
-            body_pos_w[:, TEXTOP_ROOT_BODY_INDEX].astype(np.float32), fps
-        )
-    return np.zeros_like(body_pos_w[:, TEXTOP_ROOT_BODY_INDEX], dtype=np.float32)
-
-
-def _finite_difference_linear_velocity(pos: np.ndarray, fps: float) -> np.ndarray:
-    vel = np.zeros_like(pos, dtype=np.float32)
-    if pos.shape[0] > 1:
-        vel[:-1] = (pos[1:] - pos[:-1]) * fps
-        vel[-1] = vel[-2]
-    return vel
 
 
 def validate_g1_joint_last_dim(name: str, value: np.ndarray) -> np.ndarray:

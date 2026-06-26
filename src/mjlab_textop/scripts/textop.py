@@ -6,12 +6,10 @@ from typing import TypeAlias
 import tyro
 
 from mjlab_textop.core.normalize_robotmdar_npz import normalize_robotmdar_npz
-from mjlab_textop.core.normalize_tracker_npz import normalize_tracker_npz
 from mjlab_textop.scripts.eval import EvalCommand, evaluate_textop_motion
 from mjlab_textop.scripts.normalize_robotmdar_npz import (
     NormalizeRobotMdarNpzCommand,
 )
-from mjlab_textop.scripts.normalize_tracker_npz import NormalizeTrackerNpzCommand
 from mjlab_textop.scripts.play_live import PlayLiveCommand, play_live_textop_motion
 from mjlab_textop.scripts.play_online import (
     PlayOnlineCommand,
@@ -19,8 +17,7 @@ from mjlab_textop.scripts.play_online import (
 )
 
 TextOpCommand: TypeAlias = (
-    NormalizeTrackerNpzCommand
-    | NormalizeRobotMdarNpzCommand
+    NormalizeRobotMdarNpzCommand
     | PlayOnlineCommand
     | PlayLiveCommand
     | EvalCommand
@@ -28,7 +25,6 @@ TextOpCommand: TypeAlias = (
 
 TextOpCommandType = tyro.extras.subcommand_type_from_defaults(
     {
-        "normalize-tracker-npz": NormalizeTrackerNpzCommand(),
         "normalize-robotmdar-npz": NormalizeRobotMdarNpzCommand(),
         "play-online": PlayOnlineCommand(),
         "play-live": PlayLiveCommand(),
@@ -55,12 +51,6 @@ def verify_path(path: str, label: str) -> Path:
 
 def run_textop_motion(cfg: TextOpCommand) -> None:
     match cfg:
-        case NormalizeTrackerNpzCommand():
-            input_file = verify_path(cfg.motion_file, "TextOp motion file")
-            output_file = resolve_path(cfg.normalized_motion_file)
-            normalize_tracker_npz(input_file, output_file, device=cfg.device)
-            return
-
         case NormalizeRobotMdarNpzCommand():
             input_file = verify_path(cfg.recorded_motion_file, "RobotMDAR raw record")
             output_file = resolve_path(cfg.normalized_motion_file)
