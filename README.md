@@ -65,15 +65,15 @@ uv run python -m mjlab_textop.scripts.robotmdar_record \
 The raw record stores `joint_pos`, `joint_vel`, `anchor_pos_w`, and
 `anchor_quat_w`. Joint arrays remain in TextOp/IsaacLab G1 order.
 
-#### `normalize-robotmdar-npz`
+#### `normalize`
 
 Convert a raw RobotMDAR record into the full MJLab train-ready NPZ. Run this in
 the MJLab environment:
 
 ```bash
-uv run --extra cu128 mjlab-textop normalize-robotmdar-npz \
-  --recorded-motion-file /tmp/walk_forward.npz \
-  --normalized-motion-file ./outputs/walk_forward.npz
+uv run --extra cu128 mjlab-textop normalize \
+  --input-motion-file /tmp/walk_forward.npz \
+  --output-motion-file ./outputs/walk_forward.npz
 ```
 
 This command reindexes RobotMDAR raw joints from TextOp/IsaacLab order into

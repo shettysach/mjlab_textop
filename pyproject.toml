@@ -18,9 +18,7 @@ cpu = ["mjlab", "onnxruntime>=1.23.0", "torch>=2.7.0"]
 cu128 = ["mjlab", "onnxruntime>=1.23.0", "torch>=2.7.0"]
 
 [project.scripts]
-mjlab-textop = "mjlab_textop.scripts.textop:main"
-mjlab-textop-robotmdar = "mjlab_textop.scripts.robotmdar_producer:main"
-mjlab-textop-robotmdar-record = "mjlab_textop.scripts.robotmdar_record:main"
+mjlab-textop = "mjlab_textop.scripts.cli:main"
 
 [project.entry-points."mjlab.tasks"]
 mjlab_textop = "mjlab_textop.core.task"

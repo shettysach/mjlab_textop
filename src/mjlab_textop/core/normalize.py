@@ -14,9 +14,9 @@ from mjlab_textop.core.motion import reindex_textop_g1_joints_to_mjlab
 from mjlab_textop.core.robotmdar_record import load_robotmdar_raw_record
 
 
-def normalize_robotmdar_npz(
-    input_file: Path,
-    output_file: Path,
+def normalize(
+    input_motion_file: Path,
+    output_motion_file: Path,
     *,
     device: str = "cuda:0",
     max_frames: int | None = None,
@@ -27,7 +27,7 @@ def normalize_robotmdar_npz(
         print("[WARNING]: CUDA is not available. Falling back to CPU.")
         device = "cpu"
 
-    record = load_robotmdar_raw_record(input_file)
+    record = load_robotmdar_raw_record(input_motion_file)
     frame_count = (
         record.num_frames if max_frames is None else min(max_frames, record.num_frames)
     )
@@ -104,15 +104,12 @@ def normalize_robotmdar_npz(
     ):
         log[key] = np.stack(log[key], axis=0)  # ty:ignore[no-matching-overload]
 
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-    np.savez(output_file, **log)  # ty:ignore[invalid-argument-type]
-    _validate_normalized_output(output_file)
-    print(f"Saved MJLab-native RobotMDAR motion to {output_file}")
+    output_motion_file.parent.mkdir(parents=True, exist_ok=True)
+    np.savez(output_motion_file, **log)  # ty:ignore[invalid-argument-type]
+    _validate_normalized_output(output_motion_file)
+    print(f"Saved MJLab-native RobotMDAR motion to {output_motion_file}")
     print(f"Frames: {frame_count}, fps: {record.fps:g}")
-    return output_file
-
-
-normalize_robotmdar_record_npz = normalize_robotmdar_npz
+    return output_motion_file
 
 
 def _finite_difference_linear_velocity(pos: np.ndarray, fps: float) -> np.ndarray:

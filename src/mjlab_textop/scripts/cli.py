@@ -5,11 +5,8 @@ from typing import TypeAlias
 
 import tyro
 
-from mjlab_textop.core.normalize_robotmdar_npz import normalize_robotmdar_npz
-from mjlab_textop.scripts.eval import EvalCommand, evaluate_textop_motion
-from mjlab_textop.scripts.normalize_robotmdar_npz import (
-    NormalizeRobotMdarNpzCommand,
-)
+from mjlab_textop.core.normalize import normalize
+from mjlab_textop.scripts.normalize import NormalizeCommand
 from mjlab_textop.scripts.play_live import PlayLiveCommand, play_live_textop_motion
 from mjlab_textop.scripts.play_online import (
     PlayOnlineCommand,
@@ -23,22 +20,20 @@ from mjlab_textop.scripts.play_onnx import (
 )
 
 TextOpCommand: TypeAlias = (
-    NormalizeRobotMdarNpzCommand
+    NormalizeCommand
     | PlayOnlineCommand
     | PlayLiveCommand
     | PlayOnlineOnnxCommand
     | PlayLiveOnnxCommand
-    | EvalCommand
 )
 
 TextOpCommandType = tyro.extras.subcommand_type_from_defaults(
     {
-        "normalize-robotmdar-npz": NormalizeRobotMdarNpzCommand(),
+        "normalize": NormalizeCommand(),
         "play-online": PlayOnlineCommand(),
         "play-live": PlayLiveCommand(),
         "play-online-onnx": PlayOnlineOnnxCommand(),
         "play-live-onnx": PlayLiveOnnxCommand(),
-        "eval": EvalCommand(),
     },
 )
 
@@ -59,14 +54,14 @@ def verify_path(path: str, label: str) -> Path:
     return verify_resolved(resolve_path(path), label)
 
 
-def run_textop_motion(cfg: TextOpCommand) -> None:
+def run_command(cfg: TextOpCommand) -> None:
     match cfg:
-        case NormalizeRobotMdarNpzCommand():
-            input_file = verify_path(cfg.recorded_motion_file, "RobotMDAR raw record")
-            output_file = resolve_path(cfg.normalized_motion_file)
-            normalize_robotmdar_npz(
-                input_file,
-                output_file,
+        case NormalizeCommand():
+            input_motion_file = verify_path(cfg.input_motion_file, "input motion file")
+            output_motion_file = resolve_path(cfg.output_motion_file)
+            normalize(
+                input_motion_file,
+                output_motion_file,
                 device=cfg.device,
                 max_frames=cfg.max_frames,
             )
@@ -126,25 +121,9 @@ def run_textop_motion(cfg: TextOpCommand) -> None:
             )
             return
 
-        case EvalCommand():
-            motion_file = verify_path(
-                cfg.motion_file,
-                "Normalized motion file",
-            )
-            checkpoint_file = verify_path(
-                cfg.checkpoint_file,
-                "Checkpoint file",
-            )
-            evaluate_textop_motion(
-                cfg,
-                motion_file=motion_file,
-                checkpoint_file=checkpoint_file,
-            )
-            return
-
 
 def main() -> None:
-    run_textop_motion(tyro.cli(TextOpCommandType))
+    run_command(tyro.cli(TextOpCommandType))
 
 
 if __name__ == "__main__":
