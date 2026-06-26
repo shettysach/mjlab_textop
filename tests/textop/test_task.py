@@ -8,6 +8,7 @@ from mjlab_textop.core.contract import TEXTOP_FUTURE_STEPS
 from mjlab_textop.core.mdp.offline_commands import TextOpMotionCommandCfg
 from mjlab_textop.core.mdp.online_commands import OnlineTextOpMotionCommandCfg
 from mjlab_textop.core.online.source import QueueTextOpOnlineSource, TextOpMotionBlock
+from mjlab_textop.core.onnx_policy import TextOpOnnxPolicyRunner
 from mjlab_textop.core.task import (
     ONLINE_TEXTOP_ONNX_TASK_NAME,
     ONLINE_TEXTOP_TASK_NAME,
@@ -28,7 +29,7 @@ def test_textop_task_registers_once() -> None:
     assert ONLINE_TEXTOP_ONNX_TASK_NAME in list_tasks()
     assert load_runner_cls(TEXTOP_TASK_NAME) is MotionTrackingOnPolicyRunner
     assert load_runner_cls(ONLINE_TEXTOP_TASK_NAME) is MotionTrackingOnPolicyRunner
-    assert load_runner_cls(ONLINE_TEXTOP_ONNX_TASK_NAME) is MotionTrackingOnPolicyRunner
+    assert load_runner_cls(ONLINE_TEXTOP_ONNX_TASK_NAME) is TextOpOnnxPolicyRunner
 
 
 def test_textop_task_uses_textop_motion_command() -> None:
@@ -105,6 +106,7 @@ def test_online_textop_onnx_replay_task_uses_replay_source_mode() -> None:
     env_cfg = load_env_cfg(task_name, play=True)
 
     assert env_cfg.commands["motion"].source_mode == "replay"
+    assert load_runner_cls(task_name) is TextOpOnnxPolicyRunner
 
 
 def test_online_textop_replay_task_can_disable_reference_reset() -> None:

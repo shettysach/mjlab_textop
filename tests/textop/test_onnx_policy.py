@@ -9,7 +9,7 @@ import pytest
 import torch
 
 from mjlab_textop.core.contract import TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
-from mjlab_textop.core.onnx_policy import TextOpOnnxPolicy
+from mjlab_textop.core.onnx_policy import TextOpOnnxPolicy, TextOpOnnxPolicyRunner
 
 
 class _FakeSession:
@@ -79,3 +79,19 @@ def test_textop_onnx_policy_rejects_wrong_obs_dim(
 
     with pytest.raises(RuntimeError, match="Expected ONNX obs dim 431"):
         policy(torch.zeros(1, 430))
+
+
+def test_textop_onnx_runner_loads_inference_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_onnxruntime(monkeypatch)
+    runner = TextOpOnnxPolicyRunner(env=None, train_cfg={}, device="cpu")
+
+    with pytest.raises(RuntimeError, match="has not been loaded"):
+        runner.get_inference_policy()
+
+    runner.load(Path("latest.onnx"), load_cfg={"actor": True}, strict=True)
+    policy = runner.get_inference_policy(device="cpu")
+
+    assert isinstance(policy, TextOpOnnxPolicy)
+    assert policy({"actor": torch.zeros(1, 431)}).shape == (1, 29)

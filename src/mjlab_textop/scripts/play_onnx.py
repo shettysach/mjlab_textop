@@ -1,17 +1,11 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-import torch
 import tyro
-from mjlab.envs import ManagerBasedRlEnv
-from mjlab.rl import RslRlVecEnvWrapper
-from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
-from mjlab.utils.torch import configure_torch_backends
-from mjlab.viewer import NativeMujocoViewer, ViserPlayViewer
+from mjlab.scripts.play import PlayConfig, run_play
 
 from mjlab_textop.core.contract import TEXTOP_FUTURE_STEPS
 from mjlab_textop.core.online.live import (
@@ -23,7 +17,6 @@ from mjlab_textop.core.online.live_registry import (
     unregister_live_textop_source,
 )
 from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
-from mjlab_textop.core.onnx_policy import TextOpOnnxPolicy
 from mjlab_textop.core.task import (
     ensure_textop_task_registered,
     register_online_textop_onnx_task,
@@ -136,31 +129,11 @@ def run_textop_onnx_play(
     num_envs: int,
     viewer: Literal["auto", "native", "viser"],
 ) -> None:
-    configure_torch_backends()
-
-    resolved_device = device or ("cuda:0" if torch.cuda.is_available() else "cpu")
-    env_cfg = load_env_cfg(task_name, play=True)
-    agent_cfg = load_rl_cfg(task_name)
-    env_cfg.scene.num_envs = num_envs
-
-    env = ManagerBasedRlEnv(cfg=env_cfg, device=resolved_device)
-    wrapped_env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
-    policy = TextOpOnnxPolicy(policy_file)
-    try:
-        resolved_viewer = _resolve_viewer(viewer)
-        if resolved_viewer == "native":
-            NativeMujocoViewer(wrapped_env, policy).run()
-        elif resolved_viewer == "viser":
-            ViserPlayViewer(wrapped_env, policy, checkpoint_manager=None).run()
-        else:
-            raise RuntimeError(f"Unsupported viewer backend: {resolved_viewer}")
-    finally:
-        wrapped_env.close()
-
-
-def _resolve_viewer(viewer: Literal["auto", "native", "viser"]) -> str:
-    if viewer != "auto":
-        return viewer
-
-    has_display = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
-    return "native" if has_display else "viser"
+    play_cfg = PlayConfig(
+        agent="trained",
+        checkpoint_file=str(policy_file),
+        num_envs=num_envs,
+        device=device,
+        viewer=viewer,
+    )
+    run_play(task_name, play_cfg)

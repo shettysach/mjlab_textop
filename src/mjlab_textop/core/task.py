@@ -27,6 +27,7 @@ from mjlab_textop.core.mdp.online_commands import (
     use_online_textop_motion_command,
 )
 from mjlab_textop.core.online.source import TextOpOnlineSource
+from mjlab_textop.core.onnx_policy import TextOpOnnxPolicyRunner
 
 TEXTOP_TASK_NAME = "Mjlab-TextOp-Flat-Unitree-G1"
 ONLINE_TEXTOP_TASK_NAME = "Mjlab-OnlineTextOp-Flat-Unitree-G1"
@@ -77,7 +78,7 @@ def make_online_textop_g1_flat_tracking_env_cfg(
         max_stale_steps=max_stale_steps,
         reset_robot_to_reference=reset_robot_to_reference,
     )
-    cfg.commands["motion"].anchor_body_name = "pelvis"
+    cfg.commands["motion"].anchor_body_name = "pelvis"  # ty:ignore[unresolved-attribute]
     _configure_textop_actor_observations(cfg)
     _configure_textop_critic_observations(cfg)
     _configure_online_textop_tracking_terms(cfg)
@@ -111,7 +112,7 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
         max_stale_steps=max_stale_steps,
         reset_robot_to_reference=reset_robot_to_reference,
     )
-    cfg.commands["motion"].anchor_body_name = "pelvis"
+    cfg.commands["motion"].anchor_body_name = "pelvis"  # ty:ignore[unresolved-attribute]
     _configure_textop_onnx_actor_observations(cfg)
     _configure_online_textop_tracking_terms(cfg)
 
@@ -190,7 +191,7 @@ def register_online_textop_onnx_task(
         env_cfg=env_cfg,
         play_env_cfg=env_cfg,
         rl_cfg=unitree_g1_tracking_ppo_runner_cfg(),
-        runner_cls=MotionTrackingOnPolicyRunner,
+        runner_cls=TextOpOnnxPolicyRunner,
     )
     return task_name
 
@@ -353,7 +354,7 @@ def ensure_textop_task_registered() -> None:
             env_cfg=make_online_textop_onnx_g1_flat_tracking_env_cfg(play=True),
             play_env_cfg=make_online_textop_onnx_g1_flat_tracking_env_cfg(play=True),
             rl_cfg=unitree_g1_tracking_ppo_runner_cfg(),
-            runner_cls=MotionTrackingOnPolicyRunner,
+            runner_cls=TextOpOnnxPolicyRunner,
         )
 
 

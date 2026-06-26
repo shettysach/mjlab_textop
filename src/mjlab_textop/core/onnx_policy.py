@@ -49,6 +49,27 @@ class TextOpOnnxPolicy:
         return action_mjlab
 
 
+class TextOpOnnxPolicyRunner:
+    """Runner adapter so MJLab's play script can load an ONNX policy."""
+
+    def __init__(
+        self,
+        env: Any,
+        train_cfg: dict[str, Any],
+        log_dir: str | None = None,
+        device: str = "cpu",
+    ) -> None:
+        self.policy: TextOpOnnxPolicy | None = None
+
+    def load(self, path: str | Path, *args: Any, **kwargs: Any) -> None:
+        self.policy = TextOpOnnxPolicy(Path(path))
+
+    def get_inference_policy(self, *args: Any, **kwargs: Any) -> TextOpOnnxPolicy:
+        if self.policy is None:
+            raise RuntimeError("ONNX policy has not been loaded")
+        return self.policy
+
+
 def _actor_obs(obs: torch.Tensor | Any) -> torch.Tensor:
     if isinstance(obs, torch.Tensor):
         return obs
