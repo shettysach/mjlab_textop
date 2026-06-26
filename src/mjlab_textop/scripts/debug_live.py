@@ -19,6 +19,8 @@ class DebugLiveCommand:
     port: int = 8765
     fps: float = 50.0
     num_blocks: int = 1
+    future_steps: int = 5
+    current_frame: int | None = None
     timeout_seconds: float = 10.0
     output_dir: str = "/tmp/mjlab_textop_live_debug"
     compare_motion_file: str | None = None
@@ -35,6 +37,8 @@ def debug_live_textop_stream(
         raise ValueError(
             f"timeout_seconds must be positive, got {cfg.timeout_seconds}"
         )
+    if cfg.future_steps <= 0:
+        raise ValueError(f"future_steps must be positive, got {cfg.future_steps}")
 
     output_dir = Path(cfg.output_dir).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -64,6 +68,8 @@ def debug_live_textop_stream(
         replay_path=replay_path,
         raw_path=raw_path,
         compare_motion_file=compare_motion_file,
+        future_steps=cfg.future_steps,
+        current_frame=cfg.current_frame,
     )
     report_path = output_dir / "live_report.txt"
     report_path.write_text(report, encoding="utf-8")
@@ -108,9 +114,16 @@ def _build_report(
     replay_path: Path,
     raw_path: Path,
     compare_motion_file: Path | None,
+    future_steps: int,
+    current_frame: int | None,
 ) -> str:
     motion = load_mjlab_motion(replay_path)
     frame_index = _frame_indices(blocks)
+    window = _debug_window(
+        frame_index,
+        future_steps=future_steps,
+        current_frame=current_frame,
+    )
     lines = [
         "Live TextOp Debug Report",
         "",
@@ -121,6 +134,17 @@ def _build_report(
         f"frame_index_start: {int(frame_index[0])}",
         f"frame_index_stop: {int(frame_index[-1])}",
         f"contiguous_frames: {_is_contiguous(frame_index)}",
+        f"current_frame: {window.current_frame}",
+        f"latest_buffered_frame: {window.latest_buffered_frame}",
+        f"lag_frames: {window.lag_frames}",
+        f"future_steps: {window.future_steps}",
+        f"is_started: {window.is_started}",
+        f"stale_steps: {window.stale_steps}",
+        f"clamped_steps: {window.clamped_steps}",
+        f"stale_window_count: {window.stale_window_count}",
+        f"clamped_window_count: {window.clamped_window_count}",
+        f"future_window_start: {window.current_frame}",
+        f"future_window_stop: {window.future_window_stop}",
         f"joint_pos_shape: {motion.joint_pos.shape}",
         f"joint_vel_shape: {motion.joint_vel.shape}",
         f"body_pos_w_shape: {motion.body_pos_w.shape}",
@@ -170,6 +194,52 @@ def _compare_replay_motion(live_motion, compare_motion_file: Path) -> list[str]:
 
 def _max_abs_diff_line(name: str, lhs: np.ndarray, rhs: np.ndarray) -> str:
     return f"{name}_max_abs_diff: {float(np.max(np.abs(lhs - rhs))):.6g}"
+
+
+@dataclass(frozen=True)
+class _DebugWindow:
+    current_frame: int
+    latest_buffered_frame: int
+    lag_frames: int
+    future_steps: int
+    is_started: bool
+    stale_steps: int
+    clamped_steps: int
+    stale_window_count: int
+    clamped_window_count: int
+    future_window_stop: int
+
+
+def _debug_window(
+    frame_index: np.ndarray,
+    *,
+    future_steps: int,
+    current_frame: int | None,
+) -> _DebugWindow:
+    requested_current_frame = (
+        int(frame_index[0]) if current_frame is None else int(current_frame)
+    )
+    latest_buffered_frame = int(frame_index[-1])
+    available = set(int(frame) for frame in frame_index)
+    stale_steps = sum(
+        1
+        for offset in range(future_steps)
+        if requested_current_frame + offset not in available
+    )
+    is_started = stale_steps == 0
+    stale_window_count = 1 if stale_steps > 0 else 0
+    return _DebugWindow(
+        current_frame=requested_current_frame,
+        latest_buffered_frame=latest_buffered_frame,
+        lag_frames=latest_buffered_frame - requested_current_frame,
+        future_steps=future_steps,
+        is_started=is_started,
+        stale_steps=stale_steps,
+        clamped_steps=stale_steps,
+        stale_window_count=stale_window_count,
+        clamped_window_count=stale_window_count,
+        future_window_stop=requested_current_frame + future_steps - 1,
+    )
 
 
 def _frame_indices(blocks: list[TextOpMotionBlock]) -> np.ndarray:
