@@ -15,11 +15,19 @@ from mjlab_textop.scripts.play_online import (
     PlayOnlineCommand,
     play_online_textop_motion,
 )
+from mjlab_textop.scripts.play_onnx import (
+    PlayLiveOnnxCommand,
+    PlayOnlineOnnxCommand,
+    play_live_textop_onnx,
+    play_online_textop_onnx,
+)
 
 TextOpCommand: TypeAlias = (
     NormalizeRobotMdarNpzCommand
     | PlayOnlineCommand
     | PlayLiveCommand
+    | PlayOnlineOnnxCommand
+    | PlayLiveOnnxCommand
     | EvalCommand
 )
 
@@ -28,6 +36,8 @@ TextOpCommandType = tyro.extras.subcommand_type_from_defaults(
         "normalize-robotmdar-npz": NormalizeRobotMdarNpzCommand(),
         "play-online": PlayOnlineCommand(),
         "play-live": PlayLiveCommand(),
+        "play-online-onnx": PlayOnlineOnnxCommand(),
+        "play-live-onnx": PlayLiveOnnxCommand(),
         "eval": EvalCommand(),
     },
 )
@@ -86,6 +96,33 @@ def run_textop_motion(cfg: TextOpCommand) -> None:
             play_live_textop_motion(
                 cfg,
                 checkpoint_file=checkpoint_file,
+            )
+            return
+
+        case PlayOnlineOnnxCommand():
+            motion_file = verify_path(
+                cfg.motion_file,
+                "Motion file",
+            )
+            policy_file = verify_path(
+                cfg.policy_file,
+                "ONNX policy file",
+            )
+            play_online_textop_onnx(
+                cfg,
+                motion_file=motion_file,
+                policy_file=policy_file,
+            )
+            return
+
+        case PlayLiveOnnxCommand():
+            policy_file = verify_path(
+                cfg.policy_file,
+                "ONNX policy file",
+            )
+            play_live_textop_onnx(
+                cfg,
+                policy_file=policy_file,
             )
             return
 

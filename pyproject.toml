@@ -14,8 +14,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-cpu = ["mjlab", "torch>=2.7.0"]
-cu128 = ["mjlab", "torch>=2.7.0"]
+cpu = ["mjlab", "onnxruntime>=1.23.0", "torch>=2.7.0"]
+cu128 = ["mjlab", "onnxruntime>=1.23.0", "torch>=2.7.0"]
 
 [project.scripts]
 mjlab-textop = "mjlab_textop.scripts.textop:main"

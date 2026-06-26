@@ -9,9 +9,11 @@ from mjlab_textop.core.mdp.offline_commands import TextOpMotionCommandCfg
 from mjlab_textop.core.mdp.online_commands import OnlineTextOpMotionCommandCfg
 from mjlab_textop.core.online.source import QueueTextOpOnlineSource, TextOpMotionBlock
 from mjlab_textop.core.task import (
+    ONLINE_TEXTOP_ONNX_TASK_NAME,
     ONLINE_TEXTOP_TASK_NAME,
     TEXTOP_TASK_NAME,
     ensure_textop_task_registered,
+    register_online_textop_onnx_task,
     register_online_textop_replay_task,
     register_online_textop_task,
 )
@@ -23,8 +25,10 @@ def test_textop_task_registers_once() -> None:
 
     assert TEXTOP_TASK_NAME in list_tasks()
     assert ONLINE_TEXTOP_TASK_NAME in list_tasks()
+    assert ONLINE_TEXTOP_ONNX_TASK_NAME in list_tasks()
     assert load_runner_cls(TEXTOP_TASK_NAME) is MotionTrackingOnPolicyRunner
     assert load_runner_cls(ONLINE_TEXTOP_TASK_NAME) is MotionTrackingOnPolicyRunner
+    assert load_runner_cls(ONLINE_TEXTOP_ONNX_TASK_NAME) is MotionTrackingOnPolicyRunner
 
 
 def test_textop_task_uses_textop_motion_command() -> None:
@@ -40,6 +44,17 @@ def test_textop_task_uses_textop_motion_command() -> None:
 def test_online_textop_task_uses_online_motion_command() -> None:
     ensure_textop_task_registered()
     env_cfg = load_env_cfg(ONLINE_TEXTOP_TASK_NAME)
+    motion_cmd = env_cfg.commands["motion"]
+
+    assert isinstance(motion_cmd, OnlineTextOpMotionCommandCfg)
+    assert motion_cmd.future_steps == TEXTOP_FUTURE_STEPS
+    assert motion_cmd.anchor_body_name == "pelvis"
+    assert motion_cmd.source_mode == "live"
+
+
+def test_online_textop_onnx_task_uses_online_motion_command() -> None:
+    ensure_textop_task_registered()
+    env_cfg = load_env_cfg(ONLINE_TEXTOP_ONNX_TASK_NAME)
     motion_cmd = env_cfg.commands["motion"]
 
     assert isinstance(motion_cmd, OnlineTextOpMotionCommandCfg)
@@ -65,6 +80,28 @@ def test_online_textop_replay_task_uses_replay_source_mode() -> None:
     )
 
     task_name = register_online_textop_replay_task(source=source)
+    env_cfg = load_env_cfg(task_name, play=True)
+
+    assert env_cfg.commands["motion"].source_mode == "replay"
+
+
+def test_online_textop_onnx_replay_task_uses_replay_source_mode() -> None:
+    source = QueueTextOpOnlineSource(
+        [
+            TextOpMotionBlock(
+                index=0,
+                joint_pos=np.zeros((5, 29), dtype=np.float32),
+                joint_vel=np.zeros((5, 29), dtype=np.float32),
+                anchor_pos_w=np.zeros((5, 3), dtype=np.float32),
+                anchor_quat_w=np.tile(
+                    np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32),
+                    (5, 1),
+                ),
+            )
+        ]
+    )
+
+    task_name = register_online_textop_onnx_task(source=source, source_mode="replay")
     env_cfg = load_env_cfg(task_name, play=True)
 
     assert env_cfg.commands["motion"].source_mode == "replay"
@@ -134,6 +171,24 @@ def test_textop_actor_observation_order() -> None:
         "joint_vel",
         "actions",
     ]
+
+
+def test_textop_onnx_actor_observation_order_and_no_corruption() -> None:
+    ensure_textop_task_registered()
+    env_cfg = load_env_cfg(ONLINE_TEXTOP_ONNX_TASK_NAME)
+
+    assert list(env_cfg.observations["actor"].terms) == [
+        "future_joint_window",
+        "future_anchor_pos_b",
+        "future_anchor_ori_b",
+        "projected_gravity",
+        "base_lin_vel",
+        "base_ang_vel",
+        "joint_pos",
+        "joint_vel",
+        "actions",
+    ]
+    assert env_cfg.observations["actor"].enable_corruption is False
 
 
 def test_textop_critic_observation_order_keeps_privileged_terms() -> None:

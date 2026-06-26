@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import torch
 from mjlab.envs import ManagerBasedRlEnv
+from mjlab.envs.mdp.observations import joint_pos_rel, joint_vel_rel, last_action
 from mjlab.utils.lab_api.math import matrix_from_quat, subtract_frame_transforms
 
 from mjlab_textop.core.mdp.future_reference import TextOpFutureReferenceCommand
+from mjlab_textop.core.motion import MJLAB_TO_TEXTOP_G1_JOINT_INDEX
 
 
 def _get_textop_future_reference_command(
@@ -74,3 +76,22 @@ def _future_anchor_pose_b(
         command.future_anchor_pos_w,
         command.future_anchor_quat_w,
     )
+
+
+def _mjlab_to_textop_index(device: torch.device | str) -> torch.Tensor:
+    return torch.tensor(MJLAB_TO_TEXTOP_G1_JOINT_INDEX, device=device, dtype=torch.long)
+
+
+def joint_pos_rel_textop_order(env: ManagerBasedRlEnv) -> torch.Tensor:
+    value = joint_pos_rel(env, biased=False)
+    return value.index_select(-1, _mjlab_to_textop_index(value.device))
+
+
+def joint_vel_rel_textop_order(env: ManagerBasedRlEnv) -> torch.Tensor:
+    value = joint_vel_rel(env)
+    return value.index_select(-1, _mjlab_to_textop_index(value.device))
+
+
+def last_action_textop_order(env: ManagerBasedRlEnv) -> torch.Tensor:
+    value = last_action(env)
+    return value.index_select(-1, _mjlab_to_textop_index(value.device))

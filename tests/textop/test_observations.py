@@ -7,11 +7,16 @@ import torch
 from mjlab.envs.mdp.observations import projected_gravity
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
+import mjlab_textop.core.mdp.observations as textop_observations
 from mjlab_textop.core.mdp.observations import (
     future_anchor_ori_b,
     future_anchor_pos_b,
     future_joint_window,
+    joint_pos_rel_textop_order,
+    joint_vel_rel_textop_order,
+    last_action_textop_order,
 )
+from mjlab_textop.core.motion import MJLAB_TO_TEXTOP_G1_JOINT_INDEX
 
 
 class _FakeCommandManager:
@@ -163,3 +168,53 @@ def test_observation_rejects_non_textop_command() -> None:
 
     with pytest.raises(TypeError, match="TextOpFutureReferenceCommand"):
         future_joint_window(env)
+
+
+def test_joint_pos_rel_textop_order_reindexes_unbiased_mjlab_joint_pos(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = torch.arange(29, dtype=torch.float32).reshape(1, 29)
+    calls = []
+
+    def fake_joint_pos_rel(env, *, biased: bool):
+        calls.append((env, biased))
+        return value
+
+    monkeypatch.setattr(textop_observations, "joint_pos_rel", fake_joint_pos_rel)
+    env = object()
+
+    out = joint_pos_rel_textop_order(env)
+
+    assert calls == [(env, False)]
+    torch.testing.assert_close(
+        out,
+        value[:, list(MJLAB_TO_TEXTOP_G1_JOINT_INDEX)],
+    )
+
+
+def test_joint_vel_rel_textop_order_reindexes_mjlab_joint_vel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = torch.arange(29, dtype=torch.float32).reshape(1, 29)
+    monkeypatch.setattr(textop_observations, "joint_vel_rel", lambda _env: value)
+
+    out = joint_vel_rel_textop_order(object())
+
+    torch.testing.assert_close(
+        out,
+        value[:, list(MJLAB_TO_TEXTOP_G1_JOINT_INDEX)],
+    )
+
+
+def test_last_action_textop_order_reindexes_mjlab_action(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = torch.arange(29, dtype=torch.float32).reshape(1, 29)
+    monkeypatch.setattr(textop_observations, "last_action", lambda _env: value)
+
+    out = last_action_textop_order(object())
+
+    torch.testing.assert_close(
+        out,
+        value[:, list(MJLAB_TO_TEXTOP_G1_JOINT_INDEX)],
+    )
