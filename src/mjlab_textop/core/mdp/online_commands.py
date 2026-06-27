@@ -91,6 +91,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
         )
         self.current_frame = int(self.cfg.start_frame)
         self._started = False
+        self._has_started_once = False
         self._startup_wait_steps = 0
         self._last_stale_steps = 0
         self._consecutive_stale_steps = 0
@@ -272,24 +273,26 @@ class OnlineTextOpMotionCommand(CommandTerm):
     def _resample_command(self, env_ids: torch.Tensor) -> None:
         if len(env_ids) == 0:
             return
-        if self.cfg.source_mode == "replay" and self.cfg.clear_buffer_on_reset:
-            self.buffer.clear()
+        self._reset_runtime_counters()
+        self._started = False
+
+        if self.cfg.source_mode == "replay":
+            if self.cfg.clear_buffer_on_reset:
+                self.buffer.clear()
             assert isinstance(self.cfg.source, ResettableTextOpOnlineSource)
             self.cfg.source.reset()
             self._poll_source()
-        elif self.cfg.source_mode == "live":
-            self._poll_source()
-        self.current_frame = int(self.cfg.start_frame)
-        self._started = False
-        self._startup_wait_steps = 0
-        self._last_stale_steps = 0
-        self._consecutive_stale_steps = 0
-        self._total_clamped_steps = 0
-        self._clamped_window_count = 0
-        self._last_stale_frame = None
-        self._anchor_pos_offset_w.zero_()
+
+            self.current_frame = int(self.cfg.start_frame)
+            if self.buffer.can_start(self.current_frame, self.cfg.future_steps):
+                if self.cfg.reset_robot_to_reference:
+                    self._reset_robot_to_reference(env_ids)
+                self._started = True
+            return
+
         if self.cfg.source_mode == "live":
-            live_start_frame = self._latest_live_start_frame()
+            self._poll_source()
+            live_start_frame = self._live_start_or_resync_frame()
             if live_start_frame is None:
                 self._log_live_resample("waiting")
                 return
@@ -298,13 +301,18 @@ class OnlineTextOpMotionCommand(CommandTerm):
             if self.cfg.reset_robot_to_reference:
                 self._reset_robot_to_reference(env_ids)
             self._started = True
+            self._has_started_once = True
             self._log_live_resample("resynced")
             return
 
-        if self.buffer.can_start(self.current_frame, self.cfg.future_steps):
-            if self.cfg.reset_robot_to_reference:
-                self._reset_robot_to_reference(env_ids)
-            self._started = True
+    def _reset_runtime_counters(self) -> None:
+        self._startup_wait_steps = 0
+        self._last_stale_steps = 0
+        self._consecutive_stale_steps = 0
+        self._total_clamped_steps = 0
+        self._clamped_window_count = 0
+        self._last_stale_frame = None
+        self._anchor_pos_offset_w.zero_()
 
     def _update_command(self) -> None:
         self._poll_source()
@@ -318,6 +326,8 @@ class OnlineTextOpMotionCommand(CommandTerm):
                     env_ids = torch.arange(self.num_envs, device=self.device)
                     self._reset_robot_to_reference(env_ids)
                 self._started = True
+                if self.cfg.source_mode == "live":
+                    self._has_started_once = True
                 return
 
             self._startup_wait_steps += 1
@@ -344,17 +354,25 @@ class OnlineTextOpMotionCommand(CommandTerm):
 
     def _startup_start_frame(self) -> int | None:
         if self.cfg.source_mode == "live":
-            return self.buffer.earliest_start_frame(self.cfg.future_steps)
+            return self._initial_live_start_frame()
         if self.buffer.can_start(self.current_frame, self.cfg.future_steps):
             return self.current_frame
         return None
 
-    def _latest_live_start_frame(self) -> int | None:
+    def _initial_live_start_frame(self) -> int | None:
+        return self.buffer.earliest_start_frame(self.cfg.future_steps)
+
+    def _resync_live_start_frame(self) -> int | None:
         return self.buffer.latest_start_frame(self.cfg.future_steps)
+
+    def _live_start_or_resync_frame(self) -> int | None:
+        if not self._has_started_once:
+            return self._initial_live_start_frame()
+        return self._resync_live_start_frame()
 
     def _can_advance_live_frame(self) -> bool:
         latest_index = self.buffer.latest_index
-        latest_start_frame = self._latest_live_start_frame()
+        latest_start_frame = self._resync_live_start_frame()
         if latest_index is None or latest_start_frame is None:
             return False
 

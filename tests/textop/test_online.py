@@ -477,6 +477,7 @@ def test_online_command_live_attaches_to_earliest_full_future_window() -> None:
 
     assert command._started is True
     assert command.current_frame == 100
+    assert command._has_started_once is True
     assert command._last_stale_steps == 0
     robot = env.scene["robot"]
     torch.testing.assert_close(
@@ -496,6 +497,30 @@ def test_online_command_live_attaches_to_earliest_full_future_window() -> None:
     )
     torch.testing.assert_close(robot.written_root_state[:, 7:], torch.zeros(1, 6))
     torch.testing.assert_close(robot.reset_env_ids, torch.tensor([0]))
+
+
+def test_online_command_live_reset_before_first_start_uses_initial_window() -> None:
+    source = _LiveTextOpOnlineSource(
+        [
+            motion_block(index=100, frames=8),
+            motion_block(index=200, frames=8),
+        ]
+    )
+    command = OnlineTextOpMotionCommand(
+        OnlineTextOpMotionCommandCfg(
+            source=source,
+            source_mode="live",
+            future_steps=5,
+        ),
+        fake_env(),
+    )
+
+    command._resample_command(torch.tensor([0]))
+
+    assert command._started is True
+    assert command._has_started_once is True
+    assert command.current_frame == 100
+    assert command._last_stale_steps == 0
 
 
 def test_online_command_live_reset_attaches_to_next_full_future_window() -> None:
@@ -519,6 +544,7 @@ def test_online_command_live_reset_attaches_to_next_full_future_window() -> None
     command._resample_command(torch.tensor([0]))
 
     assert command._started is True
+    assert command._has_started_once is True
     assert command.current_frame == 103
     assert command._last_stale_steps == 0
 
