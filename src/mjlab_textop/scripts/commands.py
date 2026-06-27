@@ -26,21 +26,21 @@ from mjlab_textop.scripts.utils import ResolvedPolicy, register_textop_play_task
 
 SQUARE_PHASES: tuple[tuple[str, int], ...] = (
     ("walk forward", 150),
-    ("stand still", 30),
+    ("stand still", 60),
     ("turn left", 90),
-    ("stand still", 30),
+    ("stand still", 60),
     ("walk forward", 150),
-    ("stand still", 30),
+    ("stand still", 60),
     ("turn left", 90),
-    ("stand still", 30),
+    ("stand still", 60),
     ("walk forward", 150),
-    ("stand still", 30),
+    ("stand still", 60),
     ("turn left", 90),
-    ("stand still", 30),
+    ("stand still", 60),
     ("walk forward", 150),
-    ("stand still", 30),
+    ("stand still", 60),
     ("turn left", 90),
-    ("stand still", 120),
+    ("stand still", 180),
 )
 
 
