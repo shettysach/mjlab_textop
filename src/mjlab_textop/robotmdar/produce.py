@@ -16,7 +16,6 @@ from typing import Any
 from mjlab_textop.core.online.live import textop_block_to_ndjson_message
 from mjlab_textop.core.robotmdar import (
     robotmdar_motion_dict_to_block,
-    save_textop_motion_blocks_as_mjlab_npz,
     slice_motion_dict_tail,
 )
 
@@ -89,7 +88,6 @@ def run_producer(args: argparse.Namespace) -> None:
     prompt = PromptState(text=args.prompt)
     input_thread = threading.Thread(target=_prompt_loop, args=(prompt,), daemon=True)
     input_thread.start()
-    recorded_blocks = []
 
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
@@ -130,7 +128,6 @@ def run_producer(args: argparse.Namespace) -> None:
                         slice_motion_dict_tail(motion_dict, future_len),
                         index=frame_index,
                     )
-                    recorded_blocks.append(block)
                     conn.sendall(
                         textop_block_to_ndjson_message(block, fps=args.fps).encode(
                             "utf-8"
@@ -163,23 +160,6 @@ def run_producer(args: argparse.Namespace) -> None:
     except KeyboardInterrupt:
         prompt.stop = True
         print("Stopping RobotMDAR producer.", file=sys.stderr)
-    finally:
-        if args.record_output is not None:
-            if recorded_blocks:
-                save_textop_motion_blocks_as_mjlab_npz(
-                    args.record_output,
-                    recorded_blocks,
-                    fps=args.fps,
-                )
-                print(
-                    f"Recorded {len(recorded_blocks)} RobotMDAR blocks to "
-                    f"{args.record_output}",
-                    file=sys.stderr,
-                )
-            else:
-                print(
-                    "No RobotMDAR blocks recorded; skipping NPZ write.", file=sys.stderr
-                )
 
 
 def parse_args() -> argparse.Namespace:
@@ -195,7 +175,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fps", type=float, default=50.0)
     parser.add_argument("--guidance-scale", type=float, default=5.0)
     parser.add_argument("--prompt", default="walk")
-    parser.add_argument("--record-output", type=Path, default=None)
     parser.add_argument("--log-every-blocks", type=int, default=20)
     return parser.parse_args()
 

@@ -143,20 +143,6 @@ def test_online_textop_live_task_uses_live_source_mode() -> None:
     assert env_cfg.commands["motion"].source_mode == "live"
 
 
-def test_online_textop_onnx_live_task_can_log_metrics() -> None:
-    source = QueueTextOpOnlineSource([], fps=50.0)
-
-    task_name = register_online_textop_onnx_task(
-        source=source,
-        source_mode="live",
-        log_metrics_every_steps=17,
-    )
-    env_cfg = load_env_cfg(task_name, play=True)
-
-    assert env_cfg.commands["motion"].source_mode == "live"
-    assert env_cfg.commands["motion"].log_metrics_every_steps == 17
-
-
 def test_online_textop_task_removes_full_body_tracking_terms() -> None:
     ensure_textop_task_registered()
     env_cfg = load_env_cfg(ONLINE_TEXTOP_TASK_NAME)

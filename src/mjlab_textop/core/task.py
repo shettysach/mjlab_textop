@@ -64,7 +64,6 @@ def make_online_textop_g1_flat_tracking_env_cfg(
     ),
     max_stale_steps: int = 25,
     reset_robot_to_reference: bool = True,
-    log_metrics_every_steps: int = 0,
 ):
     cfg = unitree_g1_flat_tracking_env_cfg(play=play)
 
@@ -78,7 +77,6 @@ def make_online_textop_g1_flat_tracking_env_cfg(
         anchor_alignment=anchor_alignment,
         max_stale_steps=max_stale_steps,
         reset_robot_to_reference=reset_robot_to_reference,
-        log_metrics_every_steps=log_metrics_every_steps,
     )
     cfg.commands["motion"].anchor_body_name = "pelvis"  # ty:ignore[unresolved-attribute]
     _configure_textop_actor_observations(cfg)
@@ -100,7 +98,6 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
     ),
     max_stale_steps: int = 25,
     reset_robot_to_reference: bool = True,
-    log_metrics_every_steps: int = 0,
 ):
     cfg = unitree_g1_flat_tracking_env_cfg(play=play)
 
@@ -114,7 +111,6 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
         anchor_alignment=anchor_alignment,
         max_stale_steps=max_stale_steps,
         reset_robot_to_reference=reset_robot_to_reference,
-        log_metrics_every_steps=log_metrics_every_steps,
     )
     cfg.commands["motion"].anchor_body_name = "pelvis"  # ty:ignore[unresolved-attribute]
     _configure_textop_onnx_actor_observations(cfg)
@@ -138,7 +134,6 @@ def register_online_textop_task(
     ),
     max_stale_steps: int = 25,
     reset_robot_to_reference: bool = True,
-    log_metrics_every_steps: int = 0,
 ) -> str:
     mode_name = source_mode.capitalize()
     task_name = f"{ONLINE_TEXTOP_TASK_NAME}-{mode_name}-{uuid4().hex}"
@@ -151,7 +146,6 @@ def register_online_textop_task(
         anchor_alignment=anchor_alignment,
         max_stale_steps=max_stale_steps,
         reset_robot_to_reference=reset_robot_to_reference,
-        log_metrics_every_steps=log_metrics_every_steps,
     )
     env_cfg.scene.num_envs = num_envs
 
@@ -177,7 +171,6 @@ def register_online_textop_onnx_task(
     ),
     max_stale_steps: int = 25,
     reset_robot_to_reference: bool = True,
-    log_metrics_every_steps: int = 0,
 ) -> str:
     mode_name = source_mode.capitalize()
     task_name = f"{ONLINE_TEXTOP_ONNX_TASK_NAME}-{mode_name}-{uuid4().hex}"
@@ -190,7 +183,6 @@ def register_online_textop_onnx_task(
         anchor_alignment=anchor_alignment,
         max_stale_steps=max_stale_steps,
         reset_robot_to_reference=reset_robot_to_reference,
-        log_metrics_every_steps=log_metrics_every_steps,
     )
     env_cfg.scene.num_envs = num_envs
 
