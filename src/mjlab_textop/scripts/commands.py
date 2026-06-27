@@ -1,0 +1,133 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Literal
+
+import tyro
+from mjlab.scripts.play import PlayConfig, run_play
+
+from mjlab_textop.core.online.live import (
+    SocketTextOpOnlineSource,
+    SocketTextOpSourceCfg,
+)
+from mjlab_textop.core.online.live_registry import (
+    register_live_textop_source,
+    unregister_live_textop_source,
+)
+from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
+from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
+from mjlab_textop.core.task import ensure_textop_task_registered
+from mjlab_textop.scripts.utils import ResolvedPolicy, register_textop_play_task
+
+
+@dataclass(kw_only=True)
+class NormalizeCommand:
+    input_motion_file: str = field(default=tyro.MISSING)
+    output_motion_file: str = field(default=tyro.MISSING)
+    device: str = "cuda:0"
+    max_frames: int | None = None
+
+
+# --
+
+
+@dataclass(kw_only=True)
+class PlayLiveCommand:
+    checkpoint_file: str | None = None
+    onnx_file: str | None = None
+    host: str = "127.0.0.1"
+    port: int = 8765
+    device: str = "cuda:0"
+    num_envs: int = 1
+    viewer: Literal["auto", "native", "viser"] = "auto"
+    future_steps: int = TEXTOP_FUTURE_STEPS
+    fps: float = 50.0
+    max_queue_blocks: int = 32
+    anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
+        "align_to_robot_start"
+    )
+
+
+def play_live_textop_motion(
+    cfg: PlayLiveCommand,
+    *,
+    policy: ResolvedPolicy,
+) -> None:
+    ensure_textop_task_registered()
+    source = SocketTextOpOnlineSource(
+        SocketTextOpSourceCfg(
+            host=cfg.host,
+            port=cfg.port,
+            fps=cfg.fps,
+            max_queue_blocks=cfg.max_queue_blocks,
+        )
+    )
+    source.start()
+    source_key = register_live_textop_source(source)
+    try:
+        task_name = register_textop_play_task(
+            policy=policy,
+            source_key=source_key,
+            source_mode="live",
+            future_steps=cfg.future_steps,
+            num_envs=cfg.num_envs,
+            anchor_alignment=cfg.anchor_alignment,
+        )
+        play_cfg = PlayConfig(
+            agent="trained",
+            checkpoint_file=str(policy.file),
+            num_envs=cfg.num_envs,
+            device=cfg.device,
+            viewer=cfg.viewer,
+        )
+        run_play(task_name, play_cfg)
+    finally:
+        unregister_live_textop_source(source_key)
+        source.close()
+
+
+# --
+
+
+@dataclass(kw_only=True)
+class PlayOnlineCommand:
+    motion_file: str = field(default=tyro.MISSING)
+    checkpoint_file: str | None = None
+    onnx_file: str | None = None
+    device: str = "cuda:0"
+    num_envs: int = 1
+    viewer: Literal["auto", "native", "viser"] = "auto"
+    future_steps: int = TEXTOP_FUTURE_STEPS
+    block_size: int = 8
+    reset_robot_to_reference: bool = True
+    anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
+        "align_to_robot_start"
+    )
+
+
+def play_online_textop_motion(
+    cfg: PlayOnlineCommand,
+    *,
+    motion_file: Path,
+    policy: ResolvedPolicy,
+) -> None:
+    ensure_textop_task_registered()
+    source = make_mjlab_npz_replay_source(motion_file, block_size=cfg.block_size)
+    task_name = register_textop_play_task(
+        policy=policy,
+        source=source,
+        source_mode="replay",
+        future_steps=cfg.future_steps,
+        num_envs=cfg.num_envs,
+        anchor_alignment=cfg.anchor_alignment,
+        reset_robot_to_reference=cfg.reset_robot_to_reference,
+    )
+    play_cfg = PlayConfig(
+        agent="trained",
+        checkpoint_file=str(policy.file),
+        num_envs=cfg.num_envs,
+        device=cfg.device,
+        viewer=cfg.viewer,
+    )
+    run_play(task_name, play_cfg)

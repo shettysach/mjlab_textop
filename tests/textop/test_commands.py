@@ -13,7 +13,7 @@ from mjlab_textop.core.mdp.offline_commands import (
     textop_motion_command_cfg_from,
     use_textop_motion_command,
 )
-from mjlab_textop.scripts.policy import resolve_policy
+from mjlab_textop.scripts.utils import resolve_policy
 
 
 def test_make_future_time_steps_clamps_at_end() -> None:

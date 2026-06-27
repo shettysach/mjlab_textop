@@ -15,7 +15,7 @@ class TextOpOnnxPolicy:
     def __init__(self, policy_file: Path, device: str = "cpu"):
         import onnxruntime as ort
 
-        self.onnx_device = _canonical_onnx_device(device)
+        self.onnx_device = torch.device(device)
         providers = _onnx_providers_for_device(ort, self.onnx_device)
         self.session = ort.InferenceSession(str(policy_file), providers=providers)
         self.input_name = self.session.get_inputs()[0].name
@@ -113,23 +113,23 @@ class TextOpOnnxPolicy:
         return action_textop
 
 
-class TextOpOnnxPolicyRunner:
+class CustomOnnxPolicyRunner:
     """Runner adapter so MJLab's play script can load an ONNX policy."""
 
     def __init__(
         self,
-        env: Any,
-        train_cfg: dict[str, Any],
-        log_dir: str | None = None,
+        _env: Any,
+        _train_cfg: dict[str, Any],
+        _log_dir: str | None = None,
         device: str = "cpu",
     ) -> None:
         self.device = device
         self.policy: TextOpOnnxPolicy | None = None
 
-    def load(self, path: str | Path, *args: Any, **kwargs: Any) -> None:
+    def load(self, path: str | Path, *_args: Any, **_kwargs: Any) -> None:
         self.policy = TextOpOnnxPolicy(Path(path), device=self.device)
 
-    def get_inference_policy(self, *args: Any, **kwargs: Any) -> TextOpOnnxPolicy:
+    def get_inference_policy(self, *_args: Any, **_kwargs: Any) -> TextOpOnnxPolicy:
         if self.policy is None:
             raise RuntimeError("ONNX policy has not been loaded")
         return self.policy
@@ -152,13 +152,6 @@ def _actor_obs(obs: torch.Tensor | Any) -> torch.Tensor:
             f"{type(actor_obs).__name__}"
         )
     return actor_obs
-
-
-def _canonical_onnx_device(device: str) -> torch.device:
-    torch_device = torch.device(device)
-    if torch_device.type == "cuda" and torch_device.index is None:
-        return torch.device("cuda:0")
-    return torch_device
 
 
 def _onnx_providers_for_device(ort: Any, torch_device: torch.device) -> list[Any]:

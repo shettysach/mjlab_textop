@@ -6,26 +6,19 @@ from typing import TypeAlias
 import tyro
 
 from mjlab_textop.core.normalize import normalize
-from mjlab_textop.scripts.normalize import NormalizeCommand
-from mjlab_textop.scripts.play_live import PlayLiveCommand, play_live_textop_motion
-from mjlab_textop.scripts.play_online import (
+from mjlab_textop.scripts.commands import (
+    NormalizeCommand,
+    PlayLiveCommand,
     PlayOnlineCommand,
+    play_live_textop_motion,
     play_online_textop_motion,
 )
-from mjlab_textop.scripts.policy import resolve_policy, verify_resolved
+from mjlab_textop.scripts.utils import resolve_policy, verify_resolved
 
-TextOpCommand: TypeAlias = NormalizeCommand | PlayOnlineCommand | PlayLiveCommand
-
-TextOpCommandType = tyro.extras.subcommand_type_from_defaults(
-    {
-        "normalize": NormalizeCommand(),
-        "play-online": PlayOnlineCommand(),
-        "play-live": PlayLiveCommand(),
-    },
-)
+Command: TypeAlias = NormalizeCommand | PlayOnlineCommand | PlayLiveCommand
 
 
-def run_command(cfg: TextOpCommand) -> None:
+def run_command(cfg: Command) -> None:
     match cfg:
         case NormalizeCommand():
             input_motion_file = verify_resolved(
@@ -69,8 +62,17 @@ def run_command(cfg: TextOpCommand) -> None:
             return
 
 
+CommandType = tyro.extras.subcommand_type_from_defaults(
+    {
+        "normalize": NormalizeCommand(),
+        "play-online": PlayOnlineCommand(),
+        "play-live": PlayLiveCommand(),
+    },
+)
+
+
 def main() -> None:
-    run_command(tyro.cli(TextOpCommandType))
+    run_command(tyro.cli(CommandType))
 
 
 if __name__ == "__main__":

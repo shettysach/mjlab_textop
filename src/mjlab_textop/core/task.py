@@ -26,7 +26,7 @@ from mjlab_textop.core.mdp.online_commands import (
     use_online_textop_motion_command,
 )
 from mjlab_textop.core.online.source import TextOpOnlineSource
-from mjlab_textop.core.onnx_policy import TextOpOnnxPolicyRunner
+from mjlab_textop.core.onnx_policy import CustomOnnxPolicyRunner
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
 
 TEXTOP_TASK_NAME = "Mjlab-TextOp-Flat-Unitree-G1"
@@ -112,7 +112,6 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
     _configure_textop_onnx_actor_observations(cfg)
     _configure_online_textop_tracking_terms(cfg)
 
-    cfg.observations["actor"].enable_corruption = False
     cfg.events.pop("push_robot", None)
 
     return cfg
@@ -183,7 +182,7 @@ def register_online_textop_onnx_task(
         env_cfg=env_cfg,
         play_env_cfg=env_cfg,
         rl_cfg=unitree_g1_tracking_ppo_runner_cfg(),
-        runner_cls=TextOpOnnxPolicyRunner,
+        runner_cls=CustomOnnxPolicyRunner,
     )
     return task_name
 
@@ -286,13 +285,11 @@ def _configure_online_textop_tracking_terms(cfg) -> None:
     critic_terms.pop("body_pos", None)
     critic_terms.pop("body_ori", None)
 
-    for reward_name in (
-        "motion_body_pos",
-        "motion_body_ori",
-        "motion_body_lin_vel",
-        "motion_body_ang_vel",
-    ):
-        cfg.rewards.pop(reward_name, None)
+    rewards = cfg.rewards
+    rewards.pop("motion_body_pos", None)
+    rewards.pop("motion_body_ori", None)
+    rewards.pop("motion_body_lin_vel", None)
+    rewards.pop("motion_body_ang_vel", None)
 
     cfg.terminations.pop("ee_body_pos", None)
 
@@ -324,7 +321,7 @@ def ensure_textop_task_registered() -> None:
             env_cfg=make_online_textop_onnx_g1_flat_tracking_env_cfg(play=True),
             play_env_cfg=make_online_textop_onnx_g1_flat_tracking_env_cfg(play=True),
             rl_cfg=unitree_g1_tracking_ppo_runner_cfg(),
-            runner_cls=TextOpOnnxPolicyRunner,
+            runner_cls=CustomOnnxPolicyRunner,
         )
 
 
