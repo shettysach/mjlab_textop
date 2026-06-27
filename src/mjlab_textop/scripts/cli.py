@@ -10,16 +10,12 @@ from mjlab_textop.scripts.commands import (
     NormalizeCommand,
     PlayLiveCommand,
     PlayOnlineCommand,
-    PlaySquareCommand,
     play_live_textop_motion,
     play_online_textop_motion,
-    play_square_textop_motion,
 )
 from mjlab_textop.scripts.utils import resolve_policy, verify_resolved
 
-Command: TypeAlias = (
-    NormalizeCommand | PlayOnlineCommand | PlayLiveCommand | PlaySquareCommand
-)
+Command: TypeAlias = NormalizeCommand | PlayOnlineCommand | PlayLiveCommand
 
 
 def run_command(cfg: Command) -> None:
@@ -65,39 +61,12 @@ def run_command(cfg: Command) -> None:
             )
             return
 
-        case PlaySquareCommand():
-            walk_motion_file = verify_resolved(
-                Path(cfg.walk_motion_file).expanduser().resolve(),
-                "Walk motion file",
-            )
-            turn_motion_file = verify_resolved(
-                Path(cfg.turn_motion_file).expanduser().resolve(),
-                "Turn motion file",
-            )
-            stand_motion_file = verify_resolved(
-                Path(cfg.stand_motion_file).expanduser().resolve(),
-                "Stand motion file",
-            )
-            policy = resolve_policy(
-                checkpoint_file=cfg.checkpoint_file,
-                onnx_file=cfg.onnx_file,
-            )
-            play_square_textop_motion(
-                cfg,
-                walk_motion_file=walk_motion_file,
-                turn_motion_file=turn_motion_file,
-                stand_motion_file=stand_motion_file,
-                policy=policy,
-            )
-            return
-
 
 CommandType = tyro.extras.subcommand_type_from_defaults(
     {
         "normalize": NormalizeCommand(),
         "play-online": PlayOnlineCommand(),
         "play-live": PlayLiveCommand(),
-        "play-square": PlaySquareCommand(),
     },
 )
 

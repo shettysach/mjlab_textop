@@ -13,7 +13,6 @@ from mjlab_textop.core.mdp.offline_commands import (
     textop_motion_command_cfg_from,
     use_textop_motion_command,
 )
-from mjlab_textop.scripts.commands import SQUARE_PHASES
 from mjlab_textop.scripts.utils import resolve_policy
 
 
@@ -153,15 +152,6 @@ def test_use_textop_motion_command_rejects_non_motion_cfg() -> None:
 
     with pytest.raises(TypeError, match="MotionCommandCfg"):
         use_textop_motion_command(env_cfg)
-
-
-def test_square_phases_include_stand_still_between_transitions() -> None:
-    prompts = [prompt for prompt, _ in SQUARE_PHASES]
-
-    assert prompts[0] == "walk forward"
-    assert prompts[-1] == "stand still"
-    assert all(prompt == "stand still" for prompt in prompts[1:-1:2])
-    assert all(prompt in {"walk forward", "turn left"} for prompt in prompts[::2][:-1])
 
 
 def test_textop_motion_command_future_reference_properties() -> None:

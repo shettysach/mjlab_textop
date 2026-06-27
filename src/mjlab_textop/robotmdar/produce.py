@@ -28,6 +28,39 @@ class PromptState:
 
 
 @dataclass(frozen=True)
+class ScheduledPromptPhase:
+    text: str
+    frames: int
+
+
+class ScheduledPromptSource:
+    def __init__(self, phases: tuple[ScheduledPromptPhase, ...]) -> None:
+        if not phases:
+            raise ValueError("Scheduled prompt source requires at least one phase")
+        self.phases = phases
+        self.phase_index = 0
+        self.phase_elapsed_frames = 0
+
+    @property
+    def text(self) -> str:
+        return self.phases[self.phase_index].text
+
+    def advance(self, frames: int) -> bool:
+        if frames <= 0:
+            raise ValueError(f"frames must be positive, got {frames}")
+
+        self.phase_elapsed_frames += frames
+        while self.phase_elapsed_frames >= self.phases[self.phase_index].frames:
+            self.phase_elapsed_frames -= self.phases[self.phase_index].frames
+            self.phase_index += 1
+            if self.phase_index >= len(self.phases):
+                self.phase_index = len(self.phases) - 1
+                self.phase_elapsed_frames = self.phases[self.phase_index].frames
+                return True
+        return False
+
+
+@dataclass(frozen=True)
 class RobotMdarRuntime:
     torch: Any
     OmegaConf: Any
@@ -85,9 +118,27 @@ def run_producer(args: argparse.Namespace) -> None:
         )
     )
     abs_pose = runtime.get_zero_abs_pose((1,), device=args.device)
-    prompt = PromptState(text=args.prompt)
-    input_thread = threading.Thread(target=_prompt_loop, args=(prompt,), daemon=True)
-    input_thread.start()
+    schedule = (
+        parse_prompt_schedule(args.schedule, repeat=args.schedule_repeat)
+        if args.schedule
+        else None
+    )
+    scheduled_prompt = ScheduledPromptSource(schedule) if schedule else None
+    prompt = PromptState(text=scheduled_prompt.text if scheduled_prompt else args.prompt)
+    if scheduled_prompt is None:
+        input_thread = threading.Thread(
+            target=_prompt_loop,
+            args=(prompt,),
+            daemon=True,
+        )
+        input_thread.start()
+    else:
+        total_frames = sum(phase.frames for phase in schedule)
+        print(
+            f"Using scheduled prompt stream with {len(schedule)} phases "
+            f"({total_frames} frames).",
+            file=sys.stderr,
+        )
 
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
@@ -103,9 +154,10 @@ def run_producer(args: argparse.Namespace) -> None:
                 block_count = 0
                 while not prompt.stop:
                     block_start_time = time.monotonic()
+                    current_prompt = prompt.text
                     with runtime.torch.no_grad():
                         text_embedding = runtime.encode_text(
-                            clip_model, [prompt.text]
+                            clip_model, [current_prompt]
                         ).float()
                         future_motion, motion_dict, abs_pose = (
                             runtime.generate_next_motion(
@@ -135,6 +187,13 @@ def run_producer(args: argparse.Namespace) -> None:
                     )
                     frame_index += block.joint_pos.shape[0]
                     block_count += 1
+                    if scheduled_prompt is not None:
+                        schedule_finished = scheduled_prompt.advance(
+                            block.joint_pos.shape[0]
+                        )
+                        prompt.text = scheduled_prompt.text
+                        if schedule_finished and args.schedule_stop:
+                            prompt.stop = True
 
                     block_duration = block.joint_pos.shape[0] / args.fps
                     next_send_time += block_duration
@@ -146,12 +205,17 @@ def run_producer(args: argparse.Namespace) -> None:
                     ):
                         generation_ms = (time.monotonic() - block_start_time) * 1000.0
                         lag_ms = max(0.0, -sleep_seconds * 1000.0)
+                        input_suffix = (
+                            ""
+                            if scheduled_prompt is not None
+                            else "\nEnter text prompt (or q to exit): "
+                        )
                         print(
                             "stream "
                             f"block={block_count} frame={frame_index} "
-                            f"prompt={prompt.text!r} gen_ms={generation_ms:.1f} "
+                            f"prompt={current_prompt!r} gen_ms={generation_ms:.1f} "
                             f"lag_ms={lag_ms:.1f}"
-                            "\nEnter text prompt (or q to exit): ",
+                            f"{input_suffix}",
                             file=sys.stderr,
                             end="",
                             flush=True,
@@ -175,8 +239,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fps", type=float, default=50.0)
     parser.add_argument("--guidance-scale", type=float, default=5.0)
     parser.add_argument("--prompt", default="walk")
+    parser.add_argument(
+        "--schedule",
+        default=None,
+        help=(
+            "Comma-separated prompt schedule as 'prompt:frames' entries, e.g. "
+            "'walk forward:150,stand still:60,turn left:90'."
+        ),
+    )
+    parser.add_argument("--schedule-repeat", type=int, default=1)
+    parser.add_argument("--schedule-stop", action="store_true")
     parser.add_argument("--log-every-blocks", type=int, default=20)
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.schedule_repeat <= 0:
+        raise ValueError(
+            f"--schedule-repeat must be positive, got {args.schedule_repeat}"
+        )
+    return args
 
 
 def main() -> None:
@@ -224,6 +303,43 @@ def _register_hydra_resolvers(OmegaConf) -> None:
             "now",
             lambda fmt: datetime.now().strftime(fmt),
         )
+
+
+def parse_prompt_schedule(
+    schedule: str,
+    *,
+    repeat: int = 1,
+) -> tuple[ScheduledPromptPhase, ...]:
+    if repeat <= 0:
+        raise ValueError(f"repeat must be positive, got {repeat}")
+
+    phases = []
+    for raw_entry in schedule.split(","):
+        entry = raw_entry.strip()
+        if not entry:
+            continue
+        if ":" not in entry:
+            raise ValueError(
+                f"Schedule entry must be formatted as 'prompt:frames': {entry!r}"
+            )
+        prompt, raw_frames = entry.rsplit(":", 1)
+        prompt = prompt.strip()
+        raw_frames = raw_frames.strip()
+        if not prompt:
+            raise ValueError(f"Schedule entry has empty prompt: {entry!r}")
+        try:
+            frames = int(raw_frames)
+        except ValueError as exc:
+            raise ValueError(f"Invalid frame count in schedule entry: {entry!r}") from exc
+        if frames <= 0:
+            raise ValueError(
+                f"Schedule frame count must be positive in entry: {entry!r}"
+            )
+        phases.append(ScheduledPromptPhase(text=prompt, frames=frames))
+
+    if not phases:
+        raise ValueError("Schedule must contain at least one prompt phase")
+    return tuple(phases * repeat)
 
 
 def _prompt_loop(prompt: PromptState) -> None:

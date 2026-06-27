@@ -18,11 +18,9 @@ from mjlab_textop.core.online.buffer import (
 )
 from mjlab_textop.core.online.replay import (
     QueueTextOpOnlineSource,
-    load_sliced_mjlab_npz_blocks,
     make_mjlab_npz_replay_source,
 )
 from mjlab_textop.core.schema import TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
-from mjlab_textop.scripts.commands import build_square_sequence_blocks
 
 
 class _LiveTextOpOnlineSource:
@@ -176,82 +174,6 @@ def test_mjlab_npz_replay_source_chunks_and_round_trips_joint_order(tmp_path) ->
 
     assert stale_steps == 0
     np.testing.assert_allclose(round_trip_joint_pos.cpu().numpy(), joint_pos)
-
-
-def test_load_sliced_mjlab_npz_blocks_assigns_global_indices(tmp_path) -> None:
-    path = tmp_path / "motion.npz"
-    joint_pos, joint_vel, body_pos_w, body_quat_w = write_mjlab_motion_npz(
-        path,
-        frames=10,
-    )
-
-    blocks = load_sliced_mjlab_npz_blocks(
-        path,
-        frames=7,
-        start_index=100,
-        block_size=3,
-    )
-
-    assert [block.index for block in blocks] == [100, 103, 106]
-    assert [block.joint_pos.shape[0] for block in blocks] == [3, 3, 1]
-    expected_joint_pos = np.concatenate([block.joint_pos for block in blocks], axis=0)
-    expected_joint_vel = np.concatenate([block.joint_vel for block in blocks], axis=0)
-    np.testing.assert_allclose(
-        expected_joint_pos,
-        joint_pos[:7, list(np.argsort(TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX))],
-    )
-    np.testing.assert_allclose(
-        expected_joint_vel,
-        joint_vel[:7, list(np.argsort(TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX))],
-    )
-    np.testing.assert_allclose(
-        np.concatenate([block.anchor_pos_w for block in blocks], axis=0),
-        body_pos_w[:7, 0],
-    )
-    np.testing.assert_allclose(
-        np.concatenate([block.anchor_quat_w for block in blocks], axis=0),
-        body_quat_w[:7, 0],
-    )
-
-
-def test_load_sliced_mjlab_npz_blocks_rejects_short_motion(tmp_path) -> None:
-    path = tmp_path / "motion.npz"
-    write_mjlab_motion_npz(path, frames=3)
-
-    with pytest.raises(ValueError, match="Requested 4 frames"):
-        load_sliced_mjlab_npz_blocks(
-            path,
-            frames=4,
-            start_index=0,
-            block_size=2,
-        )
-
-
-def test_build_square_sequence_blocks_uses_continuous_indices(tmp_path) -> None:
-    walk_path = tmp_path / "walk.npz"
-    turn_path = tmp_path / "turn.npz"
-    stand_path = tmp_path / "stand.npz"
-    write_mjlab_motion_npz(walk_path, frames=10)
-    write_mjlab_motion_npz(turn_path, frames=10)
-    write_mjlab_motion_npz(stand_path, frames=10)
-
-    blocks, total_frames = build_square_sequence_blocks(
-        {
-            "walk forward": walk_path,
-            "turn left": turn_path,
-            "stand still": stand_path,
-        },
-        phases=(
-            ("walk forward", 5),
-            ("turn left", 4),
-            ("stand still", 3),
-        ),
-        block_size=2,
-    )
-
-    assert total_frames == 12
-    assert [block.index for block in blocks] == [0, 2, 4, 5, 7, 9, 11]
-    assert [block.joint_pos.shape[0] for block in blocks] == [2, 2, 1, 2, 2, 2, 1]
 
 
 def test_online_command_polls_source_and_exposes_five_step_window() -> None:

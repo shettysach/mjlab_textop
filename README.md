@@ -173,6 +173,19 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1
 ```
 
+For a scripted live prompt schedule while preserving RobotMDAR history and
+absolute pose across prompt changes:
+
+```bash
+uv run python -m mjlab_textop.robotmdar.produce \
+  --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
+  --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/BABEL-AMASS-ROBOT-23dof-FULL-50fps \
+  --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1 \
+  --schedule "walk forward:150,stand still:60,turn left:90,stand still:60" \
+  --schedule-repeat 4 \
+  --schedule-stop
+```
+
 ```bash
 # In mjlab_textop directory
 uv run --extra cu128 mjlab-textop play-live \
