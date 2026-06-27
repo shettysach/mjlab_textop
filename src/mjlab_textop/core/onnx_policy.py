@@ -74,7 +74,7 @@ class TextOpOnnxPolicy:
             )
 
         expected_index = self.onnx_device.index
-        obs_index = obs.device.index if obs.device.index is not None else 0
+        obs_index = obs.device.index
         if obs_index != expected_index:
             raise RuntimeError(
                 f"ONNX CUDA policy expected obs on cuda:{expected_index}, "
@@ -118,11 +118,12 @@ class CustomOnnxPolicyRunner:
 
     def __init__(
         self,
-        _env: Any,
-        _train_cfg: dict[str, Any],
-        _log_dir: str | None = None,
+        env: Any,
+        train_cfg: dict[str, Any],
+        log_dir: str | None = None,
         device: str = "cpu",
     ) -> None:
+        del env, train_cfg, log_dir
         self.device = device
         self.policy: TextOpOnnxPolicy | None = None
 
