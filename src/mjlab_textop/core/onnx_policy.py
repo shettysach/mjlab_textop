@@ -40,11 +40,12 @@ class TextOpOnnxPolicy:
 
         if action_mjlab.ndim != 2:
             raise RuntimeError(
-                f"Expected batched ONNX action shaped [N, 29], "
-                f"got {action_mjlab.shape}"
+                f"Expected batched ONNX action shaped [N, 29], got {action_mjlab.shape}"
             )
         if action_mjlab.shape[-1] != 29:
-            raise RuntimeError(f"Expected ONNX action dim 29, got {action_mjlab.shape[-1]}")
+            raise RuntimeError(
+                f"Expected ONNX action dim 29, got {action_mjlab.shape[-1]}"
+            )
 
         return action_mjlab
 

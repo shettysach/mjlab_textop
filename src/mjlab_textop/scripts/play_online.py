@@ -11,7 +11,7 @@ from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
 from mjlab_textop.core.task import (
     ensure_textop_task_registered,
     register_online_textop_onnx_task,
-    register_online_textop_replay_task,
+    register_online_textop_task,
 )
 from mjlab_textop.scripts.policy import ResolvedPolicy, run_textop_play
 
@@ -52,8 +52,9 @@ def play_online_textop_motion(
             reset_robot_to_reference=cfg.reset_robot_to_reference,
         )
     else:
-        task_name = register_online_textop_replay_task(
+        task_name = register_online_textop_task(
             source=source,
+            source_mode="replay",
             future_steps=cfg.future_steps,
             num_envs=cfg.num_envs,
             anchor_alignment=cfg.anchor_alignment,

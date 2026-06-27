@@ -15,7 +15,6 @@ from mjlab_textop.core.task import (
     TEXTOP_TASK_NAME,
     ensure_textop_task_registered,
     register_online_textop_onnx_task,
-    register_online_textop_replay_task,
     register_online_textop_task,
 )
 
@@ -80,7 +79,7 @@ def test_online_textop_replay_task_uses_replay_source_mode() -> None:
         ]
     )
 
-    task_name = register_online_textop_replay_task(source=source)
+    task_name = register_online_textop_task(source=source, source_mode="replay")
     env_cfg = load_env_cfg(task_name, play=True)
 
     assert env_cfg.commands["motion"].source_mode == "replay"
@@ -125,8 +124,9 @@ def test_online_textop_replay_task_can_disable_reference_reset() -> None:
         ]
     )
 
-    task_name = register_online_textop_replay_task(
+    task_name = register_online_textop_task(
         source=source,
+        source_mode="replay",
         reset_robot_to_reference=False,
     )
     env_cfg = load_env_cfg(task_name, play=True)

@@ -79,10 +79,18 @@ class TextOpRollingMotionBuffer:
 
         for offset in range(joint_pos.shape[0]):
             frame = block.index + offset
-            self._joint_pos[frame] = _to_tensor(joint_pos[offset], self.device)
-            self._joint_vel[frame] = _to_tensor(joint_vel[offset], self.device)
-            self._anchor_pos_w[frame] = _to_tensor(anchor_pos_w[offset], self.device)
-            self._anchor_quat_w[frame] = _to_tensor(anchor_quat_w[offset], self.device)
+            self._joint_pos[frame] = torch.as_tensor(
+                joint_pos[offset], dtype=torch.float32, device=self.device
+            )
+            self._joint_vel[frame] = torch.as_tensor(
+                joint_vel[offset], dtype=torch.float32, device=self.device
+            )
+            self._anchor_pos_w[frame] = torch.as_tensor(
+                anchor_pos_w[offset], dtype=torch.float32, device=self.device
+            )
+            self._anchor_quat_w[frame] = torch.as_tensor(
+                anchor_quat_w[offset], dtype=torch.float32, device=self.device
+            )
 
         block_latest = block.index + joint_pos.shape[0] - 1
         self._latest_index = (
@@ -160,7 +168,3 @@ class TextOpRollingMotionBuffer:
                 del self._joint_vel[frame]
                 del self._anchor_pos_w[frame]
                 del self._anchor_quat_w[frame]
-
-
-def _to_tensor(value, device: torch.device) -> torch.Tensor:
-    return torch.as_tensor(value, dtype=torch.float32, device=device)

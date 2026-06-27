@@ -172,7 +172,9 @@ def load_robotmdar_raw_record(path: str | Path) -> RobotMdarRawRecord:
 def _validate_matching_frame_counts(**arrays: np.ndarray) -> None:
     counts = {name: value.shape[0] for name, value in arrays.items()}
     if len(set(counts.values())) != 1:
-        raise ValueError(f"RobotMDAR raw arrays have inconsistent frame counts: {counts}")
+        raise ValueError(
+            f"RobotMDAR raw arrays have inconsistent frame counts: {counts}"
+        )
 
 
 def _read_scalar_float(data: Any, key: str) -> float:

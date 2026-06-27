@@ -196,28 +196,6 @@ def register_online_textop_onnx_task(
     return task_name
 
 
-def register_online_textop_replay_task(
-    *,
-    source: TextOpOnlineSource,
-    future_steps: int = TEXTOP_FUTURE_STEPS,
-    num_envs: int = 1,
-    anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
-        "align_to_robot_start"
-    ),
-    max_stale_steps: int = 25,
-    reset_robot_to_reference: bool = True,
-) -> str:
-    return register_online_textop_task(
-        source=source,
-        source_mode="replay",
-        future_steps=future_steps,
-        num_envs=num_envs,
-        anchor_alignment=anchor_alignment,
-        max_stale_steps=max_stale_steps,
-        reset_robot_to_reference=reset_robot_to_reference,
-    )
-
-
 def _configure_textop_actor_observations(cfg) -> None:
     old_actor = cfg.observations["actor"]
     terms = {

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TypeAlias
 
 import tyro
@@ -11,7 +12,7 @@ from mjlab_textop.scripts.play_online import (
     PlayOnlineCommand,
     play_online_textop_motion,
 )
-from mjlab_textop.scripts.policy import resolve_path, resolve_policy, verify_path
+from mjlab_textop.scripts.policy import resolve_policy, verify_resolved
 
 TextOpCommand: TypeAlias = NormalizeCommand | PlayOnlineCommand | PlayLiveCommand
 
@@ -27,8 +28,11 @@ TextOpCommandType = tyro.extras.subcommand_type_from_defaults(
 def run_command(cfg: TextOpCommand) -> None:
     match cfg:
         case NormalizeCommand():
-            input_motion_file = verify_path(cfg.input_motion_file, "input motion file")
-            output_motion_file = resolve_path(cfg.output_motion_file)
+            input_motion_file = verify_resolved(
+                Path(cfg.input_motion_file).expanduser().resolve(),
+                "input motion file",
+            )
+            output_motion_file = Path(cfg.output_motion_file).expanduser().resolve()
             normalize(
                 input_motion_file,
                 output_motion_file,
@@ -38,8 +42,8 @@ def run_command(cfg: TextOpCommand) -> None:
             return
 
         case PlayOnlineCommand():
-            motion_file = verify_path(
-                cfg.motion_file,
+            motion_file = verify_resolved(
+                Path(cfg.motion_file).expanduser().resolve(),
                 "Normalized motion file",
             )
             policy = resolve_policy(

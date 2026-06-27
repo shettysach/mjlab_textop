@@ -13,20 +13,12 @@ class ResolvedPolicy:
     file: Path
 
 
-def resolve_path(path: str) -> Path:
-    return Path(path).expanduser().resolve()
-
-
 def verify_resolved(resolved: Path, label: str) -> Path:
     if not resolved.exists():
         raise FileNotFoundError(f"{label} does not exist: {resolved}")
     if not resolved.is_file():
         raise FileNotFoundError(f"{label} is not a file: {resolved}")
     return resolved
-
-
-def verify_path(path: str, label: str) -> Path:
-    return verify_resolved(resolve_path(path), label)
 
 
 def resolve_policy(
@@ -40,11 +32,17 @@ def resolve_policy(
     if checkpoint_file is not None:
         return ResolvedPolicy(
             "checkpoint",
-            verify_path(checkpoint_file, "Checkpoint file"),
+            verify_resolved(
+                Path(checkpoint_file).expanduser().resolve(),
+                "Checkpoint file",
+            ),
         )
 
     assert onnx_file is not None
-    return ResolvedPolicy("onnx", verify_path(onnx_file, "ONNX policy file"))
+    return ResolvedPolicy(
+        "onnx",
+        verify_resolved(Path(onnx_file).expanduser().resolve(), "ONNX policy file"),
+    )
 
 
 def run_textop_play(task_name: str, policy_file: Path, cfg) -> None:
