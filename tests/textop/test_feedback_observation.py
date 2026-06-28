@@ -6,6 +6,12 @@ from copy import deepcopy
 import pytest
 import torch
 
+from mjlab_textop.core.feedback.image import (
+    EncodedObservationImage,
+    ObservationImageStore,
+    register_observation_image_store,
+    unregister_observation_image_store,
+)
 from mjlab_textop.core.feedback.observation import (
     UdpObservationPublisher,
     UdpObservationPublisherCfg,
@@ -74,6 +80,48 @@ def test_udp_observation_publisher_sends_json(monkeypatch) -> None:
     assert json.loads(data.decode("utf-8")) == {"frame": 1}
     assert address == ("127.0.0.1", 9999)
     assert fake_socket.closed is True
+
+
+def test_udp_observation_publisher_attaches_latest_image(monkeypatch) -> None:
+    fake_socket = _FakeSocket()
+    monkeypatch.setattr(
+        "mjlab_textop.core.feedback.observation.socket.socket",
+        lambda *args, **kwargs: fake_socket,
+    )
+    store = ObservationImageStore()
+    store.set_latest(
+        EncodedObservationImage(
+            mime_type="image/jpeg",
+            data_base64="abc123",
+            frame=10,
+            width=320,
+            height=240,
+        )
+    )
+    register_observation_image_store("test-image-store", store)
+
+    try:
+        publisher = UdpObservationPublisher(
+            UdpObservationPublisherCfg(
+                host="127.0.0.1",
+                port=9999,
+                image_store_key="test-image-store",
+            )
+        )
+        publisher.publish({"frame": 1})
+        publisher.close()
+    finally:
+        unregister_observation_image_store("test-image-store")
+
+    data, _ = fake_socket.sent[0]
+    payload = json.loads(data.decode("utf-8"))
+    assert payload["image"] == {
+        "mime_type": "image/jpeg",
+        "data_base64": "abc123",
+        "frame": 10,
+        "width": 320,
+        "height": 240,
+    }
 
 
 def test_udp_observation_publisher_rejects_invalid_port() -> None:

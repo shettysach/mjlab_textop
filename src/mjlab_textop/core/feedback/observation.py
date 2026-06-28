@@ -5,6 +5,8 @@ import socket
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from mjlab_textop.core.feedback.image import get_observation_image_store
+
 
 class TextOpObservationPublisher(Protocol):
     def publish(self, payload: dict[str, Any]) -> None:
@@ -15,6 +17,7 @@ class TextOpObservationPublisher(Protocol):
 class UdpObservationPublisherCfg:
     host: str = "127.0.0.1"
     port: int = 8766
+    image_store_key: str | None = None
 
 
 class UdpObservationPublisher:
@@ -25,6 +28,20 @@ class UdpObservationPublisher:
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     def publish(self, payload: dict[str, Any]) -> None:
+        if self.cfg.image_store_key is not None:
+            store = get_observation_image_store(self.cfg.image_store_key)
+            image = None if store is None else store.latest()
+            if image is not None:
+                payload = {
+                    **payload,
+                    "image": {
+                        "mime_type": image.mime_type,
+                        "data_base64": image.data_base64,
+                        "frame": image.frame,
+                        "width": image.width,
+                        "height": image.height,
+                    },
+                }
         data = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         self._sock.sendto(data, (self.cfg.host, self.cfg.port))
 

@@ -47,6 +47,11 @@ class OpenAIChatPromptSelector:
                 current_prompt=current_prompt,
             ),
         }
+        if observation is not None and observation.image_data_base64 is not None:
+            payload["image"] = {
+                "mime_type": observation.image_mime_type or "image/jpeg",
+                "data_base64": observation.image_data_base64,
+            }
         response = self._post_json(
             _make_chat_completions_payload(
                 payload=payload,
@@ -92,6 +97,8 @@ def _make_state_payload(
             "buffer_frames": observation.buffer_frames,
             "stale_steps": observation.stale_steps,
             "consecutive_stale_steps": observation.consecutive_stale_steps,
+            "has_image": observation.image_data_base64 is not None,
+            "image_frame": observation.image_frame,
         }
     )
     return state
@@ -114,7 +121,21 @@ def _make_chat_completions_payload(
         if system_prompt is not None
         else []
     )
-    messages.append({"role": "user", "content": [{"type": "text", "text": text}]})
+    content = [{"type": "text", "text": text}]
+    image = payload.get("image")
+    if image is not None:
+        content.append(
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": (
+                        f"data:{image['mime_type']};base64,"
+                        f"{image['data_base64']}"
+                    )
+                },
+            }
+        )
+    messages.append({"role": "user", "content": content})
     return {
         "model": model,
         "messages": messages,

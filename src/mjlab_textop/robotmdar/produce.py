@@ -91,92 +91,38 @@ def run_producer(args: argparse.Namespace) -> None:
     planner = make_prompt_planner(args)
     planner.start()
     if isinstance(planner, FeedbackPlanner):
-        print("Using feedback planner.", file=sys.stderr)
+        _log_producer_message("Using feedback planner.")
 
     try:
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
-                server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                server.bind((args.host, args.port))
-                server.listen(1)
-                print(f"Waiting for MJLab consumer on {args.host}:{args.port}")
-                conn, addr = server.accept()
-                print(f"MJLab consumer connected from {addr}")
-                with conn:
-                    frame_index = 0
-                    next_send_time = time.monotonic()
-                    block_count = 0
-                    while not planner.should_stop:
-                        block_start_time = time.monotonic()
-                        current_prompt = planner.choose_prompt(
-                            PlannerContext(
-                                frame_index=frame_index,
-                                block_count=block_count,
-                            )
-                        )
-                        with runtime.torch.no_grad():
-                            text_embedding = runtime.encode_text(
-                                clip_model, [current_prompt]
-                            ).float()
-                            future_motion, motion_dict, abs_pose = (
-                                runtime.generate_next_motion(
-                                    vae=vae,
-                                    denoiser=cfg_denoiser,
-                                    diffusion=diffusion,
-                                    val_data=val_data,
-                                    text_embedding=text_embedding,
-                                    history_motion=history_motion,
-                                    abs_pose=abs_pose,
-                                    future_len=future_len,
-                                    use_full_sample=True,
-                                    guidance_scale=args.guidance_scale,
-                                    ret_fk=True,
-                                    ret_fk_full=False,
-                                )
-                            )
-                        history_motion = future_motion[:, -history_len:, :]
-                        block = robotmdar_motion_dict_to_block(
-                            slice_motion_dict_tail(motion_dict, future_len),
-                            index=frame_index,
-                        )
-                        conn.sendall(
-                            textop_block_to_ndjson_message(block, fps=args.fps).encode(
-                                "utf-8"
-                            )
-                        )
-                        block_frames = block.joint_pos.shape[0]
-                        frame_index += block_frames
-                        block_count += 1
-
-                        block_duration = block_frames / args.fps
-                        next_send_time += block_duration
-                        sleep_seconds = next_send_time - time.monotonic()
-                        if (
-                            args.log_every_blocks > 0
-                            and block_count % args.log_every_blocks == 0
-                            and not planner.input_active
-                        ):
-                            generation_ms = (
-                                time.monotonic() - block_start_time
-                            ) * 1000.0
-                            lag_ms = max(0.0, -sleep_seconds * 1000.0)
-                            print(
-                                "stream "
-                                f"block={block_count} frame={frame_index} "
-                                f"prompt={current_prompt!r} "
-                                f"gen_ms={generation_ms:.1f} "
-                                f"lag_ms={lag_ms:.1f}"
-                                f"{planner.log_suffix}",
-                                file=sys.stderr,
-                                end="",
-                                flush=True,
-                            )
-                        time.sleep(max(0.0, sleep_seconds))
-        finally:
-            planner.request_stop()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+            server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server.bind((args.host, args.port))
+            server.listen(1)
+            _log_producer_message(
+                f"Waiting for MJLab consumer on {args.host}:{args.port}"
+            )
+            conn, addr = server.accept()
+            _log_producer_message(f"MJLab consumer connected from {addr}")
+            with conn:
+                _run_producer_stream(
+                    conn=conn,
+                    args=args,
+                    runtime=runtime,
+                    clip_model=clip_model,
+                    val_data=val_data,
+                    vae=vae,
+                    cfg_denoiser=cfg_denoiser,
+                    diffusion=diffusion,
+                    history_motion=history_motion,
+                    history_len=history_len,
+                    future_len=future_len,
+                    abs_pose=abs_pose,
+                    planner=planner,
+                )
     except KeyboardInterrupt:
+        _log_producer_message("Stopping RobotMDAR producer.")
+    finally:
         planner.request_stop()
-        print("Stopping RobotMDAR producer.", file=sys.stderr)
 
 
 def parse_args() -> argparse.Namespace:
@@ -245,6 +191,141 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     run_producer(parse_args())
+
+
+def _log_producer_message(message: str) -> None:
+    print(message, file=sys.stderr, flush=True)
+
+
+def _run_producer_stream(
+    *,
+    conn: socket.socket,
+    args: argparse.Namespace,
+    runtime: RobotMdarRuntime,
+    clip_model: Any,
+    val_data: Any,
+    vae: Any,
+    cfg_denoiser: Any,
+    diffusion: Any,
+    history_motion: Any,
+    history_len: int,
+    future_len: int,
+    abs_pose: Any,
+    planner: PromptPlanner,
+) -> None:
+    frame_index = 0
+    next_send_time = time.monotonic()
+    block_count = 0
+
+    while not planner.should_stop:
+        block_start_time = time.monotonic()
+        current_prompt = planner.choose_prompt(
+            PlannerContext(
+                frame_index=frame_index,
+                block_count=block_count,
+            )
+        )
+        future_motion, motion_dict, abs_pose = _generate_motion_block(
+            runtime=runtime,
+            clip_model=clip_model,
+            vae=vae,
+            cfg_denoiser=cfg_denoiser,
+            diffusion=diffusion,
+            val_data=val_data,
+            history_motion=history_motion,
+            abs_pose=abs_pose,
+            prompt=current_prompt,
+            future_len=future_len,
+            guidance_scale=args.guidance_scale,
+        )
+        history_motion = future_motion[:, -history_len:, :]
+        block = robotmdar_motion_dict_to_block(
+            slice_motion_dict_tail(motion_dict, future_len),
+            index=frame_index,
+        )
+        conn.sendall(
+            textop_block_to_ndjson_message(block, fps=args.fps).encode("utf-8")
+        )
+
+        block_frames = block.joint_pos.shape[0]
+        frame_index += block_frames
+        block_count += 1
+
+        sleep_seconds = _log_block_timing(
+            planner=planner,
+            args=args,
+            block_count=block_count,
+            frame_index=frame_index,
+            block_frames=block_frames,
+            block_start_time=block_start_time,
+            next_send_time=next_send_time,
+            prompt=current_prompt,
+        )
+        next_send_time += block_frames / args.fps
+        time.sleep(max(0.0, sleep_seconds))
+
+
+def _generate_motion_block(
+    *,
+    runtime: RobotMdarRuntime,
+    clip_model: Any,
+    vae: Any,
+    cfg_denoiser: Any,
+    diffusion: Any,
+    val_data: Any,
+    history_motion: Any,
+    abs_pose: Any,
+    prompt: str,
+    future_len: int,
+    guidance_scale: float,
+) -> tuple[Any, Any, Any]:
+    with runtime.torch.no_grad():
+        text_embedding = runtime.encode_text(clip_model, [prompt]).float()
+        return runtime.generate_next_motion(
+            vae=vae,
+            denoiser=cfg_denoiser,
+            diffusion=diffusion,
+            val_data=val_data,
+            text_embedding=text_embedding,
+            history_motion=history_motion,
+            abs_pose=abs_pose,
+            future_len=future_len,
+            use_full_sample=True,
+            guidance_scale=guidance_scale,
+            ret_fk=True,
+            ret_fk_full=False,
+        )
+
+
+def _log_block_timing(
+    *,
+    planner: PromptPlanner,
+    args: argparse.Namespace,
+    block_count: int,
+    frame_index: int,
+    block_frames: int,
+    block_start_time: float,
+    next_send_time: float,
+    prompt: str,
+) -> float:
+    block_duration = block_frames / args.fps
+    sleep_seconds = next_send_time + block_duration - time.monotonic()
+    if (
+        args.log_every_blocks > 0
+        and block_count % args.log_every_blocks == 0
+        and not planner.input_active
+    ):
+        generation_ms = (time.monotonic() - block_start_time) * 1000.0
+        lag_ms = max(0.0, -sleep_seconds * 1000.0)
+        _log_producer_message(
+            "stream "
+            f"block={block_count} frame={frame_index} "
+            f"prompt={prompt!r} "
+            f"gen_ms={generation_ms:.1f} "
+            f"lag_ms={lag_ms:.1f}"
+            f"{planner.log_suffix}"
+        )
+    return sleep_seconds
 
 
 def _load_robotmdar_runtime() -> RobotMdarRuntime:

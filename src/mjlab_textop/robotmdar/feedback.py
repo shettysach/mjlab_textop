@@ -22,6 +22,9 @@ class FeedbackObservation:
     fall_reason: str | None
     robot_anchor_pos_w: tuple[float, float, float]
     robot_anchor_quat_w: tuple[float, float, float, float]
+    image_mime_type: str | None = None
+    image_data_base64: str | None = None
+    image_frame: int | None = None
 
 
 class UdpFeedbackReceiver:
@@ -115,6 +118,10 @@ def parse_feedback_observation(
     if not isinstance(data, dict):
         raise ValueError("Feedback observation must be a JSON object")
 
+    image = data.get("image")
+    if image is not None and not isinstance(image, dict):
+        raise ValueError("Feedback observation image must be a JSON object")
+
     return FeedbackObservation(
         frame=int(data["frame"]),
         started=bool(data["started"]),
@@ -132,6 +139,15 @@ def parse_feedback_observation(
         ),
         robot_anchor_pos_w=_fixed_float_tuple(data["robot_anchor_pos_w"], 3),  # ty:ignore[invalid-argument-type]
         robot_anchor_quat_w=_fixed_float_tuple(data["robot_anchor_quat_w"], 4),  # ty:ignore[invalid-argument-type]
+        image_mime_type=(
+            None if image is None else str(image.get("mime_type", "image/jpeg"))
+        ),
+        image_data_base64=(
+            None if image is None or image.get("data_base64") is None else str(image["data_base64"])
+        ),
+        image_frame=(
+            None if image is None or image.get("frame") is None else int(image["frame"])
+        ),
     )
 
 

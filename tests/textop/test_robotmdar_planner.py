@@ -54,6 +54,7 @@ def _observation(
     consecutive_stale_steps: int = 0,
     fallen: bool = False,
     fall_reason: str | None = None,
+    image_data_base64: str | None = None,
 ) -> FeedbackObservation:
     return FeedbackObservation(
         frame=10,
@@ -68,6 +69,9 @@ def _observation(
         fall_reason=fall_reason,
         robot_anchor_pos_w=(1.0, 2.0, 3.0),
         robot_anchor_quat_w=(1.0, 0.0, 0.0, 0.0),
+        image_mime_type="image/jpeg" if image_data_base64 is not None else None,
+        image_data_base64=image_data_base64,
+        image_frame=9 if image_data_base64 is not None else None,
     )
 
 
@@ -86,6 +90,11 @@ def test_parse_feedback_observation() -> None:
             "fall_reason": "anchor_height_below_0.35",
             "robot_anchor_pos_w": [1.0, 2.0, 3.0],
             "robot_anchor_quat_w": [1.0, 0.0, 0.0, 0.0],
+            "image": {
+                "mime_type": "image/jpeg",
+                "data_base64": "abc123",
+                "frame": 9,
+            },
         }
     )
 
@@ -94,6 +103,9 @@ def test_parse_feedback_observation() -> None:
     assert observation.latest_frame == 18
     assert observation.fallen is True
     assert observation.fall_reason == "anchor_height_below_0.35"
+    assert observation.image_mime_type == "image/jpeg"
+    assert observation.image_data_base64 == "abc123"
+    assert observation.image_frame == 9
 
 
 def test_manual_prompt_planner_uses_current_prompt_without_starting_thread() -> None:
@@ -259,7 +271,7 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     )
 
     prompt = selector.choose_prompt(
-        observation=_observation(),
+        observation=_observation(image_data_base64="abc123"),
         context=PlannerContext(frame_index=64, block_count=8),
         current_prompt="walk forward",
     )
@@ -276,7 +288,12 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     )
     content = posted["payload"]["messages"][1]["content"]
     assert content[0]["type"] == "text"
-    assert "Return only the prompt" in content[0]["text"]
+    assert "Return only one short RobotMDAR motion prompt" in content[0]["text"]
     assert '"frame_index":64' in content[0]["text"]
     assert '"current_prompt":"walk forward"' in content[0]["text"]
     assert '"lag_frames":8' in content[0]["text"]
+    assert '"has_image":true' in content[0]["text"]
+    assert content[1] == {
+        "type": "image_url",
+        "image_url": {"url": "data:image/jpeg;base64,abc123"},
+    }
