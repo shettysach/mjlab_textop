@@ -7,10 +7,7 @@ from typing import Literal
 import tyro
 from mjlab.scripts.play import PlayConfig, run_play
 
-from mjlab_textop.core.feedback.observation import (
-    UdpObservationPublisher,
-    UdpObservationPublisherCfg,
-)
+from mjlab_textop.core.feedback.observation import UdpObservationPublisherCfg
 from mjlab_textop.core.online.live import (
     SocketTextOpOnlineSource,
     SocketTextOpSourceCfg,
@@ -71,12 +68,10 @@ def play_live_textop_motion(
         )
     )
     source.start()
-    observation_publisher = (
-        UdpObservationPublisher(
-            UdpObservationPublisherCfg(
-                host=cfg.feedback_host,
-                port=cfg.feedback_port,
-            )
+    observation_publisher_cfg = (
+        UdpObservationPublisherCfg(
+            host=cfg.feedback_host,
+            port=cfg.feedback_port,
         )
         if cfg.feedback_port is not None
         else None
@@ -90,7 +85,7 @@ def play_live_textop_motion(
             future_steps=cfg.future_steps,
             num_envs=cfg.num_envs,
             anchor_alignment=cfg.anchor_alignment,
-            observation_publisher=observation_publisher,
+            observation_publisher_cfg=observation_publisher_cfg,
             observation_publish_interval=cfg.feedback_every_frames,
         )
         play_cfg = PlayConfig(
@@ -103,8 +98,6 @@ def play_live_textop_motion(
         run_play(task_name, play_cfg)
     finally:
         unregister_live_textop_source(source_key)
-        if observation_publisher is not None:
-            observation_publisher.close()
         source.close()
 
 

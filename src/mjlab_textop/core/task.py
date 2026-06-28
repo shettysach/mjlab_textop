@@ -11,7 +11,10 @@ from mjlab.tasks.tracking.config.g1.rl_cfg import unitree_g1_tracking_ppo_runner
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 from mjlab.utils.noise import UniformNoiseCfg as Unoise
 
-from mjlab_textop.core.feedback.observation import TextOpObservationPublisher
+from mjlab_textop.core.feedback.observation import (
+    TextOpObservationPublisher,
+    UdpObservationPublisherCfg,
+)
 from mjlab_textop.core.mdp.observations import (
     future_anchor_ori_b,
     future_anchor_pos_b,
@@ -65,6 +68,7 @@ def make_online_textop_g1_flat_tracking_env_cfg(
     ),
     reset_robot_to_reference: bool = True,
     observation_publisher: TextOpObservationPublisher | None = None,
+    observation_publisher_cfg: UdpObservationPublisherCfg | None = None,
     observation_publish_interval: int = 1,
 ):
     cfg = unitree_g1_flat_tracking_env_cfg(play=play)
@@ -79,6 +83,7 @@ def make_online_textop_g1_flat_tracking_env_cfg(
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
         observation_publisher=observation_publisher,
+        observation_publisher_cfg=observation_publisher_cfg,
         observation_publish_interval=observation_publish_interval,
     )
     cfg.commands["motion"].anchor_body_name = "pelvis"  # ty:ignore[unresolved-attribute]
@@ -101,6 +106,7 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
     ),
     reset_robot_to_reference: bool = True,
     observation_publisher: TextOpObservationPublisher | None = None,
+    observation_publisher_cfg: UdpObservationPublisherCfg | None = None,
     observation_publish_interval: int = 1,
 ):
     cfg = unitree_g1_flat_tracking_env_cfg(play=play)
@@ -115,6 +121,7 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
         observation_publisher=observation_publisher,
+        observation_publisher_cfg=observation_publisher_cfg,
         observation_publish_interval=observation_publish_interval,
     )
     cfg.commands["motion"].anchor_body_name = "pelvis"  # ty:ignore[unresolved-attribute]
@@ -138,6 +145,7 @@ def register_online_textop_task(
     ),
     reset_robot_to_reference: bool = True,
     observation_publisher: TextOpObservationPublisher | None = None,
+    observation_publisher_cfg: UdpObservationPublisherCfg | None = None,
     observation_publish_interval: int = 1,
 ) -> str:
     mode_name = source_mode.capitalize()
@@ -151,6 +159,7 @@ def register_online_textop_task(
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
         observation_publisher=observation_publisher,
+        observation_publisher_cfg=observation_publisher_cfg,
         observation_publish_interval=observation_publish_interval,
     )
     env_cfg.scene.num_envs = num_envs
@@ -177,6 +186,7 @@ def register_online_textop_onnx_task(
     ),
     reset_robot_to_reference: bool = True,
     observation_publisher: TextOpObservationPublisher | None = None,
+    observation_publisher_cfg: UdpObservationPublisherCfg | None = None,
     observation_publish_interval: int = 1,
 ) -> str:
     mode_name = source_mode.capitalize()
@@ -190,6 +200,7 @@ def register_online_textop_onnx_task(
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
         observation_publisher=observation_publisher,
+        observation_publisher_cfg=observation_publisher_cfg,
         observation_publish_interval=observation_publish_interval,
     )
     env_cfg.scene.num_envs = num_envs

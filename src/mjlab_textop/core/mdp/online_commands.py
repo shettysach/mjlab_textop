@@ -9,6 +9,8 @@ from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
 
 from mjlab_textop.core.feedback.observation import (
     TextOpObservationPublisher,
+    UdpObservationPublisher,
+    UdpObservationPublisherCfg,
     make_online_textop_observation,
 )
 from mjlab_textop.core.online.buffer import (
@@ -44,6 +46,7 @@ class OnlineTextOpMotionCommandCfg(CommandTermCfg):
         "align_to_robot_start"
     )
     observation_publisher: TextOpObservationPublisher | None = None
+    observation_publisher_cfg: UdpObservationPublisherCfg | None = None
     observation_publish_interval: int = 1
 
     def __post_init__(self) -> None:
@@ -100,6 +103,11 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._consecutive_stale_steps = 0
         self._last_stale_frame: int | None = None
         self._last_observation_publish_frame: int | None = None
+        self.observation_publisher = self.cfg.observation_publisher
+        if self.observation_publisher is None and self.cfg.observation_publisher_cfg:
+            self.observation_publisher = UdpObservationPublisher(
+                self.cfg.observation_publisher_cfg
+            )
         self._anchor_pos_offset_w = torch.zeros(3, device=self.device)
 
         self.metrics["online_buffer_frames"] = torch.zeros(
@@ -401,7 +409,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
         latest_index: int | None,
         lag_frames: int,
     ) -> None:
-        publisher = self.cfg.observation_publisher
+        publisher = self.observation_publisher
         if publisher is None or not self._started:
             return
         if (
@@ -440,6 +448,7 @@ def use_online_textop_motion_command(
     ),
     reset_robot_to_reference: bool = True,
     observation_publisher: TextOpObservationPublisher | None = None,
+    observation_publisher_cfg: UdpObservationPublisherCfg | None = None,
     observation_publish_interval: int = 1,
 ) -> None:
     motion_cfg = env_cfg.commands[command_name]
@@ -457,5 +466,6 @@ def use_online_textop_motion_command(
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
         observation_publisher=observation_publisher,
+        observation_publisher_cfg=observation_publisher_cfg,
         observation_publish_interval=observation_publish_interval,
     )

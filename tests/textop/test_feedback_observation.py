@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 
 import pytest
 
@@ -75,3 +76,11 @@ def test_udp_observation_publisher_sends_json(monkeypatch) -> None:
 def test_udp_observation_publisher_rejects_invalid_port() -> None:
     with pytest.raises(ValueError, match="port must be positive"):
         UdpObservationPublisher(UdpObservationPublisherCfg(port=0))
+
+
+def test_udp_observation_publisher_cfg_is_deepcopyable() -> None:
+    cfg = UdpObservationPublisherCfg(host="127.0.0.1", port=8766)
+
+    copied = deepcopy(cfg)
+
+    assert copied == cfg
