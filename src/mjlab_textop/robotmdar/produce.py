@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import socket
 import sys
-import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -18,46 +17,12 @@ from mjlab_textop.core.robotmdar import (
     robotmdar_motion_dict_to_block,
     slice_motion_dict_tail,
 )
-
-
-@dataclass
-class PromptState:
-    text: str
-    stop: bool = False
-    input_active: bool = False
-
-
-@dataclass(frozen=True)
-class ScheduledPromptPhase:
-    text: str
-    frames: int
-
-
-class ScheduledPromptSource:
-    def __init__(self, phases: tuple[ScheduledPromptPhase, ...]) -> None:
-        if not phases:
-            raise ValueError("Scheduled prompt source requires at least one phase")
-        self.phases = phases
-        self.phase_index = 0
-        self.phase_elapsed_frames = 0
-
-    @property
-    def text(self) -> str:
-        return self.phases[self.phase_index].text
-
-    def advance(self, frames: int) -> bool:
-        if frames <= 0:
-            raise ValueError(f"frames must be positive, got {frames}")
-
-        self.phase_elapsed_frames += frames
-        while self.phase_elapsed_frames >= self.phases[self.phase_index].frames:
-            self.phase_elapsed_frames -= self.phases[self.phase_index].frames
-            self.phase_index += 1
-            if self.phase_index >= len(self.phases):
-                self.phase_index = len(self.phases) - 1
-                self.phase_elapsed_frames = self.phases[self.phase_index].frames
-                return True
-        return False
+from mjlab_textop.robotmdar.planner import (
+    GeneratedBlockInfo,
+    PlannerContext,
+    ScheduledPromptPlanner,
+    make_prompt_planner,
+)
 
 
 @dataclass(frozen=True)
@@ -118,24 +83,12 @@ def run_producer(args: argparse.Namespace) -> None:
         )
     )
     abs_pose = runtime.get_zero_abs_pose((1,), device=args.device)
-    schedule = (
-        parse_prompt_schedule(args.schedule, repeat=args.schedule_repeat)
-        if args.schedule
-        else None
-    )
-    scheduled_prompt = ScheduledPromptSource(schedule) if schedule else None
-    prompt = PromptState(text=scheduled_prompt.text if scheduled_prompt else args.prompt)
-    if scheduled_prompt is None:
-        input_thread = threading.Thread(
-            target=_prompt_loop,
-            args=(prompt,),
-            daemon=True,
-        )
-        input_thread.start()
-    else:
-        total_frames = sum(phase.frames for phase in schedule)
+    planner = make_prompt_planner(args)
+    planner.start()
+    if isinstance(planner, ScheduledPromptPlanner):
+        total_frames = sum(phase.frames for phase in planner.phases)
         print(
-            f"Using scheduled prompt stream with {len(schedule)} phases "
+            f"Using scheduled prompt stream with {len(planner.phases)} phases "
             f"({total_frames} frames).",
             file=sys.stderr,
         )
@@ -152,9 +105,14 @@ def run_producer(args: argparse.Namespace) -> None:
                 frame_index = 0
                 next_send_time = time.monotonic()
                 block_count = 0
-                while not prompt.stop:
+                while not planner.should_stop:
                     block_start_time = time.monotonic()
-                    current_prompt = prompt.text
+                    current_prompt = planner.choose_prompt(
+                        PlannerContext(
+                            frame_index=frame_index,
+                            block_count=block_count,
+                        )
+                    )
                     with runtime.torch.no_grad():
                         text_embedding = runtime.encode_text(
                             clip_model, [current_prompt]
@@ -185,44 +143,42 @@ def run_producer(args: argparse.Namespace) -> None:
                             "utf-8"
                         )
                     )
-                    frame_index += block.joint_pos.shape[0]
+                    start_frame = frame_index
+                    block_frames = block.joint_pos.shape[0]
+                    frame_index += block_frames
                     block_count += 1
-                    if scheduled_prompt is not None:
-                        schedule_finished = scheduled_prompt.advance(
-                            block.joint_pos.shape[0]
+                    planner.on_block_sent(
+                        GeneratedBlockInfo(
+                            prompt=current_prompt,
+                            start_frame=start_frame,
+                            frames=block_frames,
+                            block_count=block_count,
                         )
-                        prompt.text = scheduled_prompt.text
-                        if schedule_finished and args.schedule_stop:
-                            prompt.stop = True
+                    )
 
-                    block_duration = block.joint_pos.shape[0] / args.fps
+                    block_duration = block_frames / args.fps
                     next_send_time += block_duration
                     sleep_seconds = next_send_time - time.monotonic()
                     if (
                         args.log_every_blocks > 0
                         and block_count % args.log_every_blocks == 0
-                        and not prompt.input_active
+                        and not planner.input_active
                     ):
                         generation_ms = (time.monotonic() - block_start_time) * 1000.0
                         lag_ms = max(0.0, -sleep_seconds * 1000.0)
-                        input_suffix = (
-                            ""
-                            if scheduled_prompt is not None
-                            else "\nEnter text prompt (or q to exit): "
-                        )
                         print(
                             "stream "
                             f"block={block_count} frame={frame_index} "
                             f"prompt={current_prompt!r} gen_ms={generation_ms:.1f} "
                             f"lag_ms={lag_ms:.1f}"
-                            f"{input_suffix}",
+                            f"{planner.log_suffix}",
                             file=sys.stderr,
                             end="",
                             flush=True,
                         )
                     time.sleep(max(0.0, sleep_seconds))
     except KeyboardInterrupt:
-        prompt.stop = True
+        planner.request_stop()
         print("Stopping RobotMDAR producer.", file=sys.stderr)
 
 
@@ -303,59 +259,6 @@ def _register_hydra_resolvers(OmegaConf) -> None:
             "now",
             lambda fmt: datetime.now().strftime(fmt),
         )
-
-
-def parse_prompt_schedule(
-    schedule: str,
-    *,
-    repeat: int = 1,
-) -> tuple[ScheduledPromptPhase, ...]:
-    if repeat <= 0:
-        raise ValueError(f"repeat must be positive, got {repeat}")
-
-    phases = []
-    for raw_entry in schedule.split(","):
-        entry = raw_entry.strip()
-        if not entry:
-            continue
-        if ":" not in entry:
-            raise ValueError(
-                f"Schedule entry must be formatted as 'prompt:frames': {entry!r}"
-            )
-        prompt, raw_frames = entry.rsplit(":", 1)
-        prompt = prompt.strip()
-        raw_frames = raw_frames.strip()
-        if not prompt:
-            raise ValueError(f"Schedule entry has empty prompt: {entry!r}")
-        try:
-            frames = int(raw_frames)
-        except ValueError as exc:
-            raise ValueError(f"Invalid frame count in schedule entry: {entry!r}") from exc
-        if frames <= 0:
-            raise ValueError(
-                f"Schedule frame count must be positive in entry: {entry!r}"
-            )
-        phases.append(ScheduledPromptPhase(text=prompt, frames=frames))
-
-    if not phases:
-        raise ValueError("Schedule must contain at least one prompt phase")
-    return tuple(phases * repeat)
-
-
-def _prompt_loop(prompt: PromptState) -> None:
-    while not prompt.stop:
-        try:
-            prompt.input_active = True
-            text = input("Enter text prompt (or q to exit): ").strip()
-        except (EOFError, KeyboardInterrupt):
-            prompt.stop = True
-            return
-        finally:
-            prompt.input_active = False
-        if text.lower() in {"q", "quit", "exit"}:
-            prompt.stop = True
-        elif text:
-            prompt.text = text
 
 
 if __name__ == "__main__":
