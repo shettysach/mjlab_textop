@@ -33,7 +33,12 @@ class _FakeObservationProvider:
         return self.age_seconds
 
 
-def _observation(*, consecutive_stale_steps: int = 0) -> FeedbackObservation:
+def _observation(
+    *,
+    consecutive_stale_steps: int = 0,
+    fallen: bool = False,
+    fall_reason: str | None = None,
+) -> FeedbackObservation:
     return FeedbackObservation(
         frame=10,
         started=True,
@@ -43,6 +48,8 @@ def _observation(*, consecutive_stale_steps: int = 0) -> FeedbackObservation:
         buffer_frames=32,
         stale_steps=0,
         consecutive_stale_steps=consecutive_stale_steps,
+        fallen=fallen,
+        fall_reason=fall_reason,
         robot_anchor_pos_w=(1.0, 2.0, 3.0),
         robot_anchor_quat_w=(1.0, 0.0, 0.0, 0.0),
     )
@@ -59,6 +66,8 @@ def test_parse_feedback_observation() -> None:
             "buffer_frames": 32,
             "stale_steps": 0,
             "consecutive_stale_steps": 0,
+            "fallen": True,
+            "fall_reason": "anchor_height_below_0.35",
             "robot_anchor_pos_w": [1.0, 2.0, 3.0],
             "robot_anchor_quat_w": [1.0, 0.0, 0.0, 0.0],
         }
@@ -67,6 +76,8 @@ def test_parse_feedback_observation() -> None:
     assert observation.robot_anchor_pos_w == (1.0, 2.0, 3.0)
     assert observation.robot_anchor_quat_w == (1.0, 0.0, 0.0, 0.0)
     assert observation.latest_frame == 18
+    assert observation.fallen is True
+    assert observation.fall_reason == "anchor_height_below_0.35"
 
 
 def test_manual_prompt_planner_uses_current_prompt_without_starting_thread() -> None:
@@ -131,6 +142,36 @@ def test_feedback_planner_falls_back_on_stale_tracking() -> None:
         "stand still"
     )
     assert "stale_tracking" in planner.log_suffix
+
+
+def test_feedback_planner_falls_back_during_fall_recovery() -> None:
+    provider = _FakeObservationProvider(
+        _observation(fallen=True, fall_reason="anchor_height_below_0.35")
+    )
+    planner = FeedbackPlanner(
+        observation_provider=provider,
+        selector=ConstantPromptSelector("backflip"),
+        initial_prompt="backflip",
+        query_every_blocks=1,
+        fallback_prompt="stand still",
+        stale_steps_threshold=5,
+        fall_recovery_blocks=2,
+    )
+
+    assert planner.choose_prompt(PlannerContext(frame_index=0, block_count=0)) == (
+        "stand still"
+    )
+    assert "fallen:anchor_height_below_0.35" in planner.log_suffix
+
+    provider.observation = _observation()
+
+    assert planner.choose_prompt(PlannerContext(frame_index=30, block_count=1)) == (
+        "stand still"
+    )
+    assert "fall_recovery" in planner.log_suffix
+    assert planner.choose_prompt(PlannerContext(frame_index=60, block_count=2)) == (
+        "backflip"
+    )
 
 
 def test_feedback_planner_keeps_current_prompt_when_feedback_is_old() -> None:

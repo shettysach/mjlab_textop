@@ -128,6 +128,7 @@ class FeedbackPlanner:
         query_every_blocks: int,
         fallback_prompt: str,
         stale_steps_threshold: int,
+        fall_recovery_blocks: int = 8,
         feedback_timeout_sec: float | None = None,
     ) -> None:
         if query_every_blocks <= 0:
@@ -139,16 +140,22 @@ class FeedbackPlanner:
                 "stale_steps_threshold must be non-negative, "
                 f"got {stale_steps_threshold}"
             )
+        if fall_recovery_blocks < 0:
+            raise ValueError(
+                f"fall_recovery_blocks must be non-negative, got {fall_recovery_blocks}"
+            )
         self.observation_provider = observation_provider
         self.selector = selector
         self.current_prompt = initial_prompt
         self.query_every_blocks = query_every_blocks
         self.fallback_prompt = fallback_prompt
         self.stale_steps_threshold = stale_steps_threshold
+        self.fall_recovery_blocks = fall_recovery_blocks
         self.feedback_timeout_sec = feedback_timeout_sec
         self._stop = False
         self._last_query_block: int | None = None
         self._last_override_reason: str | None = None
+        self._fall_recovery_until_block: int | None = None
 
     @property
     def should_stop(self) -> bool:
@@ -176,6 +183,26 @@ class FeedbackPlanner:
         observation = self.observation_provider.latest()
 
         if self._feedback_is_stale():
+            return self.current_prompt
+
+        if observation is not None and observation.fallen:
+            self.current_prompt = self.fallback_prompt
+            self._last_override_reason = (
+                "fallen"
+                if observation.fall_reason is None
+                else f"fallen:{observation.fall_reason}"
+            )
+            self._fall_recovery_until_block = (
+                context.block_count + self.fall_recovery_blocks
+            )
+            return self.current_prompt
+
+        if (
+            self._fall_recovery_until_block is not None
+            and context.block_count < self._fall_recovery_until_block
+        ):
+            self.current_prompt = self.fallback_prompt
+            self._last_override_reason = "fall_recovery"
             return self.current_prompt
 
         if (

@@ -7,6 +7,7 @@ import torch
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
 
+from mjlab_textop.core.feedback.fall import FallDetectionCfg, detect_anchor_fall
 from mjlab_textop.core.feedback.observation import (
     TextOpObservationPublisher,
     UdpObservationPublisher,
@@ -48,6 +49,7 @@ class OnlineTextOpMotionCommandCfg(CommandTermCfg):
     observation_publisher: TextOpObservationPublisher | None = None
     observation_publisher_cfg: UdpObservationPublisherCfg | None = None
     observation_publish_interval: int = 1
+    fall_detection: FallDetectionCfg = field(default_factory=FallDetectionCfg)
 
     def __post_init__(self) -> None:
         if self.future_steps <= 0:
@@ -419,6 +421,11 @@ class OnlineTextOpMotionCommand(CommandTerm):
         ):
             return
 
+        fall_detection = detect_anchor_fall(
+            anchor_pos_w=self.robot_anchor_pos_w[0],
+            anchor_quat_w=self.robot_anchor_quat_w[0],
+            cfg=self.cfg.fall_detection,
+        )
         payload = make_online_textop_observation(
             frame=self.current_frame,
             started=self._started,
@@ -430,6 +437,8 @@ class OnlineTextOpMotionCommand(CommandTerm):
             consecutive_stale_steps=self._consecutive_stale_steps,
             robot_anchor_pos_w=self.robot_anchor_pos_w[0],
             robot_anchor_quat_w=self.robot_anchor_quat_w[0],
+            fallen=fall_detection.fallen,
+            fall_reason=fall_detection.reason,
         )
         publisher.publish(payload)
         self._last_observation_publish_frame = self.current_frame
@@ -450,6 +459,7 @@ def use_online_textop_motion_command(
     observation_publisher: TextOpObservationPublisher | None = None,
     observation_publisher_cfg: UdpObservationPublisherCfg | None = None,
     observation_publish_interval: int = 1,
+    fall_detection: FallDetectionCfg | None = None,
 ) -> None:
     motion_cfg = env_cfg.commands[command_name]
     entity_name = getattr(motion_cfg, "entity_name", "robot")
@@ -468,4 +478,5 @@ def use_online_textop_motion_command(
         observation_publisher=observation_publisher,
         observation_publisher_cfg=observation_publisher_cfg,
         observation_publish_interval=observation_publish_interval,
+        fall_detection=fall_detection or FallDetectionCfg(),
     )

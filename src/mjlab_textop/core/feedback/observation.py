@@ -44,6 +44,8 @@ def make_online_textop_observation(
     consecutive_stale_steps: int,
     robot_anchor_pos_w: Any,
     robot_anchor_quat_w: Any,
+    fallen: bool = False,
+    fall_reason: str | None = None,
 ) -> dict[str, Any]:
     return {
         "schema": "mjlab_textop.online_observation.v1",
@@ -55,6 +57,8 @@ def make_online_textop_observation(
         "buffer_frames": int(buffer_frames),
         "stale_steps": int(stale_steps),
         "consecutive_stale_steps": int(consecutive_stale_steps),
+        "fallen": bool(fallen),
+        "fall_reason": fall_reason,
         "robot_anchor_pos_w": _to_float_list(robot_anchor_pos_w),
         "robot_anchor_quat_w": _to_float_list(robot_anchor_quat_w),
     }

@@ -7,6 +7,7 @@ from typing import Literal
 import tyro
 from mjlab.scripts.play import PlayConfig, run_play
 
+from mjlab_textop.core.feedback.fall import FallDetectionCfg
 from mjlab_textop.core.feedback.observation import UdpObservationPublisherCfg
 from mjlab_textop.core.online.live import (
     SocketTextOpOnlineSource,
@@ -51,6 +52,8 @@ class PlayLiveCommand:
     feedback_host: str = "127.0.0.1"
     feedback_port: int | None = None
     feedback_every_frames: int = 5
+    fall_min_anchor_height: float | None = 0.35
+    fall_min_anchor_up_z: float | None = 0.3623577544766736
 
 
 def play_live_textop_motion(
@@ -87,6 +90,10 @@ def play_live_textop_motion(
             anchor_alignment=cfg.anchor_alignment,
             observation_publisher_cfg=observation_publisher_cfg,
             observation_publish_interval=cfg.feedback_every_frames,
+            fall_detection=FallDetectionCfg(
+                min_anchor_height=cfg.fall_min_anchor_height,
+                min_anchor_up_z=cfg.fall_min_anchor_up_z,
+            ),
         )
         play_cfg = PlayConfig(
             agent="trained",

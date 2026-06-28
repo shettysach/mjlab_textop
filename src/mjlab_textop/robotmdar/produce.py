@@ -205,6 +205,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--query-every-blocks", type=int, default=4)
     parser.add_argument("--fallback-prompt", default="stand still")
     parser.add_argument("--stale-steps-threshold", type=int, default=5)
+    parser.add_argument("--fall-recovery-blocks", type=int, default=8)
     parser.add_argument("--feedback-timeout-sec", type=float, default=None)
     parser.add_argument("--log-every-blocks", type=int, default=20)
     args = parser.parse_args()
@@ -218,6 +219,11 @@ def parse_args() -> argparse.Namespace:
         raise ValueError(
             "--stale-steps-threshold must be non-negative, "
             f"got {args.stale_steps_threshold}"
+        )
+    if args.fall_recovery_blocks < 0:
+        raise ValueError(
+            "--fall-recovery-blocks must be non-negative, "
+            f"got {args.fall_recovery_blocks}"
         )
     return args
 
@@ -282,6 +288,7 @@ def make_prompt_planner(args: argparse.Namespace) -> PromptPlanner:
             query_every_blocks=args.query_every_blocks,
             fallback_prompt=args.fallback_prompt,
             stale_steps_threshold=args.stale_steps_threshold,
+            fall_recovery_blocks=args.fall_recovery_blocks,
             feedback_timeout_sec=args.feedback_timeout_sec,
         )
     return ManualPromptPlanner(args.prompt)

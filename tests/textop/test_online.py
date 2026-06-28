@@ -408,6 +408,8 @@ def test_online_command_publishes_observations_on_interval() -> None:
     assert publisher.payloads[0]["started"] is True
     assert publisher.payloads[0]["current_frame"] == 0
     assert publisher.payloads[0]["latest_frame"] == 7
+    assert publisher.payloads[0]["fallen"] is False
+    assert publisher.payloads[0]["fall_reason"] is None
     assert publisher.payloads[0]["robot_anchor_pos_w"] == [10.0, 20.0, 30.0]
     assert publisher.payloads[0]["robot_anchor_quat_w"] == [1.0, 0.0, 0.0, 0.0]
 
@@ -443,6 +445,8 @@ def test_online_command_creates_observation_publisher_from_cfg(monkeypatch) -> N
     assert len(created) == 1
     assert command.observation_publisher is created[0]
     assert created[0].payloads[0]["frame"] == 0
+    assert created[0].payloads[0]["fallen"] is True
+    assert created[0].payloads[0]["fall_reason"] == "anchor_height_below_0.35"
 
 
 def test_online_command_replay_reset_rewinds_source() -> None:

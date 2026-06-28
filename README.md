@@ -186,7 +186,8 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --prompt "walk forward" \
   --feedback-listen-port 8766 \
   --query-every-blocks 4 \
-  --fallback-prompt "stand still"
+  --fallback-prompt "stand still" \
+  --fall-recovery-blocks 8
 ```
 
 ```bash
@@ -214,8 +215,10 @@ uv run --extra cu128 mjlab-textop play-live \
 ```
 
 Feedback packets are JSON payloads containing the current TextOp frame, buffer
-status, stale-step counters, and the tracked robot anchor pose. Camera images are
-not included yet.
+status, stale-step counters, a coarse fall signal, and the tracked robot anchor
+pose. Camera images are not included yet. The fall signal defaults to a pelvis
+height check plus an anchor tilt check; tune those with
+`--fall-min-anchor-height` and `--fall-min-anchor-up-z` if needed.
 
 To run the same live source with TextOp's released `latest.onnx` policy:
 

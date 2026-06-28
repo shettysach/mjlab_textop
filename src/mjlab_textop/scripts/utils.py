@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from mjlab_textop.core.feedback.fall import FallDetectionCfg
 from mjlab_textop.core.feedback.observation import (
     TextOpObservationPublisher,
     UdpObservationPublisherCfg,
@@ -73,6 +74,7 @@ def register_textop_play_task(
     observation_publisher: TextOpObservationPublisher | None = None,
     observation_publisher_cfg: UdpObservationPublisherCfg | None = None,
     observation_publish_interval: int = 1,
+    fall_detection: FallDetectionCfg | None = None,
 ) -> str:
     if policy.kind == "onnx":
         return register_online_textop_onnx_task(
@@ -86,6 +88,7 @@ def register_textop_play_task(
             observation_publisher=observation_publisher,
             observation_publisher_cfg=observation_publisher_cfg,
             observation_publish_interval=observation_publish_interval,
+            fall_detection=fall_detection,
         )
     else:
         return register_online_textop_task(
@@ -99,4 +102,5 @@ def register_textop_play_task(
             observation_publisher=observation_publisher,
             observation_publisher_cfg=observation_publisher_cfg,
             observation_publish_interval=observation_publish_interval,
+            fall_detection=fall_detection,
         )
