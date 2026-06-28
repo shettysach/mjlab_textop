@@ -4,6 +4,9 @@ from dataclasses import dataclass
 from math import cos
 from typing import Any
 
+import torch
+from mjlab.utils.lab_api.math import matrix_from_quat
+
 
 @dataclass(frozen=True)
 class FallDetectionCfg:
@@ -23,33 +26,23 @@ def detect_anchor_fall(
     anchor_quat_w: Any,
     cfg: FallDetectionCfg,
 ) -> FallDetectionResult:
-    pos = anchor_pos_w.detach().reshape(-1)
-    quat = anchor_quat_w.detach().reshape(-1)
+    pos = torch.as_tensor(anchor_pos_w).detach().flatten()
+    quat = torch.as_tensor(anchor_quat_w).detach().flatten()
 
     if cfg.min_anchor_height is not None and pos[2].item() < cfg.min_anchor_height:
         return FallDetectionResult(
             fallen=True,
-            reason=(
-                f"anchor_height_below_{cfg.min_anchor_height:g}"
-            ),
+            reason=f"anchor_height_below_{cfg.min_anchor_height:g}",
         )
 
     if cfg.min_anchor_up_z is not None:
-        up_z = _anchor_up_z(quat)
+        quat_norm = torch.linalg.vector_norm(quat)
+        if quat_norm.item() <= 0.0:
+            return FallDetectionResult(fallen=True, reason="invalid_anchor_quat")
+        up_z = matrix_from_quat(quat / quat_norm)[2, 2].item()
         if up_z < cfg.min_anchor_up_z:
             return FallDetectionResult(
-                fallen=True,
-                reason=f"anchor_tilt_below_{cfg.min_anchor_up_z:g}",
+                fallen=True, reason=f"anchor_tilt_below_{cfg.min_anchor_up_z:g}"
             )
 
     return FallDetectionResult(fallen=False)
-
-
-def _anchor_up_z(quat_wxyz: Any) -> float:
-    w, x, y, z = quat_wxyz
-    norm = (w * w + x * x + y * y + z * z).sqrt()
-    if norm.item() == 0.0:
-        return 1.0
-    x = x / norm
-    y = y / norm
-    return (1.0 - 2.0 * (x * x + y * y)).item()
