@@ -69,18 +69,18 @@ def robotmdar_motion_dict_to_block(
     index: int,
 ) -> TextOpMotionBlock:
     joint_pos_mjlab = expand_robotmdar_dof_to_mjlab_g1(
-        _to_numpy(motion_dict["dof_pos"][0])
+        motion_dict["dof_pos"][0].detach().cpu().numpy()
     )
     joint_vel_mjlab = expand_robotmdar_dof_to_mjlab_g1(
-        _to_numpy(motion_dict["dof_vel"][0])
+        motion_dict["dof_vel"][0].detach().cpu().numpy()
     )
-    root_rot_xyzw = _to_numpy(motion_dict["root_rot"][0])
+    root_rot_xyzw = motion_dict["root_rot"][0].detach().cpu().numpy()
 
     return TextOpMotionBlock(
         index=index,
         joint_pos=reindex_mjlab_g1_joints_to_textop(joint_pos_mjlab),
         joint_vel=reindex_mjlab_g1_joints_to_textop(joint_vel_mjlab),
-        anchor_pos_w=_to_numpy(motion_dict["root_trans_offset"][0]),
+        anchor_pos_w=motion_dict["root_trans_offset"][0].detach().cpu().numpy(),
         anchor_quat_w=root_rot_xyzw[:, [3, 0, 1, 2]],
     )
 
@@ -96,9 +96,3 @@ def slice_motion_dict_tail(
         else:
             result[key] = value
     return result
-
-
-def _to_numpy(value: Any) -> np.ndarray:
-    if hasattr(value, "detach"):
-        value = value.detach().cpu().numpy()
-    return np.asarray(value, dtype=np.float32)

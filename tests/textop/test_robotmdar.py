@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import torch
 
 from mjlab_textop.core.motion import (
     reindex_mjlab_g1_joints_to_textop,
@@ -88,13 +89,10 @@ def test_expand_robotmdar_dof_to_mjlab_g1_rejects_wrong_shape() -> None:
 
 
 def test_robotmdar_motion_dict_to_block_converts_to_textop_block() -> None:
-    dof_pos = np.arange(3 * 23, dtype=np.float32).reshape(1, 3, 23)
+    dof_pos = torch.arange(3 * 23, dtype=torch.float32).reshape(1, 3, 23)
     dof_vel = dof_pos + 1000.0
-    root_rot_xyzw = np.tile(
-        np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32),
-        (1, 3, 1),
-    )
-    root_trans_offset = np.arange(9, dtype=np.float32).reshape(1, 3, 3)
+    root_rot_xyzw = torch.tensor([1.0, 2.0, 3.0, 4.0]).repeat(1, 3, 1)
+    root_trans_offset = torch.arange(9, dtype=torch.float32).reshape(1, 3, 3)
 
     block = robotmdar_motion_dict_to_block(
         {
@@ -106,8 +104,8 @@ def test_robotmdar_motion_dict_to_block_converts_to_textop_block() -> None:
         index=11,
     )
 
-    expected_mjlab_pos = expand_robotmdar_dof_to_mjlab_g1(dof_pos[0])
-    expected_mjlab_vel = expand_robotmdar_dof_to_mjlab_g1(dof_vel[0])
+    expected_mjlab_pos = expand_robotmdar_dof_to_mjlab_g1(dof_pos[0].numpy())
+    expected_mjlab_vel = expand_robotmdar_dof_to_mjlab_g1(dof_vel[0].numpy())
     assert block.index == 11
     np.testing.assert_allclose(
         block.joint_pos, reindex_mjlab_g1_joints_to_textop(expected_mjlab_pos)
@@ -115,7 +113,7 @@ def test_robotmdar_motion_dict_to_block_converts_to_textop_block() -> None:
     np.testing.assert_allclose(
         block.joint_vel, reindex_mjlab_g1_joints_to_textop(expected_mjlab_vel)
     )
-    np.testing.assert_allclose(block.anchor_pos_w, root_trans_offset[0])
+    np.testing.assert_allclose(block.anchor_pos_w, root_trans_offset[0].numpy())
     np.testing.assert_allclose(
         block.anchor_quat_w,
         np.tile(np.array([4.0, 1.0, 2.0, 3.0], dtype=np.float32), (3, 1)),

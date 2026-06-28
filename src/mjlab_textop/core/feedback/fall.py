@@ -23,10 +23,10 @@ def detect_anchor_fall(
     anchor_quat_w: Any,
     cfg: FallDetectionCfg,
 ) -> FallDetectionResult:
-    pos = _to_float_list(anchor_pos_w)
-    quat = _to_float_list(anchor_quat_w)
+    pos = anchor_pos_w.detach().reshape(-1)
+    quat = anchor_quat_w.detach().reshape(-1)
 
-    if cfg.min_anchor_height is not None and pos[2] < cfg.min_anchor_height:
+    if cfg.min_anchor_height is not None and pos[2].item() < cfg.min_anchor_height:
         return FallDetectionResult(
             fallen=True,
             reason=(
@@ -45,17 +45,11 @@ def detect_anchor_fall(
     return FallDetectionResult(fallen=False)
 
 
-def _anchor_up_z(quat_wxyz: list[float]) -> float:
+def _anchor_up_z(quat_wxyz: Any) -> float:
     w, x, y, z = quat_wxyz
-    norm = (w * w + x * x + y * y + z * z) ** 0.5
-    if norm == 0.0:
+    norm = (w * w + x * x + y * y + z * z).sqrt()
+    if norm.item() == 0.0:
         return 1.0
-    x /= norm
-    y /= norm
-    return 1.0 - 2.0 * (x * x + y * y)
-
-
-def _to_float_list(value: Any) -> list[float]:
-    if hasattr(value, "detach"):
-        value = value.detach().cpu().reshape(-1).tolist()
-    return [float(item) for item in value]
+    x = x / norm
+    y = y / norm
+    return (1.0 - 2.0 * (x * x + y * y)).item()

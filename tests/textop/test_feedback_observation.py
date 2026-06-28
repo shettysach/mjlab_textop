@@ -4,6 +4,7 @@ import json
 from copy import deepcopy
 
 import pytest
+import torch
 
 from mjlab_textop.core.feedback.observation import (
     UdpObservationPublisher,
@@ -34,8 +35,8 @@ def test_make_online_textop_observation_payload() -> None:
         buffer_frames=32,
         stale_steps=0,
         consecutive_stale_steps=0,
-        robot_anchor_pos_w=[1, 2, 3],
-        robot_anchor_quat_w=[1, 0, 0, 0],
+        robot_anchor_pos_w=torch.tensor([1, 2, 3]),
+        robot_anchor_quat_w=torch.tensor([1, 0, 0, 0]),
     )
 
     assert payload == {

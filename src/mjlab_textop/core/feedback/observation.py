@@ -59,12 +59,12 @@ def make_online_textop_observation(
         "consecutive_stale_steps": int(consecutive_stale_steps),
         "fallen": bool(fallen),
         "fall_reason": fall_reason,
-        "robot_anchor_pos_w": _to_float_list(robot_anchor_pos_w),
-        "robot_anchor_quat_w": _to_float_list(robot_anchor_quat_w),
+        "robot_anchor_pos_w": [
+            float(item)
+            for item in robot_anchor_pos_w.detach().cpu().reshape(-1).tolist()
+        ],
+        "robot_anchor_quat_w": [
+            float(item)
+            for item in robot_anchor_quat_w.detach().cpu().reshape(-1).tolist()
+        ],
     }
-
-
-def _to_float_list(value: Any) -> list[float]:
-    if hasattr(value, "detach"):
-        value = value.detach().cpu().reshape(-1).tolist()
-    return [float(item) for item in value]
