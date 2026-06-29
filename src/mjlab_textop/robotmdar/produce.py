@@ -18,12 +18,10 @@ from mjlab_textop.core.robotmdar import (
     slice_motion_dict_tail,
 )
 from mjlab_textop.robotmdar.feedback import UdpFeedbackReceiver
-from mjlab_textop.robotmdar.planner import (
-    FeedbackPlanner,
-    ManualPromptPlanner,
+from mjlab_textop.robotmdar.planner.manual import ManualPromptPlanner
+from mjlab_textop.robotmdar.planner.vlm import (
     OpenAIChatPromptSelector,
-    PlannerContext,
-    PromptPlanner,
+    VlmPromptPlanner,
 )
 
 DEFAULT_VLM_SYSTEM_PROMPT = (
@@ -89,8 +87,8 @@ def run_producer(args: argparse.Namespace) -> None:
     abs_pose = runtime.get_zero_abs_pose((1,), device=args.device)
     planner = make_prompt_planner(args)
     planner.start()
-    if isinstance(planner, FeedbackPlanner):
-        _log_producer_message("Using feedback planner.")
+    if isinstance(planner, VlmPromptPlanner):
+        _log_producer_message("Using VLM planner.")
 
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
@@ -196,7 +194,7 @@ def _run_producer_stream(
     history_len: int,
     future_len: int,
     abs_pose: Any,
-    planner: PromptPlanner,
+    planner: ManualPromptPlanner | VlmPromptPlanner,
 ) -> None:
     frame_index = 0
     next_send_time = time.monotonic()
@@ -204,12 +202,7 @@ def _run_producer_stream(
 
     while not planner.should_stop:
         block_start_time = time.monotonic()
-        current_prompt = planner.choose_prompt(
-            PlannerContext(
-                frame_index=frame_index,
-                block_count=block_count,
-            )
-        )
+        current_prompt = planner.choose_prompt(block_count=block_count)
         future_motion, motion_dict, abs_pose = _generate_motion_block(
             runtime=runtime,
             clip_model=clip_model,
@@ -284,7 +277,7 @@ def _generate_motion_block(
 
 def _log_block_timing(
     *,
-    planner: PromptPlanner,
+    planner: ManualPromptPlanner | VlmPromptPlanner,
     args: argparse.Namespace,
     block_count: int,
     frame_index: int,
@@ -356,7 +349,9 @@ def _register_hydra_resolvers(OmegaConf) -> None:
         )
 
 
-def make_prompt_planner(args: argparse.Namespace) -> PromptPlanner:
+def make_prompt_planner(
+    args: argparse.Namespace,
+) -> ManualPromptPlanner | VlmPromptPlanner:
     if args.planner == "vlm":
         receiver = UdpFeedbackReceiver(
             host=args.feedback_listen_host,
@@ -369,8 +364,8 @@ def make_prompt_planner(args: argparse.Namespace) -> PromptPlanner:
             timeout_sec=args.vlm_timeout_sec,
             max_completion_tokens=args.vlm_max_completion_tokens,
         )
-        return FeedbackPlanner(
-            observation_provider=receiver,
+        return VlmPromptPlanner(
+            feedback=receiver,
             selector=selector,
             initial_prompt=args.prompt,
             query_every_blocks=args.query_every_blocks,

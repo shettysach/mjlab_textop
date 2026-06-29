@@ -3,8 +3,6 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass
 
-from .base import PlannerContext
-
 
 @dataclass
 class PromptState:
@@ -41,7 +39,8 @@ class ManualPromptPlanner:
     def request_stop(self) -> None:
         self.prompt.stop = True
 
-    def choose_prompt(self, context: PlannerContext) -> str:
+    def choose_prompt(self, *, block_count: int) -> str:
+        del block_count
         return self.prompt.text
 
 

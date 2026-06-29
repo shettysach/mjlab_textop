@@ -17,7 +17,6 @@ from mjlab_textop.core.feedback.observation import (
 from mjlab_textop.core.online.buffer import (
     TextOpRollingMotionBuffer,
 )
-from mjlab_textop.core.online.live_registry import get_live_textop_source
 from mjlab_textop.core.online.source import (
     QueueTextOpOnlineSource,
     ResettableTextOpOnlineSource,
@@ -35,7 +34,6 @@ class OnlineTextOpMotionCommandCfg(CommandTermCfg):
     anchor_body_name: str = "pelvis"
     future_steps: int = TEXTOP_FUTURE_STEPS
     source: TextOpOnlineSource = field(default_factory=QueueTextOpOnlineSource)
-    source_key: str | None = None
     source_mode: TextOpOnlineSourceMode = "live"
     start_frame: int = 0
     startup_timeout_steps: int = 250
@@ -76,8 +74,6 @@ class OnlineTextOpMotionCommand(CommandTerm):
 
     def __init__(self, cfg: OnlineTextOpMotionCommandCfg, env: ManagerBasedRlEnv):
         super().__init__(cfg, env)
-        if self.cfg.source_mode == "live" and self.cfg.source_key:
-            self.cfg.source = get_live_textop_source(self.cfg.source_key)
         if self.num_envs != 1:
             raise ValueError(
                 f"Online TextOp supports one environment in v1, got {self.num_envs}"
@@ -450,7 +446,6 @@ def use_online_textop_motion_command(
     command_name: str = "motion",
     future_steps: int = TEXTOP_FUTURE_STEPS,
     source: TextOpOnlineSource | None = None,
-    source_key: str | None = None,
     source_mode: TextOpOnlineSourceMode = "live",
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
@@ -471,7 +466,6 @@ def use_online_textop_motion_command(
         anchor_body_name=anchor_body_name,
         future_steps=future_steps,
         source=source,
-        source_key=source_key,
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,

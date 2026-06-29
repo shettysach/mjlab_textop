@@ -4,7 +4,7 @@ import json
 import urllib.request
 from typing import Any
 
-from mjlab_textop.robotmdar.feedback import FeedbackObservation
+from mjlab_textop.robotmdar.feedback import FeedbackObservation, UdpFeedbackReceiver
 
 ALLOWED_MOTION_PROMPTS = (
     "stand still",
@@ -18,6 +18,60 @@ ALLOWED_MOTION_PROMPTS = (
 )
 
 _ALLOWED_MOTION_PROMPT_SET = set(ALLOWED_MOTION_PROMPTS)
+
+
+class VlmPromptPlanner:
+    def __init__(
+        self,
+        *,
+        feedback: UdpFeedbackReceiver,
+        selector: "OpenAIChatPromptSelector",
+        initial_prompt: str,
+        query_every_blocks: int,
+    ) -> None:
+        if query_every_blocks <= 0:
+            raise ValueError(
+                f"query_every_blocks must be positive, got {query_every_blocks}"
+            )
+        self.feedback = feedback
+        self.selector = selector
+        self.current_prompt = initial_prompt
+        self.query_every_blocks = query_every_blocks
+        self._stop = False
+        self._last_query_block: int | None = None
+
+    @property
+    def should_stop(self) -> bool:
+        return self._stop
+
+    @property
+    def input_active(self) -> bool:
+        return False
+
+    @property
+    def log_suffix(self) -> str:
+        return ""
+
+    def start(self) -> None:
+        self.feedback.start()
+
+    def request_stop(self) -> None:
+        self._stop = True
+        self.feedback.close()
+
+    def choose_prompt(self, *, block_count: int) -> str:
+        if self._should_query_selector(block_count):
+            self._last_query_block = block_count
+            self.current_prompt = self.selector.choose_prompt(
+                observation=self.feedback.latest(),
+                current_prompt=self.current_prompt,
+            )
+        return self.current_prompt
+
+    def _should_query_selector(self, block_count: int) -> bool:
+        if self._last_query_block is None:
+            return True
+        return block_count - self._last_query_block >= self.query_every_blocks
 
 
 class OpenAIChatPromptSelector:

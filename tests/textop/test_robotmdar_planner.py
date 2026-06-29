@@ -7,10 +7,9 @@ from mjlab_textop.robotmdar.feedback import (
     parse_feedback_observation,
 )
 from mjlab_textop.robotmdar.planner import (
-    FeedbackPlanner,
     ManualPromptPlanner,
     OpenAIChatPromptSelector,
-    PlannerContext,
+    VlmPromptPlanner,
 )
 from mjlab_textop.robotmdar.planner.vlm import sanitize_motion_prompt
 
@@ -114,15 +113,11 @@ def test_parse_feedback_observation() -> None:
 def test_manual_prompt_planner_uses_current_prompt_without_starting_thread() -> None:
     planner = ManualPromptPlanner("walk forward")
 
-    assert planner.choose_prompt(PlannerContext(frame_index=0, block_count=0)) == (
-        "walk forward"
-    )
+    assert planner.choose_prompt(block_count=0) == "walk forward"
 
     planner.prompt.text = "turn left"
 
-    assert planner.choose_prompt(PlannerContext(frame_index=30, block_count=1)) == (
-        "turn left"
-    )
+    assert planner.choose_prompt(block_count=1) == "turn left"
     assert planner.should_stop is False
     assert planner.input_active is False
     assert "Enter text prompt" in planner.log_suffix
@@ -152,10 +147,10 @@ def test_sanitize_motion_prompt_rejects_garbage() -> None:
     )
 
 
-def test_feedback_planner_queries_selector_on_cadence() -> None:
+def test_vlm_planner_queries_selector_on_cadence() -> None:
     provider = _FakeObservationProvider(_observation())
-    planner = FeedbackPlanner(
-        observation_provider=provider,
+    planner = VlmPromptPlanner(
+        feedback=provider,
         selector=_FixedSelector("turn left"),
         initial_prompt="walk forward",
         query_every_blocks=2,
@@ -164,33 +159,27 @@ def test_feedback_planner_queries_selector_on_cadence() -> None:
     planner.start()
 
     assert provider.started is True
-    assert planner.choose_prompt(PlannerContext(frame_index=0, block_count=0)) == (
-        "turn left"
-    )
-    assert planner.choose_prompt(PlannerContext(frame_index=30, block_count=1)) == (
-        "turn left"
-    )
-    assert planner.choose_prompt(PlannerContext(frame_index=60, block_count=2)) == (
-        "turn left"
-    )
+    assert planner.choose_prompt(block_count=0) == "turn left"
+    assert planner.choose_prompt(block_count=1) == "turn left"
+    assert planner.choose_prompt(block_count=2) == "turn left"
 
     planner.request_stop()
 
     assert provider.closed is True
 
 
-def test_feedback_planner_propagates_selector_errors() -> None:
+def test_vlm_planner_propagates_selector_errors() -> None:
     provider = _FakeObservationProvider(_observation())
     selector = _FailingSelector()
-    planner = FeedbackPlanner(
-        observation_provider=provider,
+    planner = VlmPromptPlanner(
+        feedback=provider,
         selector=selector,
         initial_prompt="walk forward",
         query_every_blocks=3,
     )
 
     try:
-        planner.choose_prompt(PlannerContext(frame_index=0, block_count=0))
+        planner.choose_prompt(block_count=0)
     except TimeoutError as exc:
         assert str(exc) == "vlm timed out"
     else:

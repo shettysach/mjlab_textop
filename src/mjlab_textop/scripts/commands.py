@@ -13,10 +13,6 @@ from mjlab_textop.core.online.live import (
     SocketTextOpOnlineSource,
     SocketTextOpSourceCfg,
 )
-from mjlab_textop.core.online.live_registry import (
-    register_live_textop_source,
-    unregister_live_textop_source,
-)
 from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
 from mjlab_textop.core.task import ensure_textop_task_registered
@@ -80,11 +76,10 @@ def play_live_textop_motion(
         if cfg.feedback_port is not None
         else None
     )
-    source_key = register_live_textop_source(source)
     try:
         task_name = register_textop_play_task(
             policy=policy,
-            source_key=source_key,
+            source=source,
             source_mode="live",
             future_steps=cfg.future_steps,
             num_envs=cfg.num_envs,
@@ -106,7 +101,6 @@ def play_live_textop_motion(
         )
         run_play(task_name, play_cfg)
     finally:
-        unregister_live_textop_source(source_key)
         source.close()
 
 

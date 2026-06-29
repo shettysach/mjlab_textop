@@ -63,7 +63,6 @@ def register_textop_play_task(
     *,
     policy: ResolvedPolicy,
     source: TextOpOnlineSource | None = None,
-    source_key: str | None = None,
     source_mode: TextOpOnlineSourceMode,
     future_steps: int,
     num_envs: int,
@@ -79,7 +78,6 @@ def register_textop_play_task(
     if policy.kind == "onnx":
         return register_online_textop_onnx_task(
             source=source,
-            source_key=source_key,
             source_mode=source_mode,
             future_steps=future_steps,
             num_envs=num_envs,
@@ -93,7 +91,6 @@ def register_textop_play_task(
     else:
         return register_online_textop_task(
             source=source,
-            source_key=source_key,
             source_mode=source_mode,
             future_steps=future_steps,
             num_envs=num_envs,
