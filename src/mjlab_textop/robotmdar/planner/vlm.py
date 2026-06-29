@@ -113,6 +113,7 @@ class OpenAIChatPromptSelector:
         base_url: str,
         model: str,
         system_prompt: str | None = None,
+        sanitize_response: bool = True,
         timeout_sec: float = 2.0,
         max_completion_tokens: int = 32,
     ) -> None:
@@ -127,6 +128,7 @@ class OpenAIChatPromptSelector:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.system_prompt = system_prompt
+        self.sanitize_response = sanitize_response
         self.timeout_sec = timeout_sec
         self.max_completion_tokens = max_completion_tokens
 
@@ -146,6 +148,8 @@ class OpenAIChatPromptSelector:
             )
         )
         raw_prompt = str(response["choices"][0]["message"]["content"])
+        if not self.sanitize_response:
+            return raw_prompt
         return sanitize_motion_prompt(raw_prompt, fallback=current_prompt)
 
     def _post_json(self, payload: dict[str, Any]) -> dict[str, Any]:

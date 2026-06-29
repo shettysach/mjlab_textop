@@ -394,3 +394,34 @@ def test_http_vlm_prompt_selector_sanitizes_response(monkeypatch) -> None:
         observation=_observation(),
         current_prompt="stand stable",
     ) == "stand stable"
+
+
+def test_http_vlm_prompt_selector_can_skip_sanitization(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        del request, timeout
+        return _FakeResponse(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "turn left\nextra text",
+                        }
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr(
+        "mjlab_textop.robotmdar.planner.vlm.urllib.request.urlopen",
+        fake_urlopen,
+    )
+    selector = OpenAIChatPromptSelector(
+        base_url="http://127.0.0.1:9379",
+        model="gemma-4-e2b-it",
+        sanitize_response=False,
+    )
+
+    assert selector.choose_prompt(
+        observation=_observation(),
+        current_prompt="stand stable",
+    ) == "turn left\nextra text"

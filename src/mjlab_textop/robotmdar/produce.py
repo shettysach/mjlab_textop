@@ -147,6 +147,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--vlm-system-prompt", default=DEFAULT_VLM_SYSTEM_PROMPT)
     parser.add_argument("--vlm-timeout-sec", type=float, default=2.0)
     parser.add_argument("--vlm-max-completion-tokens", type=int, default=32)
+    parser.add_argument("--vlm-no-sanitize", action="store_true")
     parser.add_argument("--query-every-blocks", type=int, default=4)
     parser.add_argument("--log-every-blocks", type=int, default=20)
     args = parser.parse_args()
@@ -361,6 +362,7 @@ def make_prompt_planner(
             base_url=args.vlm_base_url,
             model=args.vlm_model,
             system_prompt=args.vlm_system_prompt,
+            sanitize_response=not args.vlm_no_sanitize,
             timeout_sec=args.vlm_timeout_sec,
             max_completion_tokens=args.vlm_max_completion_tokens,
         )
