@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import socket
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -83,6 +84,10 @@ def make_online_textop_observation(
 def write_render_image(path: str, image: Any) -> None:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_name(f".{target.name}.tmp")
-    iio.imwrite(tmp, image)
-    os.replace(tmp, target)
+    with tempfile.NamedTemporaryFile(
+        suffix=".png",
+        dir=target.parent,
+        delete=False,
+    ) as tmp:
+        iio.imwrite(tmp.name, image)
+    os.replace(tmp.name, target)

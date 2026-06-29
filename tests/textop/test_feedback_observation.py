@@ -91,3 +91,29 @@ def test_udp_observation_publisher_cfg_is_deepcopyable() -> None:
     copied = deepcopy(cfg)
 
     assert copied == cfg
+
+
+def test_write_render_image_uses_png_temp_path(monkeypatch, tmp_path) -> None:
+    from mjlab_textop.core.feedback.observation import write_render_image
+
+    paths = {}
+
+    def fake_imwrite(path, image) -> None:
+        del image
+        paths["tmp"] = path
+
+    def fake_replace(src, dst) -> None:
+        paths["src"] = src
+        paths["dst"] = dst
+
+    monkeypatch.setattr(
+        "mjlab_textop.core.feedback.observation.iio.imwrite",
+        fake_imwrite,
+    )
+    monkeypatch.setattr("mjlab_textop.core.feedback.observation.os.replace", fake_replace)
+
+    write_render_image(str(tmp_path / "latest.png"), object())
+
+    assert str(paths["tmp"]).endswith(".png")
+    assert paths["src"] == paths["tmp"]
+    assert paths["dst"] == tmp_path / "latest.png"
