@@ -102,6 +102,8 @@ def _observation(
     consecutive_stale_steps: int = 0,
     fallen: bool = False,
     fall_reason: str | None = None,
+    image_path: str | None = None,
+    image_frame: int | None = None,
 ) -> FeedbackObservation:
     return FeedbackObservation(
         frame=10,
@@ -116,6 +118,8 @@ def _observation(
         fall_reason=fall_reason,
         robot_anchor_pos_w=(1.0, 2.0, 3.0),
         robot_anchor_quat_w=(1.0, 0.0, 0.0, 0.0),
+        image_path=image_path,
+        image_frame=image_frame,
     )
 
 
@@ -134,6 +138,8 @@ def test_parse_feedback_observation() -> None:
             "fall_reason": "anchor_height_below_0.35",
             "robot_anchor_pos_w": [1.0, 2.0, 3.0],
             "robot_anchor_quat_w": [1.0, 0.0, 0.0, 0.0],
+            "image_path": "/tmp/mjlab_textop_latest.png",
+            "image_frame": 10,
         }
     )
 
@@ -142,6 +148,8 @@ def test_parse_feedback_observation() -> None:
     assert observation.latest_frame == 18
     assert observation.fallen is True
     assert observation.fall_reason == "anchor_height_below_0.35"
+    assert observation.image_path == "/tmp/mjlab_textop_latest.png"
+    assert observation.image_frame == 10
 
 
 def test_manual_prompt_planner_uses_current_prompt_without_starting_thread() -> None:
@@ -306,7 +314,56 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     assert '"latest_frame":18' in content[0]["text"]
     assert '"lag_frames":8' in content[0]["text"]
     assert '"robot_anchor_pos_w":[1.0,2.0,3.0]' in content[0]["text"]
+    assert '"has_image":false' in content[0]["text"]
     assert len(content) == 1
+
+
+def test_http_vlm_prompt_selector_posts_image_from_feedback_path(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    posted = {}
+    image_path = tmp_path / "latest.png"
+    image_path.write_bytes(b"png bytes")
+
+    def fake_urlopen(request, timeout):
+        del timeout
+        posted["payload"] = json.loads(request.data.decode("utf-8"))
+        return _FakeResponse(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "turn right",
+                        }
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr(
+        "mjlab_textop.robotmdar.planner.vlm.urllib.request.urlopen",
+        fake_urlopen,
+    )
+    selector = OpenAIChatPromptSelector(
+        base_url="http://127.0.0.1:9379",
+        model="gemma-4-e2b-it",
+    )
+
+    prompt = selector.choose_prompt(
+        observation=_observation(image_path=str(image_path), image_frame=10),
+        current_prompt="walk forward",
+    )
+
+    content = posted["payload"]["messages"][0]["content"]
+    assert prompt == "turn right"
+    assert content[0]["type"] == "text"
+    assert '"has_image":true' in content[0]["text"]
+    assert '"image_frame":10' in content[0]["text"]
+    assert content[1] == {
+        "type": "image_url",
+        "image_url": {"url": "data:image/png;base64,cG5nIGJ5dGVz"},
+    }
 
 
 def test_http_vlm_prompt_selector_sanitizes_response(monkeypatch) -> None:

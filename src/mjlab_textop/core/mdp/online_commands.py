@@ -13,6 +13,7 @@ from mjlab_textop.core.feedback.observation import (
     UdpObservationPublisher,
     UdpObservationPublisherCfg,
     make_online_textop_observation,
+    write_render_image,
 )
 from mjlab_textop.core.online.buffer import (
     TextOpRollingMotionBuffer,
@@ -52,6 +53,8 @@ class OnlineTextOpMotionCommandCfg(CommandTermCfg):
     observation_publisher: TextOpObservationPublisher | None = None
     observation_publisher_cfg: UdpObservationPublisherCfg | None = None
     observation_publish_interval: int = 1
+    observation_image_path: str | None = None
+    observation_image_publish_interval: int = 5
     fall_detection: FallDetectionCfg = field(default_factory=FallDetectionCfg)
 
     def __post_init__(self) -> None:
@@ -61,6 +64,11 @@ class OnlineTextOpMotionCommandCfg(CommandTermCfg):
             raise ValueError(
                 "observation_publish_interval must be positive, "
                 f"got {self.observation_publish_interval}"
+            )
+        if self.observation_image_publish_interval <= 0:
+            raise ValueError(
+                "observation_image_publish_interval must be positive, "
+                f"got {self.observation_image_publish_interval}"
             )
         if self.source_mode not in ("replay", "live"):
             raise ValueError(f"Unknown source_mode: {self.source_mode}")
@@ -106,6 +114,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._consecutive_stale_steps = 0
         self._last_stale_frame: int | None = None
         self._last_observation_publish_frame: int | None = None
+        self._last_observation_image_frame: int | None = None
         self.observation_publisher = self.cfg.observation_publisher
         if self.observation_publisher is None and self.cfg.observation_publisher_cfg:
             self.observation_publisher = UdpObservationPublisher(
@@ -436,6 +445,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
             anchor_quat_w=self.robot_anchor_quat_w[0],
             cfg=self.cfg.fall_detection,
         )
+        image_path = self._maybe_write_observation_image()
         payload = make_online_textop_observation(
             frame=self.current_frame,
             started=self._started,
@@ -449,9 +459,29 @@ class OnlineTextOpMotionCommand(CommandTerm):
             robot_anchor_quat_w=self.robot_anchor_quat_w[0],
             fallen=fall_detection.fallen,
             fall_reason=fall_detection.reason,
+            image_path=image_path,
+            image_frame=self._last_observation_image_frame,
         )
         publisher.publish(payload)
         self._last_observation_publish_frame = self.current_frame
+
+    def _maybe_write_observation_image(self) -> str | None:
+        image_path = self.cfg.observation_image_path
+        if image_path is None:
+            return None
+        if (
+            self._last_observation_image_frame is not None
+            and self.current_frame - self._last_observation_image_frame
+            < self.cfg.observation_image_publish_interval
+        ):
+            return image_path
+
+        image = self._env.render()
+        if image is None:
+            return None
+        write_render_image(image_path, image)
+        self._last_observation_image_frame = self.current_frame
+        return image_path
 
 
 def use_online_textop_motion_command(
@@ -469,6 +499,8 @@ def use_online_textop_motion_command(
     observation_publisher: TextOpObservationPublisher | None = None,
     observation_publisher_cfg: UdpObservationPublisherCfg | None = None,
     observation_publish_interval: int = 1,
+    observation_image_path: str | None = None,
+    observation_image_publish_interval: int = 5,
     fall_detection: FallDetectionCfg | None = None,
 ) -> None:
     motion_cfg = env_cfg.commands[command_name]
@@ -489,5 +521,7 @@ def use_online_textop_motion_command(
         observation_publisher=observation_publisher,
         observation_publisher_cfg=observation_publisher_cfg,
         observation_publish_interval=observation_publish_interval,
+        observation_image_path=observation_image_path,
+        observation_image_publish_interval=observation_image_publish_interval,
         fall_detection=fall_detection or FallDetectionCfg(),
     )

@@ -21,6 +21,8 @@ class FeedbackObservation:
     fall_reason: str | None
     robot_anchor_pos_w: tuple[float, float, float]
     robot_anchor_quat_w: tuple[float, float, float, float]
+    image_path: str | None = None
+    image_frame: int | None = None
 
 
 class UdpFeedbackReceiver:
@@ -123,6 +125,10 @@ def parse_feedback_observation(
         ),
         robot_anchor_pos_w=_fixed_float_tuple(data["robot_anchor_pos_w"], 3),  # ty:ignore[invalid-argument-type]
         robot_anchor_quat_w=_fixed_float_tuple(data["robot_anchor_quat_w"], 4),  # ty:ignore[invalid-argument-type]
+        image_path=None if data.get("image_path") is None else str(data["image_path"]),
+        image_frame=(
+            None if data.get("image_frame") is None else int(data["image_frame"])
+        ),
     )
 
 

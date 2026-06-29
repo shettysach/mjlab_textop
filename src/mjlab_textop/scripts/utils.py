@@ -75,6 +75,8 @@ def register_textop_play_task(
     observation_publisher: TextOpObservationPublisher | None = None,
     observation_publisher_cfg: UdpObservationPublisherCfg | None = None,
     observation_publish_interval: int = 1,
+    observation_image_path: str | None = None,
+    observation_image_publish_interval: int = 5,
     fall_detection: FallDetectionCfg | None = None,
 ) -> str:
     if policy.kind == "onnx":
@@ -89,6 +91,8 @@ def register_textop_play_task(
             observation_publisher=observation_publisher,
             observation_publisher_cfg=observation_publisher_cfg,
             observation_publish_interval=observation_publish_interval,
+            observation_image_path=observation_image_path,
+            observation_image_publish_interval=observation_image_publish_interval,
             fall_detection=fall_detection,
         )
     else:
@@ -103,5 +107,7 @@ def register_textop_play_task(
             observation_publisher=observation_publisher,
             observation_publisher_cfg=observation_publisher_cfg,
             observation_publish_interval=observation_publish_interval,
+            observation_image_path=observation_image_path,
+            observation_image_publish_interval=observation_image_publish_interval,
             fall_detection=fall_detection,
         )

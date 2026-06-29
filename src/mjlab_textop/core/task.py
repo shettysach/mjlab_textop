@@ -72,6 +72,8 @@ def make_online_textop_g1_flat_tracking_env_cfg(
     observation_publisher: TextOpObservationPublisher | None = None,
     observation_publisher_cfg: UdpObservationPublisherCfg | None = None,
     observation_publish_interval: int = 1,
+    observation_image_path: str | None = None,
+    observation_image_publish_interval: int = 5,
     fall_detection: FallDetectionCfg | None = None,
 ):
     cfg = unitree_g1_flat_tracking_env_cfg(play=play)
@@ -88,6 +90,8 @@ def make_online_textop_g1_flat_tracking_env_cfg(
         observation_publisher=observation_publisher,
         observation_publisher_cfg=observation_publisher_cfg,
         observation_publish_interval=observation_publish_interval,
+        observation_image_path=observation_image_path,
+        observation_image_publish_interval=observation_image_publish_interval,
         fall_detection=fall_detection or FallDetectionCfg(),
     )
     cfg.commands["motion"].anchor_body_name = "pelvis"  # ty:ignore[unresolved-attribute]
@@ -112,6 +116,8 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
     observation_publisher: TextOpObservationPublisher | None = None,
     observation_publisher_cfg: UdpObservationPublisherCfg | None = None,
     observation_publish_interval: int = 1,
+    observation_image_path: str | None = None,
+    observation_image_publish_interval: int = 5,
     fall_detection: FallDetectionCfg | None = None,
 ):
     cfg = unitree_g1_flat_tracking_env_cfg(play=play)
@@ -128,6 +134,8 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
         observation_publisher=observation_publisher,
         observation_publisher_cfg=observation_publisher_cfg,
         observation_publish_interval=observation_publish_interval,
+        observation_image_path=observation_image_path,
+        observation_image_publish_interval=observation_image_publish_interval,
         fall_detection=fall_detection or FallDetectionCfg(),
     )
     cfg.commands["motion"].anchor_body_name = "pelvis"  # ty:ignore[unresolved-attribute]
@@ -153,6 +161,8 @@ def register_online_textop_task(
     observation_publisher: TextOpObservationPublisher | None = None,
     observation_publisher_cfg: UdpObservationPublisherCfg | None = None,
     observation_publish_interval: int = 1,
+    observation_image_path: str | None = None,
+    observation_image_publish_interval: int = 5,
     fall_detection: FallDetectionCfg | None = None,
 ) -> str:
     mode_name = source_mode.capitalize()
@@ -168,6 +178,8 @@ def register_online_textop_task(
         observation_publisher=observation_publisher,
         observation_publisher_cfg=observation_publisher_cfg,
         observation_publish_interval=observation_publish_interval,
+        observation_image_path=observation_image_path,
+        observation_image_publish_interval=observation_image_publish_interval,
         fall_detection=fall_detection,
     )
     env_cfg.scene.num_envs = num_envs
@@ -196,6 +208,8 @@ def register_online_textop_onnx_task(
     observation_publisher: TextOpObservationPublisher | None = None,
     observation_publisher_cfg: UdpObservationPublisherCfg | None = None,
     observation_publish_interval: int = 1,
+    observation_image_path: str | None = None,
+    observation_image_publish_interval: int = 5,
     fall_detection: FallDetectionCfg | None = None,
 ) -> str:
     mode_name = source_mode.capitalize()
@@ -211,6 +225,8 @@ def register_online_textop_onnx_task(
         observation_publisher=observation_publisher,
         observation_publisher_cfg=observation_publisher_cfg,
         observation_publish_interval=observation_publish_interval,
+        observation_image_path=observation_image_path,
+        observation_image_publish_interval=observation_image_publish_interval,
         fall_detection=fall_detection,
     )
     env_cfg.scene.num_envs = num_envs

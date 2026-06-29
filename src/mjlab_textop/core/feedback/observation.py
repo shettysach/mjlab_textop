@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 import socket
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol
+
+import imageio.v3 as iio
 
 
 class TextOpObservationPublisher(Protocol):
@@ -46,8 +50,10 @@ def make_online_textop_observation(
     robot_anchor_quat_w: Any,
     fallen: bool = False,
     fall_reason: str | None = None,
+    image_path: str | None = None,
+    image_frame: int | None = None,
 ) -> dict[str, Any]:
-    return {
+    payload = {
         "schema": "mjlab_textop.online_observation.v1",
         "frame": int(frame),
         "started": bool(started),
@@ -68,3 +74,15 @@ def make_online_textop_observation(
             for item in robot_anchor_quat_w.detach().cpu().reshape(-1).tolist()
         ],
     }
+    if image_path is not None:
+        payload["image_path"] = image_path
+        payload["image_frame"] = image_frame
+    return payload
+
+
+def write_render_image(path: str, image: Any) -> None:
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_name(f".{target.name}.tmp")
+    iio.imwrite(tmp, image)
+    os.replace(tmp, target)

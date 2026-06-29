@@ -46,6 +46,11 @@ class PlayLiveCommand:
     feedback_host: str = "127.0.0.1"
     feedback_port: int | None = None
     feedback_every_frames: int = 5
+    feedback_image_path: str | None = None
+    feedback_image_every_frames: int = 5
+    feedback_image_width: int | None = 320
+    feedback_image_height: int | None = 240
+    feedback_camera: int | str | None = None
     fall_min_anchor_height: float | None = 0.35
     fall_min_anchor_up_z: float | None = 0.3623577544766736
 
@@ -79,6 +84,8 @@ def play_live_textop_motion(
         anchor_alignment=cfg.anchor_alignment,
         observation_publisher_cfg=observation_publisher_cfg,
         observation_publish_interval=cfg.feedback_every_frames,
+        observation_image_path=cfg.feedback_image_path,
+        observation_image_publish_interval=cfg.feedback_image_every_frames,
         reset_robot_to_reference=cfg.reset_robot_to_reference,
         fall_detection=FallDetectionCfg(
             min_anchor_height=cfg.fall_min_anchor_height,
@@ -91,6 +98,10 @@ def play_live_textop_motion(
         num_envs=cfg.num_envs,
         device=cfg.device,
         viewer=cfg.viewer,
+        video=cfg.feedback_image_path is not None,
+        video_width=cfg.feedback_image_width if cfg.feedback_image_path else None,
+        video_height=cfg.feedback_image_height if cfg.feedback_image_path else None,
+        camera=cfg.feedback_camera if cfg.feedback_image_path else None,
     )
     run_play(task_name, play_cfg)
 

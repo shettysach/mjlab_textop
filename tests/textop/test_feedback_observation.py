@@ -37,6 +37,8 @@ def test_make_online_textop_observation_payload() -> None:
         consecutive_stale_steps=0,
         robot_anchor_pos_w=torch.tensor([1, 2, 3]),
         robot_anchor_quat_w=torch.tensor([1, 0, 0, 0]),
+        image_path="/tmp/mjlab_textop_latest.png",
+        image_frame=10,
     )
 
     assert payload == {
@@ -53,6 +55,8 @@ def test_make_online_textop_observation_payload() -> None:
         "fall_reason": None,
         "robot_anchor_pos_w": [1.0, 2.0, 3.0],
         "robot_anchor_quat_w": [1.0, 0.0, 0.0, 0.0],
+        "image_path": "/tmp/mjlab_textop_latest.png",
+        "image_frame": 10,
     }
 
 
