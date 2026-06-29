@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import urllib.request
+from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any
 
 from mjlab_textop.robotmdar.feedback import FeedbackObservation, UdpFeedbackReceiver
@@ -37,7 +38,10 @@ class VlmPromptPlanner:
         self.selector = selector
         self.current_prompt = initial_prompt
         self.query_every_blocks = query_every_blocks
+        self.last_error: str | None = None
         self._stop = False
+        self._future: Future[str] | None = None
+        self._executor = ThreadPoolExecutor(max_workers=1)
         self._last_query_block: int | None = None
 
     @property
@@ -50,7 +54,11 @@ class VlmPromptPlanner:
 
     @property
     def log_suffix(self) -> str:
-        return ""
+        state = "inflight" if self._future is not None else "idle"
+        suffix = f" vlm={state}"
+        if self.last_error is not None:
+            suffix += f" vlm_error={self.last_error}"
+        return suffix
 
     def start(self) -> None:
         self.feedback.start()
@@ -58,15 +66,37 @@ class VlmPromptPlanner:
     def request_stop(self) -> None:
         self._stop = True
         self.feedback.close()
+        if self._future is not None:
+            self._future.cancel()
+        self._executor.shutdown(wait=False, cancel_futures=True)
 
     def choose_prompt(self, *, block_count: int) -> str:
-        if self._should_query_selector(block_count):
+        self._collect_finished_request()
+        observation = self.feedback.latest()
+        if (
+            not self._stop
+            and self._future is None
+            and observation is not None
+            and self._should_query_selector(block_count)
+        ):
             self._last_query_block = block_count
-            self.current_prompt = self.selector.choose_prompt(
-                observation=self.feedback.latest(),
+            self._future = self._executor.submit(
+                self.selector.choose_prompt,
+                observation=observation,
                 current_prompt=self.current_prompt,
             )
         return self.current_prompt
+
+    def _collect_finished_request(self) -> None:
+        if self._future is None or not self._future.done():
+            return
+
+        try:
+            self.current_prompt = self._future.result()
+            self.last_error = None
+        except Exception as exc:
+            self.last_error = type(exc).__name__
+        self._future = None
 
     def _should_query_selector(self, block_count: int) -> bool:
         if self._last_query_block is None:

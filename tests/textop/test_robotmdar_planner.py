@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 
 from mjlab_textop.robotmdar.feedback import (
     FeedbackObservation,
@@ -47,20 +49,52 @@ class _FakeResponse:
 class _FailingSelector:
     def __init__(self) -> None:
         self.calls = 0
+        self.finished = threading.Event()
 
     def choose_prompt(self, **kwargs) -> str:
         del kwargs
         self.calls += 1
+        self.finished.set()
         raise TimeoutError("vlm timed out")
 
 
 class _FixedSelector:
     def __init__(self, prompt: str) -> None:
         self.prompt = prompt
+        self.calls = 0
+        self.finished = threading.Event()
 
     def choose_prompt(self, **kwargs) -> str:
         del kwargs
+        self.calls += 1
+        self.finished.set()
         return self.prompt
+
+
+class _BlockingSelector:
+    def __init__(self, prompt: str) -> None:
+        self.prompt = prompt
+        self.calls = 0
+        self.started = threading.Event()
+        self.release = threading.Event()
+        self.finished = threading.Event()
+
+    def choose_prompt(self, **kwargs) -> str:
+        del kwargs
+        self.calls += 1
+        self.started.set()
+        self.release.wait(timeout=1)
+        self.finished.set()
+        return self.prompt
+
+
+def _wait_for(condition) -> None:
+    deadline = time.monotonic() + 1.0
+    while time.monotonic() < deadline:
+        if condition():
+            return
+        time.sleep(0.01)
+    raise AssertionError("condition did not become true")
 
 
 def _observation(
@@ -149,9 +183,10 @@ def test_sanitize_motion_prompt_rejects_garbage() -> None:
 
 def test_vlm_planner_queries_selector_on_cadence() -> None:
     provider = _FakeObservationProvider(_observation())
+    selector = _FixedSelector("turn left")
     planner = VlmPromptPlanner(
         feedback=provider,
-        selector=_FixedSelector("turn left"),
+        selector=selector,
         initial_prompt="walk forward",
         query_every_blocks=2,
     )
@@ -159,16 +194,42 @@ def test_vlm_planner_queries_selector_on_cadence() -> None:
     planner.start()
 
     assert provider.started is True
-    assert planner.choose_prompt(block_count=0) == "turn left"
+    assert planner.choose_prompt(block_count=0) == "walk forward"
+    assert selector.finished.wait(timeout=1)
     assert planner.choose_prompt(block_count=1) == "turn left"
     assert planner.choose_prompt(block_count=2) == "turn left"
+    _wait_for(lambda: selector.calls == 2)
 
     planner.request_stop()
 
     assert provider.closed is True
 
 
-def test_vlm_planner_propagates_selector_errors() -> None:
+def test_vlm_planner_does_not_block_while_selector_runs() -> None:
+    provider = _FakeObservationProvider(_observation())
+    selector = _BlockingSelector("turn right")
+    planner = VlmPromptPlanner(
+        feedback=provider,
+        selector=selector,
+        initial_prompt="walk forward",
+        query_every_blocks=10,
+    )
+
+    assert planner.choose_prompt(block_count=0) == "walk forward"
+    assert selector.started.wait(timeout=1)
+    assert planner.log_suffix == " vlm=inflight"
+    assert planner.choose_prompt(block_count=1) == "walk forward"
+    assert selector.calls == 1
+
+    selector.release.set()
+    assert selector.finished.wait(timeout=1)
+    assert planner.choose_prompt(block_count=2) == "turn right"
+    assert planner.log_suffix == " vlm=idle"
+
+    planner.request_stop()
+
+
+def test_vlm_planner_keeps_current_prompt_on_selector_errors() -> None:
     provider = _FakeObservationProvider(_observation())
     selector = _FailingSelector()
     planner = VlmPromptPlanner(
@@ -178,13 +239,14 @@ def test_vlm_planner_propagates_selector_errors() -> None:
         query_every_blocks=3,
     )
 
-    try:
-        planner.choose_prompt(block_count=0)
-    except TimeoutError as exc:
-        assert str(exc) == "vlm timed out"
-    else:
-        raise AssertionError("expected selector error to propagate")
+    assert planner.choose_prompt(block_count=0) == "walk forward"
+    assert selector.finished.wait(timeout=1)
+    assert planner.choose_prompt(block_count=1) == "walk forward"
     assert selector.calls == 1
+    assert planner.last_error == "TimeoutError"
+    assert planner.log_suffix == " vlm=idle vlm_error=TimeoutError"
+
+    planner.request_stop()
 
 
 def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> None:
