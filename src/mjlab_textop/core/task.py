@@ -30,6 +30,7 @@ from mjlab_textop.core.mdp.online_commands import (
     TextOpOnlineSourceMode,
     use_online_textop_motion_command,
 )
+from mjlab_textop.core.online.live import SocketTextOpSourceCfg
 from mjlab_textop.core.online.source import TextOpOnlineSource
 from mjlab_textop.core.onnx_policy import CustomOnnxPolicyRunner
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
@@ -62,6 +63,7 @@ def make_online_textop_g1_flat_tracking_env_cfg(
     play: bool = True,
     future_steps: int = TEXTOP_FUTURE_STEPS,
     source: TextOpOnlineSource | None = None,
+    live_source_cfg: SocketTextOpSourceCfg | None = None,
     source_mode: TextOpOnlineSourceMode = "live",
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
@@ -79,6 +81,7 @@ def make_online_textop_g1_flat_tracking_env_cfg(
         command_name="motion",
         future_steps=future_steps,
         source=source,
+        live_source_cfg=live_source_cfg,
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
@@ -100,6 +103,7 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
     play: bool = True,
     future_steps: int = TEXTOP_FUTURE_STEPS,
     source: TextOpOnlineSource | None = None,
+    live_source_cfg: SocketTextOpSourceCfg | None = None,
     source_mode: TextOpOnlineSourceMode = "live",
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
@@ -117,6 +121,7 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
         command_name="motion",
         future_steps=future_steps,
         source=source,
+        live_source_cfg=live_source_cfg,
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
@@ -137,6 +142,7 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
 def register_online_textop_task(
     *,
     source: TextOpOnlineSource | None = None,
+    live_source_cfg: SocketTextOpSourceCfg | None = None,
     source_mode: TextOpOnlineSourceMode,
     future_steps: int = TEXTOP_FUTURE_STEPS,
     num_envs: int = 1,
@@ -155,6 +161,7 @@ def register_online_textop_task(
         play=True,
         future_steps=future_steps,
         source=source,
+        live_source_cfg=live_source_cfg,
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
@@ -178,6 +185,7 @@ def register_online_textop_task(
 def register_online_textop_onnx_task(
     *,
     source: TextOpOnlineSource | None = None,
+    live_source_cfg: SocketTextOpSourceCfg | None = None,
     source_mode: TextOpOnlineSourceMode,
     future_steps: int = TEXTOP_FUTURE_STEPS,
     num_envs: int = 1,
@@ -196,6 +204,7 @@ def register_online_textop_onnx_task(
         play=True,
         future_steps=future_steps,
         source=source,
+        live_source_cfg=live_source_cfg,
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,

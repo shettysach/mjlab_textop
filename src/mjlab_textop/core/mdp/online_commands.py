@@ -17,6 +17,10 @@ from mjlab_textop.core.feedback.observation import (
 from mjlab_textop.core.online.buffer import (
     TextOpRollingMotionBuffer,
 )
+from mjlab_textop.core.online.live import (
+    SocketTextOpOnlineSource,
+    SocketTextOpSourceCfg,
+)
 from mjlab_textop.core.online.source import (
     QueueTextOpOnlineSource,
     ResettableTextOpOnlineSource,
@@ -33,7 +37,8 @@ class OnlineTextOpMotionCommandCfg(CommandTermCfg):
     entity_name: str = "robot"
     anchor_body_name: str = "pelvis"
     future_steps: int = TEXTOP_FUTURE_STEPS
-    source: TextOpOnlineSource = field(default_factory=QueueTextOpOnlineSource)
+    source: TextOpOnlineSource | None = None
+    live_source_cfg: SocketTextOpSourceCfg | None = None
     source_mode: TextOpOnlineSourceMode = "live"
     start_frame: int = 0
     startup_timeout_steps: int = 250
@@ -60,8 +65,7 @@ class OnlineTextOpMotionCommandCfg(CommandTermCfg):
         if self.source_mode not in ("replay", "live"):
             raise ValueError(f"Unknown source_mode: {self.source_mode}")
         if self.source_mode == "replay" and not isinstance(
-            self.source,
-            ResettableTextOpOnlineSource,
+            self.source, ResettableTextOpOnlineSource
         ):
             raise TypeError("Replay online source must implement reset()")
 
@@ -74,6 +78,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
 
     def __init__(self, cfg: OnlineTextOpMotionCommandCfg, env: ManagerBasedRlEnv):
         super().__init__(cfg, env)
+        self.source = self._make_source()
         if self.num_envs != 1:
             raise ValueError(
                 f"Online TextOp supports one environment in v1, got {self.num_envs}"
@@ -198,7 +203,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
         )
         self.metrics["online_lag_frames"][:] = float(lag_frames)
         self.metrics["online_started"][:] = float(self._started)
-        diagnostics = getattr(self.cfg.source, "diagnostics", None)
+        diagnostics = getattr(self.source, "diagnostics", None)
         if diagnostics is not None:
             self.metrics["online_queue_depth"][:] = float(
                 getattr(diagnostics, "queue_depth", 0)
@@ -223,7 +228,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
         if self.cfg.source_mode == "replay":
             if self.cfg.clear_buffer_on_reset:
                 self.buffer.clear()
-            source = cast(ResettableTextOpOnlineSource, self.cfg.source)
+            source = cast(ResettableTextOpOnlineSource, self.source)
             source.reset()
             self._poll_source()
 
@@ -287,7 +292,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
 
     def _poll_source(self) -> None:
         for _ in range(self.cfg.max_poll_blocks):
-            block = self.cfg.source.poll()
+            block = self.source.poll()
             if block is None:
                 return
             self.buffer.append_block(block)
@@ -391,7 +396,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self.robot.reset(env_ids=env_ids)
 
     def _validate_source_fps(self, env: ManagerBasedRlEnv) -> None:
-        fps = getattr(self.cfg.source, "fps", None)
+        fps = getattr(self.source, "fps", None)
         if fps is None:
             return
         expected_fps = 1.0 / float(env.step_dt)
@@ -400,6 +405,15 @@ class OnlineTextOpMotionCommand(CommandTerm):
                 "Replay TextOp source FPS must match env control rate: "
                 f"{float(fps):g} != {expected_fps:g}"
             )
+
+    def _make_source(self) -> TextOpOnlineSource:
+        if self.cfg.source is not None:
+            return self.cfg.source
+        if self.cfg.source_mode == "live" and self.cfg.live_source_cfg is not None:
+            source = SocketTextOpOnlineSource(self.cfg.live_source_cfg)
+            source.start()
+            return source
+        return QueueTextOpOnlineSource()
 
     def _maybe_publish_observation(
         self,
@@ -446,6 +460,7 @@ def use_online_textop_motion_command(
     command_name: str = "motion",
     future_steps: int = TEXTOP_FUTURE_STEPS,
     source: TextOpOnlineSource | None = None,
+    live_source_cfg: SocketTextOpSourceCfg | None = None,
     source_mode: TextOpOnlineSourceMode = "live",
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
@@ -459,13 +474,15 @@ def use_online_textop_motion_command(
     motion_cfg = env_cfg.commands[command_name]
     entity_name = getattr(motion_cfg, "entity_name", "robot")
     anchor_body_name = getattr(motion_cfg, "anchor_body_name", "pelvis")
-    source = source if source is not None else QueueTextOpOnlineSource()
+    if source is None and source_mode == "replay":
+        source = QueueTextOpOnlineSource()
 
     env_cfg.commands[command_name] = OnlineTextOpMotionCommandCfg(
         entity_name=entity_name,
         anchor_body_name=anchor_body_name,
         future_steps=future_steps,
         source=source,
+        live_source_cfg=live_source_cfg,
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,

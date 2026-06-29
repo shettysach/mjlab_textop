@@ -9,10 +9,7 @@ from mjlab.scripts.play import PlayConfig, run_play
 
 from mjlab_textop.core.feedback.fall import FallDetectionCfg
 from mjlab_textop.core.feedback.observation import UdpObservationPublisherCfg
-from mjlab_textop.core.online.live import (
-    SocketTextOpOnlineSource,
-    SocketTextOpSourceCfg,
-)
+from mjlab_textop.core.online.live import SocketTextOpSourceCfg
 from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
 from mjlab_textop.core.task import ensure_textop_task_registered
@@ -59,15 +56,12 @@ def play_live_textop_motion(
     policy: ResolvedPolicy,
 ) -> None:
     ensure_textop_task_registered()
-    source = SocketTextOpOnlineSource(
-        SocketTextOpSourceCfg(
-            host=cfg.host,
-            port=cfg.port,
-            fps=cfg.fps,
-            max_queue_blocks=cfg.max_queue_blocks,
-        )
+    live_source_cfg = SocketTextOpSourceCfg(
+        host=cfg.host,
+        port=cfg.port,
+        fps=cfg.fps,
+        max_queue_blocks=cfg.max_queue_blocks,
     )
-    source.start()
     observation_publisher_cfg = (
         UdpObservationPublisherCfg(
             host=cfg.feedback_host,
@@ -76,32 +70,29 @@ def play_live_textop_motion(
         if cfg.feedback_port is not None
         else None
     )
-    try:
-        task_name = register_textop_play_task(
-            policy=policy,
-            source=source,
-            source_mode="live",
-            future_steps=cfg.future_steps,
-            num_envs=cfg.num_envs,
-            anchor_alignment=cfg.anchor_alignment,
-            observation_publisher_cfg=observation_publisher_cfg,
-            observation_publish_interval=cfg.feedback_every_frames,
-            reset_robot_to_reference=cfg.reset_robot_to_reference,
-            fall_detection=FallDetectionCfg(
-                min_anchor_height=cfg.fall_min_anchor_height,
-                min_anchor_up_z=cfg.fall_min_anchor_up_z,
-            ),
-        )
-        play_cfg = PlayConfig(
-            agent="trained",
-            checkpoint_file=str(policy.file),
-            num_envs=cfg.num_envs,
-            device=cfg.device,
-            viewer=cfg.viewer,
-        )
-        run_play(task_name, play_cfg)
-    finally:
-        source.close()
+    task_name = register_textop_play_task(
+        policy=policy,
+        live_source_cfg=live_source_cfg,
+        source_mode="live",
+        future_steps=cfg.future_steps,
+        num_envs=cfg.num_envs,
+        anchor_alignment=cfg.anchor_alignment,
+        observation_publisher_cfg=observation_publisher_cfg,
+        observation_publish_interval=cfg.feedback_every_frames,
+        reset_robot_to_reference=cfg.reset_robot_to_reference,
+        fall_detection=FallDetectionCfg(
+            min_anchor_height=cfg.fall_min_anchor_height,
+            min_anchor_up_z=cfg.fall_min_anchor_up_z,
+        ),
+    )
+    play_cfg = PlayConfig(
+        agent="trained",
+        checkpoint_file=str(policy.file),
+        num_envs=cfg.num_envs,
+        device=cfg.device,
+        viewer=cfg.viewer,
+    )
+    run_play(task_name, play_cfg)
 
 
 # --

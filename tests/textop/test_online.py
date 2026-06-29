@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from types import SimpleNamespace
 
 import numpy as np
@@ -17,6 +18,7 @@ from mjlab_textop.core.online.buffer import (
     TextOpMotionBlock,
     TextOpRollingMotionBuffer,
 )
+from mjlab_textop.core.online.live import SocketTextOpSourceCfg
 from mjlab_textop.core.online.replay import (
     QueueTextOpOnlineSource,
     make_mjlab_npz_replay_source,
@@ -357,6 +359,68 @@ def test_online_command_rejects_live_source_fps_mismatch() -> None:
             ),
             fake_env(step_dt=0.02),
         )
+
+
+def test_online_command_cfg_with_live_source_cfg_is_deepcopyable() -> None:
+    cfg = OnlineTextOpMotionCommandCfg(
+        live_source_cfg=SocketTextOpSourceCfg(
+            host="127.0.0.1",
+            port=8765,
+            fps=50.0,
+            max_queue_blocks=4,
+        ),
+        source_mode="live",
+        future_steps=5,
+    )
+
+    copied = copy.deepcopy(cfg)
+
+    assert copied.live_source_cfg == cfg.live_source_cfg
+    assert copied.source is None
+
+
+def test_online_command_creates_live_socket_source_from_cfg(monkeypatch) -> None:
+    created = []
+
+    class _FakeSocketSource:
+        fps = 50.0
+        diagnostics = SimpleNamespace(
+            queue_depth=0,
+            blocks_received=0,
+            blocks_dropped=0,
+            bad_messages=0,
+        )
+
+        def __init__(self, cfg):
+            self.cfg = cfg
+            self.started = False
+            created.append(self)
+
+        def start(self) -> None:
+            self.started = True
+
+        def poll(self):
+            return None
+
+    monkeypatch.setattr(
+        "mjlab_textop.core.mdp.online_commands.SocketTextOpOnlineSource",
+        _FakeSocketSource,
+    )
+    live_source_cfg = SocketTextOpSourceCfg(port=8765)
+
+    command = OnlineTextOpMotionCommand(
+        OnlineTextOpMotionCommandCfg(
+            live_source_cfg=live_source_cfg,
+            source_mode="live",
+            future_steps=5,
+        ),
+        fake_env(),
+    )
+
+    assert len(created) == 1
+    assert created[0].cfg == live_source_cfg
+    assert created[0].started is True
+    assert command.source is created[0]
 
 
 def test_online_command_updates_live_diagnostics_metrics() -> None:

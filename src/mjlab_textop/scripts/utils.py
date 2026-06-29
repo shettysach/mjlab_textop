@@ -10,6 +10,7 @@ from mjlab_textop.core.feedback.observation import (
     UdpObservationPublisherCfg,
 )
 from mjlab_textop.core.mdp.online_commands import TextOpOnlineSourceMode
+from mjlab_textop.core.online.live import SocketTextOpSourceCfg
 from mjlab_textop.core.online.source import TextOpOnlineSource
 from mjlab_textop.core.task import (
     register_online_textop_onnx_task,
@@ -63,6 +64,7 @@ def register_textop_play_task(
     *,
     policy: ResolvedPolicy,
     source: TextOpOnlineSource | None = None,
+    live_source_cfg: SocketTextOpSourceCfg | None = None,
     source_mode: TextOpOnlineSourceMode,
     future_steps: int,
     num_envs: int,
@@ -78,6 +80,7 @@ def register_textop_play_task(
     if policy.kind == "onnx":
         return register_online_textop_onnx_task(
             source=source,
+            live_source_cfg=live_source_cfg,
             source_mode=source_mode,
             future_steps=future_steps,
             num_envs=num_envs,
@@ -91,6 +94,7 @@ def register_textop_play_task(
     else:
         return register_online_textop_task(
             source=source,
+            live_source_cfg=live_source_cfg,
             source_mode=source_mode,
             future_steps=future_steps,
             num_envs=num_envs,
