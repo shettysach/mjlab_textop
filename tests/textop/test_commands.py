@@ -13,7 +13,8 @@ from mjlab_textop.core.mdp.offline_commands import (
     textop_motion_command_cfg_from,
     use_textop_motion_command,
 )
-from mjlab_textop.scripts.utils import resolve_policy
+from mjlab_textop.scripts.commands import PlayLiveCommand, play_live_textop_motion
+from mjlab_textop.scripts.utils import ResolvedPolicy, resolve_policy
 
 
 def test_make_future_time_steps_clamps_at_end() -> None:
@@ -74,6 +75,76 @@ def test_resolve_policy_rejects_multiple_policies(tmp_path) -> None:
             checkpoint_file=str(checkpoint_file),
             onnx_file=str(onnx_file),
         )
+
+
+def test_play_live_without_images_uses_mjlab_run_play(monkeypatch, tmp_path) -> None:
+    calls = {}
+
+    monkeypatch.setattr(
+        "mjlab_textop.scripts.commands.ensure_textop_task_registered",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "mjlab_textop.scripts.commands.register_textop_play_task",
+        lambda **kwargs: _fake_register_task(calls, kwargs),
+    )
+    monkeypatch.setattr(
+        "mjlab_textop.scripts.commands.run_play",
+        lambda task_name, play_cfg: calls.update(run_play=(task_name, play_cfg)),
+    )
+    policy_file = tmp_path / "policy.pt"
+    policy_file.write_text("checkpoint")
+    play_live_textop_motion(
+        PlayLiveCommand(checkpoint_file=str(policy_file), feedback_port=8766),
+        policy=ResolvedPolicy("checkpoint", policy_file),
+    )
+
+    task_name, play_cfg = calls["run_play"]
+    assert task_name == "task"
+    assert play_cfg.video is False
+
+
+def test_play_live_with_images_does_not_enable_video_recording(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    calls = {}
+
+    monkeypatch.setattr(
+        "mjlab_textop.scripts.commands.ensure_textop_task_registered",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "mjlab_textop.scripts.commands.register_textop_play_task",
+        lambda **kwargs: _fake_register_task(calls, kwargs),
+    )
+    monkeypatch.setattr(
+        "mjlab_textop.scripts.commands.run_play",
+        lambda task_name, play_cfg: calls.update(run_play=(task_name, play_cfg)),
+    )
+    policy_file = tmp_path / "policy.pt"
+    policy_file.write_text("checkpoint")
+    image_path = tmp_path / "latest.png"
+    play_live_textop_motion(
+        PlayLiveCommand(
+            checkpoint_file=str(policy_file),
+            feedback_port=8766,
+            feedback_image_path=str(image_path),
+        ),
+        policy=ResolvedPolicy("checkpoint", policy_file),
+    )
+
+    task_name, play_cfg = calls["run_play"]
+    assert task_name == "task"
+    assert play_cfg.video is False
+    assert play_cfg.video_width == 320
+    assert play_cfg.video_height == 240
+    assert calls["task_kwargs"]["observation_image_path"] == str(image_path)
+
+
+def _fake_register_task(calls: dict, kwargs: dict) -> str:
+    calls["task_kwargs"] = kwargs
+    return "task"
 
 
 def test_textop_motion_command_cfg_rejects_invalid_future_steps() -> None:

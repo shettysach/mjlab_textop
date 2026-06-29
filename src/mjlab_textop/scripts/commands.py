@@ -50,7 +50,6 @@ class PlayLiveCommand:
     feedback_image_every_frames: int = 5
     feedback_image_width: int | None = 320
     feedback_image_height: int | None = 240
-    feedback_camera: int | str | None = None
     fall_min_anchor_height: float | None = 0.35
     fall_min_anchor_up_z: float | None = 0.3623577544766736
 
@@ -98,10 +97,8 @@ def play_live_textop_motion(
         num_envs=cfg.num_envs,
         device=cfg.device,
         viewer=cfg.viewer,
-        video=cfg.feedback_image_path is not None,
         video_width=cfg.feedback_image_width if cfg.feedback_image_path else None,
         video_height=cfg.feedback_image_height if cfg.feedback_image_path else None,
-        camera=cfg.feedback_camera if cfg.feedback_image_path else None,
     )
     run_play(task_name, play_cfg)
 

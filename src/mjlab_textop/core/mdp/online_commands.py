@@ -6,6 +6,7 @@ from typing import Literal, cast
 import torch
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
+from mjlab.viewer import OffscreenRenderer
 
 from mjlab_textop.core.feedback.fall import FallDetectionCfg, detect_anchor_fall
 from mjlab_textop.core.feedback.observation import (
@@ -115,6 +116,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._last_stale_frame: int | None = None
         self._last_observation_publish_frame: int | None = None
         self._last_observation_image_frame: int | None = None
+        self._observation_image_renderer: OffscreenRenderer | None = None
         self.observation_publisher = self.cfg.observation_publisher
         if self.observation_publisher is None and self.cfg.observation_publisher_cfg:
             self.observation_publisher = UdpObservationPublisher(
@@ -476,12 +478,31 @@ class OnlineTextOpMotionCommand(CommandTerm):
         ):
             return image_path
 
-        image = self._env.render()
-        if image is None:
-            return None
+        image = self._render_observation_image()
         write_render_image(image_path, image)
         self._last_observation_image_frame = self.current_frame
         return image_path
+
+    def _render_observation_image(self):
+        renderer = self._observation_image_renderer
+        if renderer is None:
+            renderer = OffscreenRenderer(
+                model=self._env.sim.mj_model,
+                cfg=self._env.cfg.viewer,
+                scene=self._env.scene,
+                sim_model=self._env.sim.model,
+                expanded_fields=self._env.sim.expanded_fields,
+            )
+            renderer.initialize()
+            self._observation_image_renderer = renderer
+
+        debug_callback = (
+            self._env.update_visualizers
+            if hasattr(self._env, "update_visualizers")
+            else None
+        )
+        renderer.update(self._env.sim.data, debug_vis_callback=debug_callback)
+        return renderer.render()
 
 
 def use_online_textop_motion_command(
