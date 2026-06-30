@@ -100,7 +100,8 @@ def _wait_for(condition) -> None:
 def _observation(
     *,
     consecutive_stale_steps: int = 0,
-    image_path: str | None = None,
+    image_bytes: bytes | None = None,
+    image_mime_type: str | None = None,
     image_frame: int | None = None,
 ) -> FeedbackObservation:
     return FeedbackObservation(
@@ -114,7 +115,8 @@ def _observation(
         consecutive_stale_steps=consecutive_stale_steps,
         robot_anchor_pos_w=(1.0, 2.0, 3.0),
         robot_anchor_quat_w=(1.0, 0.0, 0.0, 0.0),
-        image_path=image_path,
+        image_bytes=image_bytes,
+        image_mime_type=image_mime_type,
         image_frame=image_frame,
     )
 
@@ -122,25 +124,32 @@ def _observation(
 def test_parse_feedback_observation() -> None:
     observation = parse_feedback_observation(
         {
-            "frame": 10,
-            "started": True,
-            "current_frame": 10,
-            "latest_frame": 18,
-            "lag_frames": 8,
-            "buffer_frames": 32,
-            "stale_steps": 0,
-            "consecutive_stale_steps": 0,
-            "robot_anchor_pos_w": [1.0, 2.0, 3.0],
-            "robot_anchor_quat_w": [1.0, 0.0, 0.0, 0.0],
-            "image_path": "/tmp/mjlab_textop_latest.png",
-            "image_frame": 10,
+            "state": {
+                "frame": 10,
+                "started": True,
+                "current_frame": 10,
+                "latest_frame": 18,
+                "lag_frames": 8,
+                "buffer_frames": 32,
+                "stale_steps": 0,
+                "consecutive_stale_steps": 0,
+                "robot_anchor_pos_w": [1.0, 2.0, 3.0],
+                "robot_anchor_quat_w": [1.0, 0.0, 0.0, 0.0],
+                "image_frame": 10,
+            },
+            "image": {
+                "mime_type": "image/jpeg",
+                "frame": 10,
+                "data": "anBlZyBieXRlcw==",
+            },
         }
     )
 
     assert observation.robot_anchor_pos_w == (1.0, 2.0, 3.0)
     assert observation.robot_anchor_quat_w == (1.0, 0.0, 0.0, 0.0)
     assert observation.latest_frame == 18
-    assert observation.image_path == "/tmp/mjlab_textop_latest.png"
+    assert observation.image_bytes == b"jpeg bytes"
+    assert observation.image_mime_type == "image/jpeg"
     assert observation.image_frame == 10
 
 
@@ -310,13 +319,10 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     assert len(content) == 1
 
 
-def test_http_vlm_prompt_selector_posts_image_from_feedback_path(
+def test_http_vlm_prompt_selector_posts_image_from_observation_bytes(
     monkeypatch,
-    tmp_path,
 ) -> None:
     posted = {}
-    image_path = tmp_path / "latest.png"
-    image_path.write_bytes(b"png bytes")
 
     def fake_urlopen(request, timeout):
         del timeout
@@ -343,7 +349,11 @@ def test_http_vlm_prompt_selector_posts_image_from_feedback_path(
     )
 
     prompt = selector.choose_prompt(
-        observation=_observation(image_path=str(image_path), image_frame=10),
+        observation=_observation(
+            image_bytes=b"jpeg bytes",
+            image_mime_type="image/jpeg",
+            image_frame=10,
+        ),
         current_prompt="walk forward",
     )
 
@@ -354,7 +364,7 @@ def test_http_vlm_prompt_selector_posts_image_from_feedback_path(
     assert '"image_frame":10' in content[0]["text"]
     assert content[1] == {
         "type": "image_url",
-        "image_url": {"url": "data:image/png;base64,cG5nIGJ5dGVz"},
+        "image_url": {"url": "data:image/jpeg;base64,anBlZyBieXRlcw=="},
     }
 
 

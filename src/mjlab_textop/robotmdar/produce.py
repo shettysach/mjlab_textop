@@ -17,7 +17,7 @@ from mjlab_textop.core.robotmdar import (
     robotmdar_motion_dict_to_block,
     slice_motion_dict_tail,
 )
-from mjlab_textop.robotmdar.feedback import UdpFeedbackReceiver
+from mjlab_textop.robotmdar.feedback import HttpObservationReceiver
 from mjlab_textop.robotmdar.planner.manual import ManualPromptPlanner
 from mjlab_textop.robotmdar.planner.vlm import (
     OpenAIChatPromptSelector,
@@ -140,8 +140,9 @@ def parse_args() -> argparse.Namespace:
         default="manual",
     )
     parser.add_argument("--prompt", default="walk")
-    parser.add_argument("--feedback-listen-host", default="127.0.0.1")
-    parser.add_argument("--feedback-listen-port", type=int, default=None)
+    parser.add_argument("--observation-listen-host", default="127.0.0.1")
+    parser.add_argument("--observation-listen-port", type=int, default=None)
+    parser.add_argument("--observation-path", default="/observation")
     parser.add_argument("--vlm-base-url", default="http://127.0.0.1:9379")
     parser.add_argument("--vlm-model", default=None)
     parser.add_argument("--vlm-system-prompt", default=DEFAULT_VLM_SYSTEM_PROMPT)
@@ -151,9 +152,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--query-every-blocks", type=int, default=4)
     parser.add_argument("--log-every-blocks", type=int, default=20)
     args = parser.parse_args()
-    if args.planner == "vlm" and args.feedback_listen_port is None:
+    if args.planner == "vlm" and args.observation_listen_port is None:
         raise ValueError(
-            f"--feedback-listen-port is required with --planner {args.planner}"
+            f"--observation-listen-port is required with --planner {args.planner}"
         )
     if args.query_every_blocks <= 0:
         raise ValueError(
@@ -354,9 +355,10 @@ def make_prompt_planner(
     args: argparse.Namespace,
 ) -> ManualPromptPlanner | VlmPromptPlanner:
     if args.planner == "vlm":
-        receiver = UdpFeedbackReceiver(
-            host=args.feedback_listen_host,
-            port=args.feedback_listen_port,
+        receiver = HttpObservationReceiver(
+            host=args.observation_listen_host,
+            port=args.observation_listen_port,
+            path=args.observation_path,
         )
         selector = OpenAIChatPromptSelector(
             base_url=args.vlm_base_url,

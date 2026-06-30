@@ -9,10 +9,10 @@ from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
 from mjlab.viewer import OffscreenRenderer
 
 from mjlab_textop.core.feedback.observation import (
+    ObservationImage,
     OnlineTextOpObservationCfg,
-    TextOpObservationPublisher,
+    encode_render_image_jpeg,
     make_online_textop_observation,
-    write_render_image,
 )
 from mjlab_textop.core.online.buffer import (
     TextOpRollingMotionBuffer,
@@ -423,7 +423,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
         ):
             return
 
-        image_path = self._maybe_write_observation_image()
+        image = self._maybe_render_observation_image()
         payload = make_online_textop_observation(
             frame=self.current_frame,
             started=self._started,
@@ -435,27 +435,28 @@ class OnlineTextOpMotionCommand(CommandTerm):
             consecutive_stale_steps=self._consecutive_stale_steps,
             robot_anchor_pos_w=self.robot_anchor_pos_w[0],
             robot_anchor_quat_w=self.robot_anchor_quat_w[0],
-            image_path=image_path,
-            image_frame=self._last_observation_image_frame,
+            image_frame=None if image is None else image.frame,
         )
-        publisher.publish(payload)
+        publisher.publish(payload, image=image)
         self._last_observation_publish_frame = self.current_frame
 
-    def _maybe_write_observation_image(self) -> str | None:
-        image_path = self.cfg.observation.image_path
-        if image_path is None:
+    def _maybe_render_observation_image(self) -> ObservationImage | None:
+        if not self.cfg.observation.publish_images:
             return None
         if (
             self._last_observation_image_frame is not None
             and self.current_frame - self._last_observation_image_frame
             < self.cfg.observation.image_publish_interval
         ):
-            return image_path
+            return None
 
-        image = self._render_observation_image()
-        write_render_image(image_path, image)
+        data = encode_render_image_jpeg(self._render_observation_image())
         self._last_observation_image_frame = self.current_frame
-        return image_path
+        return ObservationImage(
+            data=data,
+            mime_type="image/jpeg",
+            frame=self.current_frame,
+        )
 
     def _render_observation_image(self):
         renderer = self._observation_image_renderer

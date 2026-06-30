@@ -6,7 +6,6 @@ import pytest
 import torch
 from mjlab.tasks.tracking.mdp.commands import MotionCommand, MotionCommandCfg
 
-from mjlab_textop.core.feedback.observation import OnlineTextOpObservationCfg
 from mjlab_textop.core.mdp.offline_commands import (
     TextOpMotionCommand,
     TextOpMotionCommandCfg,
@@ -96,7 +95,10 @@ def test_play_live_without_images_uses_mjlab_run_play(monkeypatch, tmp_path) -> 
     policy_file = tmp_path / "policy.pt"
     policy_file.write_text("checkpoint")
     play_live_textop_motion(
-        PlayLiveCommand(checkpoint_file=str(policy_file), feedback_port=8766),
+        PlayLiveCommand(
+            checkpoint_file=str(policy_file),
+            observation_url="http://127.0.0.1:8766/observation",
+        ),
         policy=ResolvedPolicy("checkpoint", policy_file),
     )
 
@@ -125,12 +127,10 @@ def test_play_live_with_images_does_not_enable_video_recording(
     )
     policy_file = tmp_path / "policy.pt"
     policy_file.write_text("checkpoint")
-    image_path = tmp_path / "latest.png"
     play_live_textop_motion(
         PlayLiveCommand(
             checkpoint_file=str(policy_file),
-            feedback_port=8766,
-            feedback_image_path=str(image_path),
+            observation_url="http://127.0.0.1:8766/observation",
         ),
         policy=ResolvedPolicy("checkpoint", policy_file),
     )
@@ -140,7 +140,7 @@ def test_play_live_with_images_does_not_enable_video_recording(
     assert play_cfg.video is False
     assert play_cfg.video_width == 320
     assert play_cfg.video_height == 240
-    assert calls["task_kwargs"]["observation"].image_path == str(image_path)
+    assert calls["task_kwargs"]["observation"].publisher is not None
 
 
 def _fake_register_task(calls: dict, kwargs: dict) -> str:

@@ -4,10 +4,9 @@ import json
 import urllib.request
 from base64 import b64encode
 from concurrent.futures import Future, ThreadPoolExecutor
-from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
-from mjlab_textop.robotmdar.feedback import FeedbackObservation, UdpFeedbackReceiver
+from mjlab_textop.robotmdar.feedback import FeedbackObservation
 
 ALLOWED_MOTION_PROMPTS = (
     "stand still",
@@ -25,11 +24,19 @@ ALLOWED_MOTION_PROMPTS = (
 _ALLOWED_MOTION_PROMPT_SET = set(ALLOWED_MOTION_PROMPTS)
 
 
+class ObservationProvider(Protocol):
+    def start(self) -> None: ...
+
+    def close(self) -> None: ...
+
+    def latest(self) -> FeedbackObservation | None: ...
+
+
 class VlmPromptPlanner:
     def __init__(
         self,
         *,
-        feedback: UdpFeedbackReceiver,
+        feedback: ObservationProvider,
         selector: "OpenAIChatPromptSelector",
         initial_prompt: str,
         query_every_blocks: int,
@@ -143,7 +150,10 @@ class OpenAIChatPromptSelector:
         response = self._post_json(
             _make_chat_completions_payload(
                 state=_make_state_payload(observation=observation),
-                image_path=None if observation is None else observation.image_path,
+                image_bytes=None if observation is None else observation.image_bytes,
+                image_mime_type=(
+                    None if observation is None else observation.image_mime_type
+                ),
                 model=self.model,
                 system_prompt=self.system_prompt,
                 max_completion_tokens=self.max_completion_tokens,
@@ -184,7 +194,7 @@ def _make_state_payload(
         "consecutive_stale_steps": observation.consecutive_stale_steps,
         "robot_anchor_pos_w": observation.robot_anchor_pos_w,
         "robot_anchor_quat_w": observation.robot_anchor_quat_w,
-        "has_image": observation.image_path is not None,
+        "has_image": observation.image_bytes is not None,
         "image_frame": observation.image_frame,
     }
 
@@ -192,7 +202,8 @@ def _make_state_payload(
 def _make_chat_completions_payload(
     *,
     state: dict[str, Any],
-    image_path: str | None,
+    image_bytes: bytes | None,
+    image_mime_type: str | None,
     model: str,
     system_prompt: str | None,
     max_completion_tokens: int,
@@ -204,11 +215,11 @@ def _make_chat_completions_payload(
         f"State: {json.dumps(state, separators=(',', ':'))}"
     )
     content: list[dict[str, Any]] = [{"type": "text", "text": text}]
-    if image_path is not None:
+    if image_bytes is not None and image_mime_type is not None:
         content.append(
             {
                 "type": "image_url",
-                "image_url": {"url": _image_data_url(Path(image_path))},
+                "image_url": {"url": _image_data_url(image_bytes, image_mime_type)},
             }
         )
     messages: list[dict[str, Any]] = (
@@ -233,16 +244,8 @@ def sanitize_motion_prompt(raw: str, *, fallback: str) -> str:
     return text if text in _ALLOWED_MOTION_PROMPT_SET else fallback
 
 
-def _image_data_url(path: Path) -> str:
-    data = b64encode(path.read_bytes()).decode("ascii")
-    return f"{_image_mime_type(path)};base64,{data}"
-
-
-def _image_mime_type(path: Path) -> str:
-    suffix = path.suffix.lower()
-    if suffix in (".jpg", ".jpeg"):
-        return "data:image/jpeg"
-    return "data:image/png"
+def _image_data_url(data: bytes, mime_type: str) -> str:
+    return f"data:{mime_type};base64,{b64encode(data).decode('ascii')}"
 
 
 def _allowed_prompt_text() -> str:

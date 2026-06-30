@@ -142,16 +142,12 @@ def test_online_textop_live_task_uses_live_source_mode() -> None:
         source=source,
         source_mode="live",
         observation=OnlineTextOpObservationCfg(
-            image_path="/tmp/mjlab_textop_latest.png",
             image_publish_interval=7,
         ),
     )
     env_cfg = load_env_cfg(task_name, play=True)
 
     assert env_cfg.commands["motion"].source_mode == "live"
-    assert env_cfg.commands["motion"].observation.image_path == (
-        "/tmp/mjlab_textop_latest.png"
-    )
     assert env_cfg.commands["motion"].observation.image_publish_interval == 7
 
 

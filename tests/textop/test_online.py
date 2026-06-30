@@ -41,9 +41,11 @@ class _LiveTextOpOnlineSource:
 class _RecordingObservationPublisher:
     def __init__(self) -> None:
         self.payloads = []
+        self.images = []
 
-    def publish(self, payload) -> None:
-        self.payloads.append(payload)
+    def publish(self, state, *, image=None) -> None:
+        self.payloads.append(state)
+        self.images.append(image)
 
 
 def test_rolling_buffer_reindexes_and_slices_first_five_frames() -> None:
@@ -460,6 +462,7 @@ def test_online_command_publishes_observations_on_interval() -> None:
             observation=OnlineTextOpObservationCfg(
                 publisher=publisher,
                 publish_interval=2,
+                publish_images=False,
             ),
         ),
         fake_env(robot_anchor_pos=(10.0, 20.0, 30.0)),

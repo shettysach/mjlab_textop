@@ -1,32 +1,43 @@
 from __future__ import annotations
 
 import json
-import os
-import socket
-import tempfile
+import urllib.request
+from base64 import b64encode
 from dataclasses import dataclass
-from pathlib import Path
+from io import BytesIO
 from typing import Any, Protocol
 
 import imageio.v3 as iio
 
 
+@dataclass(frozen=True)
+class ObservationImage:
+    data: bytes
+    mime_type: str
+    frame: int
+
+
 class TextOpObservationPublisher(Protocol):
-    def publish(self, payload: dict[str, Any]) -> None:
+    def publish(
+        self,
+        state: dict[str, Any],
+        *,
+        image: ObservationImage | None = None,
+    ) -> None:
         """Publish one MJLab observation payload."""
 
 
 @dataclass(frozen=True)
-class UdpObservationPublisherCfg:
-    host: str = "127.0.0.1"
-    port: int = 8766
+class HttpObservationPublisherCfg:
+    url: str = "http://127.0.0.1:8766/observation"
+    timeout_sec: float = 1.0
 
 
 @dataclass(frozen=True, kw_only=True)
 class OnlineTextOpObservationCfg:
     publisher: TextOpObservationPublisher | None = None
     publish_interval: int = 1
-    image_path: str | None = None
+    publish_images: bool = True
     image_publish_interval: int = 5
 
     def __post_init__(self) -> None:
@@ -42,19 +53,31 @@ class OnlineTextOpObservationCfg:
             )
 
 
-class UdpObservationPublisher:
-    def __init__(self, cfg: UdpObservationPublisherCfg) -> None:
-        if cfg.port <= 0:
-            raise ValueError(f"Observation publisher port must be positive, got {cfg.port}")
+class HttpObservationPublisher:
+    def __init__(self, cfg: HttpObservationPublisherCfg) -> None:
+        if not cfg.url:
+            raise ValueError("Observation publisher URL must be non-empty")
+        if cfg.timeout_sec <= 0:
+            raise ValueError(f"timeout_sec must be positive, got {cfg.timeout_sec}")
         self.cfg = cfg
-        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    def publish(self, payload: dict[str, Any]) -> None:
-        data = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-        self._sock.sendto(data, (self.cfg.host, self.cfg.port))
-
-    def close(self) -> None:
-        self._sock.close()
+    def publish(
+        self,
+        state: dict[str, Any],
+        *,
+        image: ObservationImage | None = None,
+    ) -> None:
+        request = urllib.request.Request(
+            self.cfg.url,
+            data=json.dumps(
+                make_http_observation_payload(state=state, image=image),
+                separators=(",", ":"),
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=self.cfg.timeout_sec) as response:
+            response.read()
 
 
 def make_online_textop_observation(
@@ -69,7 +92,6 @@ def make_online_textop_observation(
     consecutive_stale_steps: int,
     robot_anchor_pos_w: Any,
     robot_anchor_quat_w: Any,
-    image_path: str | None = None,
     image_frame: int | None = None,
 ) -> dict[str, Any]:
     payload = {
@@ -91,19 +113,27 @@ def make_online_textop_observation(
             for item in robot_anchor_quat_w.detach().cpu().reshape(-1).tolist()
         ],
     }
-    if image_path is not None:
-        payload["image_path"] = image_path
+    if image_frame is not None:
         payload["image_frame"] = image_frame
     return payload
 
 
-def write_render_image(path: str, image: Any) -> None:
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(
-        suffix=".png",
-        dir=target.parent,
-        delete=False,
-    ) as tmp:
-        iio.imwrite(tmp.name, image)
-    os.replace(tmp.name, target)
+def make_http_observation_payload(
+    *,
+    state: dict[str, Any],
+    image: ObservationImage | None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {"state": state}
+    if image is not None:
+        payload["image"] = {
+            "mime_type": image.mime_type,
+            "frame": image.frame,
+            "data": b64encode(image.data).decode("ascii"),
+        }
+    return payload
+
+
+def encode_render_image_jpeg(image: Any) -> bytes:
+    buffer = BytesIO()
+    iio.imwrite(buffer, image, extension=".jpg")
+    return buffer.getvalue()

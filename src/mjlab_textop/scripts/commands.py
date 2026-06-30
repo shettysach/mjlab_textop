@@ -8,9 +8,9 @@ import tyro
 from mjlab.scripts.play import PlayConfig, run_play
 
 from mjlab_textop.core.feedback.observation import (
+    HttpObservationPublisher,
+    HttpObservationPublisherCfg,
     OnlineTextOpObservationCfg,
-    UdpObservationPublisher,
-    UdpObservationPublisherCfg,
 )
 from mjlab_textop.core.online.live import SocketTextOpSourceCfg
 from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
@@ -46,13 +46,12 @@ class PlayLiveCommand:
         "align_to_robot_start"
     )
     reset_robot_to_reference: bool = True
-    feedback_host: str = "127.0.0.1"
-    feedback_port: int | None = None
-    feedback_every_frames: int = 5
-    feedback_image_path: str | None = None
-    feedback_image_every_frames: int = 5
-    feedback_image_width: int | None = 320
-    feedback_image_height: int | None = 240
+    observation_url: str | None = None
+    observation_timeout_sec: float = 1.0
+    observation_every_frames: int = 5
+    observation_image_every_frames: int = 5
+    observation_image_width: int | None = 320
+    observation_image_height: int | None = 240
 
 
 def play_live_textop_motion(
@@ -68,23 +67,22 @@ def play_live_textop_motion(
         max_queue_blocks=cfg.max_queue_blocks,
     )
     observation_publisher_cfg = (
-        UdpObservationPublisherCfg(
-            host=cfg.feedback_host,
-            port=cfg.feedback_port,
+        HttpObservationPublisherCfg(
+            url=cfg.observation_url,
+            timeout_sec=cfg.observation_timeout_sec,
         )
-        if cfg.feedback_port is not None
+        if cfg.observation_url is not None
         else None
     )
     observation_publisher = (
-        UdpObservationPublisher(observation_publisher_cfg)
+        HttpObservationPublisher(observation_publisher_cfg)
         if observation_publisher_cfg is not None
         else None
     )
     observation = OnlineTextOpObservationCfg(
         publisher=observation_publisher,
-        publish_interval=cfg.feedback_every_frames,
-        image_path=cfg.feedback_image_path,
-        image_publish_interval=cfg.feedback_image_every_frames,
+        publish_interval=cfg.observation_every_frames,
+        image_publish_interval=cfg.observation_image_every_frames,
     )
     task_name = register_textop_play_task(
         policy=policy,
@@ -102,8 +100,8 @@ def play_live_textop_motion(
         num_envs=cfg.num_envs,
         device=cfg.device,
         viewer=cfg.viewer,
-        video_width=cfg.feedback_image_width if cfg.feedback_image_path else None,
-        video_height=cfg.feedback_image_height if cfg.feedback_image_path else None,
+        video_width=cfg.observation_image_width if cfg.observation_url else None,
+        video_height=cfg.observation_image_height if cfg.observation_url else None,
     )
     run_play(task_name, play_cfg)
 

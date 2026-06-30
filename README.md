@@ -180,7 +180,7 @@ LiteRT-LM, for example:
 uvx litert-lm serve --host 127.0.0.1 --port 9379
 ```
 
-Then have the producer listen for MJLab feedback packets and point it at that
+Then have the producer listen for MJLab HTTP observations and point it at that
 server. The producer queries the VLM on a fixed block cadence and keeps the last
 selected prompt between queries:
 
@@ -191,7 +191,7 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1 \
   --planner vlm \
   --prompt "walk forward" \
-  --feedback-listen-port 8766 \
+  --observation-listen-port 8766 \
   --query-every-blocks 4 \
   --vlm-base-url http://127.0.0.1:9379 \
   --vlm-model gemma-4-e2b-it \
@@ -203,27 +203,18 @@ uv run python -m mjlab_textop.robotmdar.produce \
 uv run --extra cu128 mjlab-textop play-live \
   --checkpoint-file $CHECKPOINT \
   --host 127.0.0.1 \
-  --port 8765
+  --port 8765 \
+  --observation-url http://127.0.0.1:8766/observation \
+  --observation-every-frames 5
 ```
 
 The live producer sends 50 Hz-indexed motion chunks. MJLab consumes them at the
 online command rate, clamps stale future frames during underruns, and reports
 online buffer/source diagnostics through command metrics.
 
-To publish lightweight MJLab state feedback over UDP while playing live, pass a
-feedback port:
-
-```bash
-uv run --extra cu128 mjlab-textop play-live \
-  --checkpoint-file $CHECKPOINT \
-  --host 127.0.0.1 \
-  --port 8765 \
-  --feedback-port 8766 \
-  --feedback-every-frames 5
-```
-
-Feedback packets are JSON payloads containing the current TextOp frame, buffer
-status, stale-step counters, and the tracked robot anchor pose.
+MJLab observations are HTTP JSON posts containing the current TextOp frame,
+buffer status, stale-step counters, tracked robot anchor pose, and base64 JPEG
+render bytes in the same request.
 
 To run the same live source with TextOp's released `latest.onnx` policy:
 
