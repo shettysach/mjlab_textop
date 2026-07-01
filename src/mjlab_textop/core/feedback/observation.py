@@ -9,6 +9,8 @@ from typing import Any, Protocol
 
 import imageio.v3 as iio
 
+OBSERVATION_JPEG_QUALITY = 95
+
 
 @dataclass(frozen=True)
 class ObservationImage:
@@ -135,5 +137,5 @@ def make_http_observation_payload(
 
 def encode_render_image_jpeg(image: Any) -> bytes:
     buffer = BytesIO()
-    iio.imwrite(buffer, image, extension=".jpg")
+    iio.imwrite(buffer, image, extension=".jpg", quality=OBSERVATION_JPEG_QUALITY)
     return buffer.getvalue()

@@ -224,7 +224,9 @@ Setup - [ONNX Setup](#onnx-setup)
 uv run --extra cu128 mjlab-textop play-live \
   --onnx-file $ONNX_PATH \
   --host 127.0.0.1 \
-  --port 8765
+  --port 8765 \
+  --observation-url http://127.0.0.1:8766/observation \
+  --observation-every-frames 20
 ```
 
 The ONNX path uses the online source and the ONNX actor directly, without a

@@ -7,9 +7,11 @@ import pytest
 import torch
 
 from mjlab_textop.core.feedback.observation import (
+    OBSERVATION_JPEG_QUALITY,
     HttpObservationPublisher,
     HttpObservationPublisherCfg,
     ObservationImage,
+    encode_render_image_jpeg,
     make_http_observation_payload,
     make_online_textop_observation,
 )
@@ -112,4 +114,25 @@ def test_http_observation_publisher_cfg_is_deepcopyable() -> None:
 def test_make_http_observation_payload_omits_missing_image() -> None:
     assert make_http_observation_payload(state={"frame": 1}, image=None) == {
         "state": {"frame": 1}
+    }
+
+
+def test_encode_render_image_jpeg_uses_high_quality(monkeypatch) -> None:
+    calls = {}
+
+    def fake_imwrite(buffer, image, *, extension, quality) -> None:
+        del image
+        calls["extension"] = extension
+        calls["quality"] = quality
+        buffer.write(b"jpeg")
+
+    monkeypatch.setattr(
+        "mjlab_textop.core.feedback.observation.iio.imwrite",
+        fake_imwrite,
+    )
+
+    assert encode_render_image_jpeg(object()) == b"jpeg"
+    assert calls == {
+        "extension": ".jpg",
+        "quality": OBSERVATION_JPEG_QUALITY,
     }
