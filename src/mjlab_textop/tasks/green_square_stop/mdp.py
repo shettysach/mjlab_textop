@@ -77,28 +77,31 @@ def overshot_goal(
 
 class success_held:
     def __init__(self, cfg: ManagerTermBaseCfg, env: ManagerBasedRlEnv):
-        self.goal_pos_w = cfg.params["goal_pos_w"]
-        self.success_radius = cfg.params["success_radius"]
-        self.speed_threshold = cfg.params["speed_threshold"]
-        self.hold_time_s = cfg.params["hold_time_s"]
-        self.asset_cfg = cfg.params.get("asset_cfg", _DEFAULT_ASSET_CFG)
         self.held_time = torch.zeros(env.num_envs, dtype=torch.float32, device=env.device)
 
-    def __call__(self, env: ManagerBasedRlEnv) -> torch.Tensor:
+    def __call__(
+        self,
+        env: ManagerBasedRlEnv,
+        goal_pos_w: tuple[float, float, float],
+        success_radius: float,
+        speed_threshold: float,
+        hold_time_s: float,
+        asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+    ) -> torch.Tensor:
         close_enough = inside_goal_radius(
             env,
-            self.goal_pos_w,
-            self.success_radius,
-            self.asset_cfg,
+            goal_pos_w,
+            success_radius,
+            asset_cfg,
         )
-        slow_enough = below_speed_threshold(env, self.speed_threshold, self.asset_cfg)
+        slow_enough = below_speed_threshold(env, speed_threshold, asset_cfg)
         success_now = close_enough & slow_enough
         self.held_time = torch.where(
             success_now,
             self.held_time + env.step_dt,
             torch.zeros_like(self.held_time),
         )
-        return self.held_time >= self.hold_time_s
+        return self.held_time >= hold_time_s
 
     def reset(self, env_ids: torch.Tensor | slice | None = None) -> None:
         if env_ids is None:

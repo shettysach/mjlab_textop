@@ -107,11 +107,11 @@ def test_green_square_success_held_requires_hold_time() -> None:
     )
     term = mdp.success_held(cfg=cfg, env=env)
 
-    assert term(env).tolist() == [False]
-    assert term(env).tolist() == [False]
-    assert term(env).tolist() == [True]
+    assert term(env, **cfg.params).tolist() == [False]
+    assert term(env, **cfg.params).tolist() == [False]
+    assert term(env, **cfg.params).tolist() == [True]
     term.reset()
-    assert term(env).tolist() == [False]
+    assert term(env, **cfg.params).tolist() == [False]
 
 
 def _fake_env(
