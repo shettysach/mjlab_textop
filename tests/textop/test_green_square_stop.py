@@ -83,7 +83,7 @@ def test_green_square_marker_spec_fn_adds_visual_non_colliding_geom() -> None:
         geom for geom in goal_body.geoms if geom.name == "green_square_goal_visual"
     )
     assert geom is not None
-    assert tuple(geom.size) == (0.9, 0.9, 0.005)
+    assert tuple(geom.size) == (9.0, 9.0, 0.005)
     assert geom.contype == 0
     assert geom.conaffinity == 0
 
