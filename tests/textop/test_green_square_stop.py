@@ -7,6 +7,7 @@ import torch
 from mjlab.tasks.registry import list_tasks, load_env_cfg, load_runner_cls
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
+from mjlab_textop.core.mdp.observations import future_joint_window_textop_order
 from mjlab_textop.core.onnx_policy import CustomOnnxPolicyRunner
 from mjlab_textop.scripts.utils import (
     ResolvedPolicy,
@@ -61,6 +62,10 @@ def test_green_square_stop_play_task_uses_onnx_runner(tmp_path) -> None:
     env_cfg = load_env_cfg(task_name, play=True)
     assert env_cfg.scene.num_envs == 1
     assert "green_square_success" in env_cfg.terminations
+    assert (
+        env_cfg.observations["actor"].terms["future_joint_window"].func
+        is future_joint_window_textop_order
+    )
 
 
 def test_green_square_marker_spec_fn_adds_visual_non_colliding_geom() -> None:

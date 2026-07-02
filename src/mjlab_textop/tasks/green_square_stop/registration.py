@@ -15,6 +15,7 @@ from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
 from mjlab_textop.core.task import StaticTaskSpec
 from mjlab_textop.tasks.green_square_stop.env_cfg import (
     make_green_square_stop_g1_env_cfg,
+    make_green_square_stop_onnx_g1_env_cfg,
 )
 from mjlab_textop.tasks.green_square_stop.ppo_cfg import (
     unitree_g1_tracking_ppo_runner_cfg,
@@ -50,7 +51,12 @@ def register_green_square_stop_task(
     mode_name = source_mode.capitalize()
     runner_name = "Onnx" if runner_cls is CustomOnnxPolicyRunner else "Checkpoint"
     task_name = f"{GREEN_SQUARE_STOP_TASK_NAME}-{runner_name}-{mode_name}-{uuid4().hex}"
-    env_cfg = make_green_square_stop_g1_env_cfg(
+    make_env_cfg = (
+        make_green_square_stop_onnx_g1_env_cfg
+        if runner_cls is CustomOnnxPolicyRunner
+        else make_green_square_stop_g1_env_cfg
+    )
+    env_cfg = make_env_cfg(
         play=True,
         future_steps=future_steps,
         source=source,
