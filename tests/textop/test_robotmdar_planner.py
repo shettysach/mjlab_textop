@@ -13,7 +13,6 @@ from mjlab_textop.robotmdar.planner import (
     OpenAIChatPromptSelector,
     VlmPromptPlanner,
 )
-from mjlab_textop.robotmdar.planner.vlm import sanitize_motion_prompt
 
 
 class _FakeObservationProvider:
@@ -166,30 +165,6 @@ def test_manual_prompt_planner_uses_current_prompt_without_starting_thread() -> 
     assert "Enter text prompt" in planner.log_suffix
 
 
-def test_sanitize_motion_prompt_accepts_allowed_prompts() -> None:
-    assert sanitize_motion_prompt("wave", fallback="stand still") == "wave"
-    assert (
-        sanitize_motion_prompt('"walk forward"\nextra text', fallback="stand still")
-        == "walk forward"
-    )
-
-
-def test_sanitize_motion_prompt_maps_aliases() -> None:
-    assert sanitize_motion_prompt("recover", fallback="walk forward") == "walk forward"
-    assert sanitize_motion_prompt("please walk now", fallback="stand stable") == (
-        "stand stable"
-    )
-
-
-def test_sanitize_motion_prompt_rejects_garbage() -> None:
-    assert sanitize_motion_prompt("import math463i[y>3]?", fallback="stand stable") == (
-        "stand stable"
-    )
-    assert sanitize_motion_prompt("x" * 80, fallback="walk forward") == (
-        "walk forward"
-    )
-
-
 def test_vlm_planner_queries_selector_on_cadence() -> None:
     provider = _FakeObservationProvider(_observation())
     selector = _FixedSelector("turn left")
@@ -292,7 +267,6 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
 
     prompt = selector.choose_prompt(
         observation=_observation(),
-        current_prompt="walk forward",
     )
 
     assert prompt == "wave"
@@ -354,7 +328,6 @@ def test_http_vlm_prompt_selector_posts_image_from_observation_bytes(
             image_mime_type="image/jpeg",
             image_frame=10,
         ),
-        current_prompt="walk forward",
     )
 
     content = posted["payload"]["messages"][0]["content"]
@@ -368,7 +341,7 @@ def test_http_vlm_prompt_selector_posts_image_from_observation_bytes(
     }
 
 
-def test_http_vlm_prompt_selector_sanitizes_response(monkeypatch) -> None:
+def test_http_vlm_prompt_selector_returns_raw_response(monkeypatch) -> None:
     def fake_urlopen(request, timeout):
         del request, timeout
         return _FakeResponse(
@@ -394,36 +367,4 @@ def test_http_vlm_prompt_selector_sanitizes_response(monkeypatch) -> None:
 
     assert selector.choose_prompt(
         observation=_observation(),
-        current_prompt="stand stable",
-    ) == "stand stable"
-
-
-def test_http_vlm_prompt_selector_can_skip_sanitization(monkeypatch) -> None:
-    def fake_urlopen(request, timeout):
-        del request, timeout
-        return _FakeResponse(
-            {
-                "choices": [
-                    {
-                        "message": {
-                            "content": "turn left\nextra text",
-                        }
-                    }
-                ]
-            }
-        )
-
-    monkeypatch.setattr(
-        "mjlab_textop.robotmdar.planner.vlm.urllib.request.urlopen",
-        fake_urlopen,
-    )
-    selector = OpenAIChatPromptSelector(
-        base_url="http://127.0.0.1:9379",
-        model="gemma-4-e2b-it",
-        sanitize_response=False,
-    )
-
-    assert selector.choose_prompt(
-        observation=_observation(),
-        current_prompt="stand stable",
-    ) == "turn left\nextra text"
+    ) == 'STOP. Clear location near pose.g39g}<|"|>'

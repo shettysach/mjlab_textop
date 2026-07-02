@@ -21,9 +21,6 @@ ALLOWED_MOTION_PROMPTS = (
     "stop",
 )
 
-_ALLOWED_MOTION_PROMPT_SET = set(ALLOWED_MOTION_PROMPTS)
-
-
 class ObservationProvider(Protocol):
     def start(self) -> None: ...
 
@@ -94,7 +91,6 @@ class VlmPromptPlanner:
             self._future = self._executor.submit(
                 self.selector.choose_prompt,
                 observation=observation,
-                current_prompt=self.current_prompt,
             )
         return self.current_prompt
 
@@ -122,7 +118,6 @@ class OpenAIChatPromptSelector:
         base_url: str,
         model: str,
         system_prompt: str | None = None,
-        sanitize_response: bool = True,
         timeout_sec: float = 30.0,
         max_completion_tokens: int = 32,
     ) -> None:
@@ -137,7 +132,6 @@ class OpenAIChatPromptSelector:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.system_prompt = system_prompt
-        self.sanitize_response = sanitize_response
         self.timeout_sec = timeout_sec
         self.max_completion_tokens = max_completion_tokens
 
@@ -145,7 +139,6 @@ class OpenAIChatPromptSelector:
         self,
         *,
         observation: FeedbackObservation | None,
-        current_prompt: str,
     ) -> str:
         response = self._post_json(
             _make_chat_completions_payload(
@@ -159,10 +152,7 @@ class OpenAIChatPromptSelector:
                 max_completion_tokens=self.max_completion_tokens,
             )
         )
-        raw_prompt = str(response["choices"][0]["message"]["content"])
-        if not self.sanitize_response:
-            return raw_prompt
-        return sanitize_motion_prompt(raw_prompt, fallback=current_prompt)
+        return str(response["choices"][0]["message"]["content"])
 
     def _post_json(self, payload: dict[str, Any]) -> dict[str, Any]:
         request = urllib.request.Request(
@@ -234,14 +224,6 @@ def _make_chat_completions_payload(
         "max_completion_tokens": max_completion_tokens,
         "temperature": 0,
     }
-
-
-def sanitize_motion_prompt(raw: str, *, fallback: str) -> str:
-    text = raw.strip()
-    text = text.splitlines()[0].strip()
-    text = text.strip("\"'`").strip()
-    text = " ".join(text.lower().split())
-    return text if text in _ALLOWED_MOTION_PROMPT_SET else fallback
 
 
 def _image_data_url(data: bytes, mime_type: str) -> str:

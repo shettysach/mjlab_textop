@@ -181,8 +181,7 @@ uvx litert-lm serve --host 127.0.0.1 --port 9379
 ```
 
 Then have the producer listen for MJLab HTTP observations and point it at that
-server. The producer queries the VLM on a fixed block cadence and keeps the last
-selected prompt between queries:
+server. The producer queries the VLM on a fixed block cadence and keeps the last selected prompt between queries. The returned text is used as-is:
 
 ```bash
 uv run python -m mjlab_textop.robotmdar.produce \
@@ -205,16 +204,11 @@ uv run --extra cu128 mjlab-textop play-live \
   --host 127.0.0.1 \
   --port 8765 \
   --observation-url http://127.0.0.1:8766/observation \
-  --observation-every-frames 5
+  --observation-every-frames 20 \
+  --observation-image-every-frames 20 \
+  --observation-image-width 640 \
+  --observation-image-height 480
 ```
-
-The live producer sends 50 Hz-indexed motion chunks. MJLab consumes them at the
-online command rate, clamps stale future frames during underruns, and reports
-online buffer/source diagnostics through command metrics.
-
-MJLab observations are HTTP JSON posts containing the current TextOp frame,
-buffer status, stale-step counters, tracked robot anchor pose, and base64 JPEG
-render bytes in the same request.
 
 To run the same live source with TextOp's released `latest.onnx` policy:
 
@@ -226,8 +220,19 @@ uv run --extra cu128 mjlab-textop play-live \
   --host 127.0.0.1 \
   --port 8765 \
   --observation-url http://127.0.0.1:8766/observation \
-  --observation-every-frames 20
+  --observation-every-frames 20 \
+  --observation-image-every-frames 20 \
+  --observation-image-width 640 \
+  --observation-image-height 480
 ```
+
+The live producer sends 50 Hz-indexed motion chunks. MJLab consumes them at the
+online command rate, clamps stale future frames during underruns, and reports
+online buffer/source diagnostics through command metrics.
+
+MJLab observations are HTTP JSON posts containing the current TextOp frame,
+buffer status, stale-step counters, tracked robot anchor pose, and base64 JPEG
+render bytes in the same request.
 
 The ONNX path uses the online source and the ONNX actor directly, without a
 `.pt` checkpoint.
