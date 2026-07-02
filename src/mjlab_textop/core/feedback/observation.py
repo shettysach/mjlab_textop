@@ -45,8 +45,7 @@ class OnlineTextOpObservationCfg:
     def __post_init__(self) -> None:
         if self.publish_interval <= 0:
             raise ValueError(
-                "publish_interval must be positive, "
-                f"got {self.publish_interval}"
+                f"publish_interval must be positive, got {self.publish_interval}"
             )
         if self.image_publish_interval <= 0:
             raise ValueError(

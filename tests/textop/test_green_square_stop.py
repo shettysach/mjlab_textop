@@ -1,0 +1,112 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+import mujoco
+import torch
+from mjlab.tasks.registry import list_tasks, load_env_cfg, load_runner_cls
+from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
+
+from mjlab_textop.tasks import register_tasks
+from mjlab_textop.tasks.green_square_stop import mdp
+from mjlab_textop.tasks.green_square_stop.env_cfg import (
+    GREEN_SQUARE_GOAL_POS_W,
+    GREEN_SQUARE_STOP_TRIGGER_RADIUS,
+)
+from mjlab_textop.tasks.green_square_stop.registration import (
+    GREEN_SQUARE_STOP_TASK_NAME,
+)
+
+
+def test_green_square_stop_task_registers() -> None:
+    register_tasks()
+
+    assert GREEN_SQUARE_STOP_TASK_NAME in list_tasks()
+    assert load_runner_cls(GREEN_SQUARE_STOP_TASK_NAME) is MotionTrackingOnPolicyRunner
+
+
+def test_green_square_stop_env_cfg_has_fixed_goal_eval_terms() -> None:
+    register_tasks()
+    cfg = load_env_cfg(GREEN_SQUARE_STOP_TASK_NAME, play=True)
+
+    assert cfg.scene.num_envs == 1
+    assert cfg.episode_length_s == 20.0
+    assert cfg.rewards == {}
+    assert cfg.scene.spec_fn is not None
+    assert "green_square_success" in cfg.terminations
+    assert "green_square_goal_distance" in cfg.metrics
+    assert (
+        cfg.metrics["green_square_stop_trigger"].params["stop_trigger_radius"]
+        == GREEN_SQUARE_STOP_TRIGGER_RADIUS
+    )
+
+
+def test_green_square_marker_spec_fn_adds_visual_non_colliding_geom() -> None:
+    register_tasks()
+    cfg = load_env_cfg(GREEN_SQUARE_STOP_TASK_NAME, play=True)
+    spec = mujoco.MjSpec()
+
+    assert cfg.scene.spec_fn is not None
+    cfg.scene.spec_fn(spec)
+
+    goal_body = next(body for body in spec.bodies if body.name == "green_square_goal")
+    assert goal_body is not None
+    assert tuple(goal_body.pos) == (4.5, 0.0, 0.005)
+    geom = next(
+        geom for geom in goal_body.geoms if geom.name == "green_square_goal_visual"
+    )
+    assert geom is not None
+    assert tuple(geom.size) == (0.3, 0.3, 0.005)
+    assert geom.contype == 0
+    assert geom.conaffinity == 0
+
+
+def test_green_square_mdp_terms_use_true_goal_position() -> None:
+    env = _fake_env(root_pos=(4.5, 0.0, 0.8), root_lin_vel=(0.03, 0.04, 0.0))
+
+    assert torch.allclose(
+        mdp.robot_goal_distance(env, GREEN_SQUARE_GOAL_POS_W),
+        torch.tensor([0.0]),
+    )
+    assert torch.allclose(mdp.robot_xy_speed(env), torch.tensor([0.05]))
+    assert mdp.inside_goal_radius(env, GREEN_SQUARE_GOAL_POS_W, radius=0.25).tolist()
+    assert mdp.below_speed_threshold(env, speed_threshold=0.1).tolist()
+
+
+def test_green_square_success_held_requires_hold_time() -> None:
+    env = _fake_env(root_pos=(4.5, 0.0, 0.8), root_lin_vel=(0.0, 0.0, 0.0))
+    cfg = SimpleNamespace(
+        params={
+            "goal_pos_w": GREEN_SQUARE_GOAL_POS_W,
+            "success_radius": 0.25,
+            "speed_threshold": 0.1,
+            "hold_time_s": 0.15,
+        }
+    )
+    term = mdp.success_held(cfg=cfg, env=env)
+
+    assert term(env).tolist() == [False]
+    assert term(env).tolist() == [False]
+    assert term(env).tolist() == [True]
+    term.reset()
+    assert term(env).tolist() == [False]
+
+
+def _fake_env(
+    *,
+    root_pos: tuple[float, float, float],
+    root_lin_vel: tuple[float, float, float],
+):
+    robot = SimpleNamespace(
+        data=SimpleNamespace(
+            root_link_pos_w=torch.tensor([root_pos], dtype=torch.float32),
+            root_link_lin_vel_w=torch.tensor([root_lin_vel], dtype=torch.float32),
+        )
+    )
+    scene = {"robot": robot}
+    return SimpleNamespace(
+        device="cpu",
+        num_envs=1,
+        step_dt=0.05,
+        scene=scene,
+    )
