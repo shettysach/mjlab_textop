@@ -7,6 +7,11 @@ import torch
 from mjlab.tasks.registry import list_tasks, load_env_cfg, load_runner_cls
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
+from mjlab_textop.core.onnx_policy import CustomOnnxPolicyRunner
+from mjlab_textop.scripts.utils import (
+    ResolvedPolicy,
+    register_green_square_stop_play_task,
+)
 from mjlab_textop.tasks import register_tasks
 from mjlab_textop.tasks.green_square_stop import mdp
 from mjlab_textop.tasks.green_square_stop.env_cfg import (
@@ -41,6 +46,23 @@ def test_green_square_stop_env_cfg_has_fixed_goal_eval_terms() -> None:
     )
 
 
+def test_green_square_stop_play_task_uses_onnx_runner(tmp_path) -> None:
+    onnx_file = tmp_path / "policy.onnx"
+    onnx_file.write_text("onnx")
+
+    task_name = register_green_square_stop_play_task(
+        policy=ResolvedPolicy("onnx", onnx_file),
+        source_mode="live",
+        future_steps=2,
+        num_envs=1,
+    )
+
+    assert load_runner_cls(task_name) is CustomOnnxPolicyRunner
+    env_cfg = load_env_cfg(task_name, play=True)
+    assert env_cfg.scene.num_envs == 1
+    assert "green_square_success" in env_cfg.terminations
+
+
 def test_green_square_marker_spec_fn_adds_visual_non_colliding_geom() -> None:
     register_tasks()
     cfg = load_env_cfg(GREEN_SQUARE_STOP_TASK_NAME, play=True)
@@ -51,18 +73,18 @@ def test_green_square_marker_spec_fn_adds_visual_non_colliding_geom() -> None:
 
     goal_body = next(body for body in spec.bodies if body.name == "green_square_goal")
     assert goal_body is not None
-    assert tuple(goal_body.pos) == (4.5, 0.0, 0.005)
+    assert tuple(goal_body.pos) == (8.0, 0.0, 0.005)
     geom = next(
         geom for geom in goal_body.geoms if geom.name == "green_square_goal_visual"
     )
     assert geom is not None
-    assert tuple(geom.size) == (0.3, 0.3, 0.005)
+    assert tuple(geom.size) == (0.9, 0.9, 0.005)
     assert geom.contype == 0
     assert geom.conaffinity == 0
 
 
 def test_green_square_mdp_terms_use_true_goal_position() -> None:
-    env = _fake_env(root_pos=(4.5, 0.0, 0.8), root_lin_vel=(0.03, 0.04, 0.0))
+    env = _fake_env(root_pos=(8.0, 0.0, 0.8), root_lin_vel=(0.03, 0.04, 0.0))
 
     assert torch.allclose(
         mdp.robot_goal_distance(env, GREEN_SQUARE_GOAL_POS_W),
@@ -74,7 +96,7 @@ def test_green_square_mdp_terms_use_true_goal_position() -> None:
 
 
 def test_green_square_success_held_requires_hold_time() -> None:
-    env = _fake_env(root_pos=(4.5, 0.0, 0.8), root_lin_vel=(0.0, 0.0, 0.0))
+    env = _fake_env(root_pos=(8.0, 0.0, 0.8), root_lin_vel=(0.0, 0.0, 0.0))
     cfg = SimpleNamespace(
         params={
             "goal_pos_w": GREEN_SQUARE_GOAL_POS_W,

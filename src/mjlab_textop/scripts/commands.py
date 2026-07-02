@@ -15,7 +15,11 @@ from mjlab_textop.core.feedback.observation import (
 from mjlab_textop.core.online.live import SocketTextOpSourceCfg
 from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
-from mjlab_textop.scripts.utils import ResolvedPolicy, register_textop_play_task
+from mjlab_textop.scripts.utils import (
+    ResolvedPolicy,
+    register_green_square_stop_play_task,
+    register_textop_play_task,
+)
 from mjlab_textop.tasks import register_tasks
 
 
@@ -38,7 +42,6 @@ class PlayLiveCommand:
     port: int = 8765
     device: str = "cuda:0"
     num_envs: int = 1
-    viewer: Literal["auto", "native", "viser"] = "auto"
     future_steps: int = TEXTOP_FUTURE_STEPS
     fps: float = 50.0
     max_queue_blocks: int = 32
@@ -54,18 +57,75 @@ class PlayLiveCommand:
     observation_image_height: int | None = 240
 
 
+@dataclass(kw_only=True)
+class GreenSquareStopLiveCommand(PlayLiveCommand):
+    pass
+
+
 def play_live_textop_motion(
     cfg: PlayLiveCommand,
     *,
     policy: ResolvedPolicy,
 ) -> None:
     register_tasks()
-    live_source_cfg = SocketTextOpSourceCfg(
+    task_name = register_textop_play_task(
+        policy=policy,
+        live_source_cfg=_make_live_source_cfg(cfg),
+        source_mode="live",
+        future_steps=cfg.future_steps,
+        num_envs=cfg.num_envs,
+        anchor_alignment=cfg.anchor_alignment,
+        observation=_make_online_observation(cfg),
+        reset_robot_to_reference=cfg.reset_robot_to_reference,
+    )
+    play_cfg = PlayConfig(
+        agent="trained",
+        checkpoint_file=str(policy.file),
+        num_envs=cfg.num_envs,
+        device=cfg.device,
+        video_width=cfg.observation_image_width if cfg.observation_url else None,
+        video_height=cfg.observation_image_height if cfg.observation_url else None,
+    )
+    run_play(task_name, play_cfg)
+
+
+def play_live_green_square_stop(
+    cfg: GreenSquareStopLiveCommand,
+    *,
+    policy: ResolvedPolicy,
+) -> None:
+    register_tasks()
+    task_name = register_green_square_stop_play_task(
+        policy=policy,
+        live_source_cfg=_make_live_source_cfg(cfg),
+        source_mode="live",
+        future_steps=cfg.future_steps,
+        num_envs=cfg.num_envs,
+        anchor_alignment=cfg.anchor_alignment,
+        observation=_make_online_observation(cfg),
+        reset_robot_to_reference=cfg.reset_robot_to_reference,
+    )
+    play_cfg = PlayConfig(
+        agent="trained",
+        checkpoint_file=str(policy.file),
+        num_envs=cfg.num_envs,
+        device=cfg.device,
+        video_width=cfg.observation_image_width if cfg.observation_url else None,
+        video_height=cfg.observation_image_height if cfg.observation_url else None,
+    )
+    run_play(task_name, play_cfg)
+
+
+def _make_live_source_cfg(cfg: PlayLiveCommand) -> SocketTextOpSourceCfg:
+    return SocketTextOpSourceCfg(
         host=cfg.host,
         port=cfg.port,
         fps=cfg.fps,
         max_queue_blocks=cfg.max_queue_blocks,
     )
+
+
+def _make_online_observation(cfg: PlayLiveCommand) -> OnlineTextOpObservationCfg:
     observation_publisher_cfg = (
         HttpObservationPublisherCfg(
             url=cfg.observation_url,
@@ -79,31 +139,11 @@ def play_live_textop_motion(
         if observation_publisher_cfg is not None
         else None
     )
-    observation = OnlineTextOpObservationCfg(
+    return OnlineTextOpObservationCfg(
         publisher=observation_publisher,
         publish_interval=cfg.observation_every_frames,
         image_publish_interval=cfg.observation_image_every_frames,
     )
-    task_name = register_textop_play_task(
-        policy=policy,
-        live_source_cfg=live_source_cfg,
-        source_mode="live",
-        future_steps=cfg.future_steps,
-        num_envs=cfg.num_envs,
-        anchor_alignment=cfg.anchor_alignment,
-        observation=observation,
-        reset_robot_to_reference=cfg.reset_robot_to_reference,
-    )
-    play_cfg = PlayConfig(
-        agent="trained",
-        checkpoint_file=str(policy.file),
-        num_envs=cfg.num_envs,
-        device=cfg.device,
-        viewer=cfg.viewer,
-        video_width=cfg.observation_image_width if cfg.observation_url else None,
-        video_height=cfg.observation_image_height if cfg.observation_url else None,
-    )
-    run_play(task_name, play_cfg)
 
 
 # --
@@ -116,7 +156,6 @@ class PlayOnlineCommand:
     onnx_file: str | None = None
     device: str = "cuda:0"
     num_envs: int = 1
-    viewer: Literal["auto", "native", "viser"] = "auto"
     future_steps: int = TEXTOP_FUTURE_STEPS
     block_size: int = 8
     reset_robot_to_reference: bool = True
@@ -147,6 +186,5 @@ def play_online_textop_motion(
         checkpoint_file=str(policy.file),
         num_envs=cfg.num_envs,
         device=cfg.device,
-        viewer=cfg.viewer,
     )
     run_play(task_name, play_cfg)

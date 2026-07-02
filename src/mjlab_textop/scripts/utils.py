@@ -4,12 +4,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
+
 from mjlab_textop.core.feedback.observation import (
     OnlineTextOpObservationCfg,
 )
 from mjlab_textop.core.mdp.online_commands import TextOpOnlineSourceMode
 from mjlab_textop.core.online.live import SocketTextOpSourceCfg
 from mjlab_textop.core.online.source import TextOpOnlineSource
+from mjlab_textop.core.onnx_policy import CustomOnnxPolicyRunner
+from mjlab_textop.tasks.green_square_stop.registration import (
+    register_green_square_stop_task,
+)
 from mjlab_textop.tasks.online_textop.registration import (
     register_online_textop_onnx_task,
     register_online_textop_task,
@@ -94,3 +100,35 @@ def register_textop_play_task(
             reset_robot_to_reference=reset_robot_to_reference,
             observation=observation,
         )
+
+
+def register_green_square_stop_play_task(
+    *,
+    policy: ResolvedPolicy,
+    source: TextOpOnlineSource | None = None,
+    live_source_cfg: SocketTextOpSourceCfg | None = None,
+    source_mode: TextOpOnlineSourceMode,
+    future_steps: int,
+    num_envs: int,
+    anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
+        "align_to_robot_start"
+    ),
+    reset_robot_to_reference: bool = True,
+    observation: OnlineTextOpObservationCfg | None = None,
+) -> str:
+    runner_cls = (
+        CustomOnnxPolicyRunner
+        if policy.kind == "onnx"
+        else MotionTrackingOnPolicyRunner
+    )
+    return register_green_square_stop_task(
+        runner_cls=runner_cls,
+        source=source,
+        live_source_cfg=live_source_cfg,
+        source_mode=source_mode,
+        future_steps=future_steps,
+        num_envs=num_envs,
+        anchor_alignment=anchor_alignment,
+        reset_robot_to_reference=reset_robot_to_reference,
+        observation=observation,
+    )

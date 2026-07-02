@@ -7,15 +7,19 @@ import tyro
 
 from mjlab_textop.core.normalize import normalize
 from mjlab_textop.scripts.commands import (
+    GreenSquareStopLiveCommand,
     NormalizeCommand,
     PlayLiveCommand,
     PlayOnlineCommand,
+    play_live_green_square_stop,
     play_live_textop_motion,
     play_online_textop_motion,
 )
 from mjlab_textop.scripts.utils import resolve_policy, verify_resolved
 
-Command: TypeAlias = NormalizeCommand | PlayOnlineCommand | PlayLiveCommand
+Command: TypeAlias = (
+    NormalizeCommand | PlayOnlineCommand | PlayLiveCommand | GreenSquareStopLiveCommand
+)
 
 
 def run_command(cfg: Command) -> None:
@@ -50,6 +54,17 @@ def run_command(cfg: Command) -> None:
             )
             return
 
+        case GreenSquareStopLiveCommand():
+            policy = resolve_policy(
+                checkpoint_file=cfg.checkpoint_file,
+                onnx_file=cfg.onnx_file,
+            )
+            play_live_green_square_stop(
+                cfg,
+                policy=policy,
+            )
+            return
+
         case PlayLiveCommand():
             policy = resolve_policy(
                 checkpoint_file=cfg.checkpoint_file,
@@ -67,6 +82,7 @@ CommandType = tyro.extras.subcommand_type_from_defaults(
         "normalize": NormalizeCommand(),
         "play-online": PlayOnlineCommand(),
         "play-live": PlayLiveCommand(),
+        "green-square-live": GreenSquareStopLiveCommand(),
     },
 )
 

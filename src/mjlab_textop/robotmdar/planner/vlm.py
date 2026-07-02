@@ -13,6 +13,7 @@ ALLOWED_MOTION_PROMPTS = (
     "step left",
     "step right",
     "stand still",
+    "stand stable",
     "wave",
     "punch",
     "dance",

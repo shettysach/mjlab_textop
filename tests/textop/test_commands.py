@@ -13,7 +13,12 @@ from mjlab_textop.core.mdp.offline_commands import (
     textop_motion_command_cfg_from,
     use_textop_motion_command,
 )
-from mjlab_textop.scripts.commands import PlayLiveCommand, play_live_textop_motion
+from mjlab_textop.scripts.commands import (
+    GreenSquareStopLiveCommand,
+    PlayLiveCommand,
+    play_live_green_square_stop,
+    play_live_textop_motion,
+)
 from mjlab_textop.scripts.utils import ResolvedPolicy, resolve_policy
 
 
@@ -140,6 +145,43 @@ def test_play_live_with_images_does_not_enable_video_recording(
     assert play_cfg.video is False
     assert play_cfg.video_width == 320
     assert play_cfg.video_height == 240
+    assert calls["task_kwargs"]["observation"].publisher is not None
+
+
+def test_green_square_live_uses_green_square_task_registration(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    calls = {}
+
+    monkeypatch.setattr(
+        "mjlab_textop.scripts.commands.register_tasks",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "mjlab_textop.scripts.commands.register_green_square_stop_play_task",
+        lambda **kwargs: _fake_register_task(calls, kwargs),
+    )
+    monkeypatch.setattr(
+        "mjlab_textop.scripts.commands.run_play",
+        lambda task_name, play_cfg: calls.update(run_play=(task_name, play_cfg)),
+    )
+    onnx_file = tmp_path / "policy.onnx"
+    onnx_file.write_text("onnx")
+
+    play_live_green_square_stop(
+        GreenSquareStopLiveCommand(
+            onnx_file=str(onnx_file),
+            observation_url="http://127.0.0.1:8766/observation",
+        ),
+        policy=ResolvedPolicy("onnx", onnx_file),
+    )
+
+    task_name, play_cfg = calls["run_play"]
+    assert task_name == "task"
+    assert play_cfg.checkpoint_file == str(onnx_file)
+    assert calls["task_kwargs"]["policy"].kind == "onnx"
+    assert calls["task_kwargs"]["source_mode"] == "live"
     assert calls["task_kwargs"]["observation"].publisher is not None
 
 

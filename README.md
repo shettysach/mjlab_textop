@@ -236,3 +236,25 @@ render bytes in the same request.
 
 The ONNX path uses the online source and the ONNX actor directly, without a
 `.pt` checkpoint.
+
+#### `green-square-live`
+
+Run the fixed green-square navigation demo with the same live transport fields
+as `play-live`. Use either `--checkpoint-file` or `--onnx-file`:
+
+```bash
+uv run --extra cu128 mjlab-textop green-square-live \
+  --onnx-file $ONNX_PATH \
+  --host 127.0.0.1 \
+  --port 8765 \
+  --observation-url http://127.0.0.1:8766/observation \
+  --observation-every-frames 20 \
+  --observation-image-every-frames 20 \
+  --observation-image-width 640 \
+  --observation-image-height 480
+```
+
+This demo uses the `Mjlab-VLA-GreenSquareStop-G1` task. The environment owns
+the success and termination logic; the producer still supplies the motion
+prompt stream. Start with `stand stable` or `walk forward` depending on the
+prompt policy you are testing.
