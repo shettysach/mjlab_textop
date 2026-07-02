@@ -19,7 +19,7 @@ from mjlab_textop.tasks.online_textop.env_cfg import (
     make_online_textop_onnx_g1_flat_tracking_env_cfg,
 )
 
-GREEN_SQUARE_GOAL_POS_W = (8.0, 0.0, 0.0)
+GREEN_SQUARE_GOAL_POS_W = (24.0, 0.0, 0.0)
 GREEN_SQUARE_SIZE = 18.0
 GREEN_SQUARE_SUCCESS_RADIUS = 0.25
 GREEN_SQUARE_STOP_TRIGGER_RADIUS = 0.55

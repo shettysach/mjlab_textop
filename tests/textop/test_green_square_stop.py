@@ -78,7 +78,7 @@ def test_green_square_marker_spec_fn_adds_visual_non_colliding_geom() -> None:
 
     goal_body = next(body for body in spec.bodies if body.name == "green_square_goal")
     assert goal_body is not None
-    assert tuple(goal_body.pos) == (8.0, 0.0, 0.005)
+    assert tuple(goal_body.pos) == (24.0, 0.0, 0.005)
     geom = next(
         geom for geom in goal_body.geoms if geom.name == "green_square_goal_visual"
     )
@@ -89,7 +89,7 @@ def test_green_square_marker_spec_fn_adds_visual_non_colliding_geom() -> None:
 
 
 def test_green_square_mdp_terms_use_true_goal_position() -> None:
-    env = _fake_env(root_pos=(8.0, 0.0, 0.8), root_lin_vel=(0.03, 0.04, 0.0))
+    env = _fake_env(root_pos=(24.0, 0.0, 0.8), root_lin_vel=(0.03, 0.04, 0.0))
 
     assert torch.allclose(
         mdp.robot_goal_distance(env, GREEN_SQUARE_GOAL_POS_W),
@@ -101,7 +101,7 @@ def test_green_square_mdp_terms_use_true_goal_position() -> None:
 
 
 def test_green_square_success_held_requires_hold_time() -> None:
-    env = _fake_env(root_pos=(8.0, 0.0, 0.8), root_lin_vel=(0.0, 0.0, 0.0))
+    env = _fake_env(root_pos=(24.0, 0.0, 0.8), root_lin_vel=(0.0, 0.0, 0.0))
     cfg = SimpleNamespace(
         params={
             "goal_pos_w": GREEN_SQUARE_GOAL_POS_W,
