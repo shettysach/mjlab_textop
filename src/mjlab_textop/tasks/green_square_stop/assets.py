@@ -17,7 +17,8 @@ def make_green_square_spec_fn(
     rgba: tuple[float, float, float, float] = (0.0, 1.0, 0.0, 1.0),
     wall_height: float = 1.5,
     wall_thickness: float = 0.2,
-    wall_rgba: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0),
+    wall_rgba: tuple[float, float, float, float] = (1.0, 1.0, 1.0, 0.5),
+    corridor_start_x: float = 0.0,
 ) -> Callable[["MjSpec"], None]:
     def add_green_square(spec: MjSpec) -> None:
         body = spec.worldbody.add_body(name="green_square_goal")
@@ -35,25 +36,28 @@ def make_green_square_spec_fn(
         half_size = size * 0.5
         half_wall_height = wall_height * 0.5
         half_wall_thickness = wall_thickness * 0.5
+        corridor_end_x = goal_pos_w[0] + half_size
+        corridor_center_x = (corridor_start_x + corridor_end_x) * 0.5
+        corridor_half_length = (corridor_end_x - corridor_start_x) * 0.5
         wall_z = goal_pos_w[2] + half_wall_height
         _add_wall(
             spec,
             name="green_square_left_wall",
-            pos=(goal_pos_w[0], goal_pos_w[1] + half_size, wall_z),
-            size=(half_size, half_wall_thickness, half_wall_height),
+            pos=(corridor_center_x, goal_pos_w[1] + half_size, wall_z),
+            size=(corridor_half_length, half_wall_thickness, half_wall_height),
             rgba=wall_rgba,
         )
         _add_wall(
             spec,
             name="green_square_right_wall",
-            pos=(goal_pos_w[0], goal_pos_w[1] - half_size, wall_z),
-            size=(half_size, half_wall_thickness, half_wall_height),
+            pos=(corridor_center_x, goal_pos_w[1] - half_size, wall_z),
+            size=(corridor_half_length, half_wall_thickness, half_wall_height),
             rgba=wall_rgba,
         )
         _add_wall(
             spec,
             name="green_square_end_wall",
-            pos=(goal_pos_w[0] + half_size, goal_pos_w[1], wall_z),
+            pos=(corridor_end_x, goal_pos_w[1], wall_z),
             size=(half_wall_thickness, half_size, half_wall_height),
             rgba=wall_rgba,
         )

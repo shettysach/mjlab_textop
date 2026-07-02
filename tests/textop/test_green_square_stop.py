@@ -93,13 +93,13 @@ def test_green_square_marker_spec_fn_adds_visual_non_colliding_geom() -> None:
         "green_square_right_wall",
         "green_square_end_wall",
     }
-    assert tuple(walls["green_square_left_wall"].pos) == (24.0, 9.0, 0.75)
-    assert tuple(walls["green_square_right_wall"].pos) == (24.0, -9.0, 0.75)
+    assert tuple(walls["green_square_left_wall"].pos) == (16.5, 9.0, 0.75)
+    assert tuple(walls["green_square_right_wall"].pos) == (16.5, -9.0, 0.75)
     assert tuple(walls["green_square_end_wall"].pos) == (33.0, 0.0, 0.75)
 
     wall_geom = walls["green_square_left_wall"].geoms[0]
-    assert tuple(wall_geom.size) == (9.0, 0.1, 0.75)
-    assert tuple(wall_geom.rgba) == (0.0, 0.0, 0.0, 0.0)
+    assert tuple(wall_geom.size) == (16.5, 0.1, 0.75)
+    assert tuple(wall_geom.rgba) == (1.0, 1.0, 1.0, 0.5)
     assert wall_geom.contype == 1
     assert wall_geom.conaffinity == 1
 
