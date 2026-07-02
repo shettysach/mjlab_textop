@@ -194,7 +194,7 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --query-every-blocks 4 \
   --vlm-base-url http://127.0.0.1:9379 \
   --vlm-model gemma-4-e2b-it \
-  --vlm-system-prompt "You choose one humanoid motion command. You must output exactly one command from the allowed list. No explanation."
+  --vlm-system-prompt "You respond with one humanoid motion command. You must output exactly one command from the examples. No explanation."
 ```
 
 ```bash

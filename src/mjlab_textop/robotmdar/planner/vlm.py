@@ -9,10 +9,10 @@ from typing import Any, Protocol
 from mjlab_textop.robotmdar.feedback import FeedbackObservation
 
 ALLOWED_MOTION_PROMPTS = (
-    "stand still",
     "walk forward",
     "step left",
     "step right",
+    "stand still",
     "wave",
     "punch",
     "dance",
@@ -20,6 +20,7 @@ ALLOWED_MOTION_PROMPTS = (
     "squat",
     "stop",
 )
+
 
 class ObservationProvider(Protocol):
     def start(self) -> None: ...
@@ -199,9 +200,9 @@ def _make_chat_completions_payload(
     max_completion_tokens: int,
 ) -> dict[str, Any]:
     text = (
-        "Choose exactly one command from this list:\n"
+        "Example motion commands:\n"
         f"{_allowed_prompt_text()}\n\n"
-        "Return only the command text. No punctuation. No explanation.\n"
+        "Return one command as text. No punctuation. No explanation.\n"
         f"State: {json.dumps(state, separators=(',', ':'))}"
     )
     content: list[dict[str, Any]] = [{"type": "text", "text": text}]

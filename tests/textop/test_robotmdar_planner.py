@@ -282,9 +282,9 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     )
     content = posted["payload"]["messages"][1]["content"]
     assert content[0]["type"] == "text"
-    assert "Choose exactly one command from this list" in content[0]["text"]
+    assert "Example motion commands" in content[0]["text"]
     assert "stand still" in content[0]["text"]
-    assert "Return only the command text" in content[0]["text"]
+    assert "Return one command as text" in content[0]["text"]
     assert '"current_frame":10' in content[0]["text"]
     assert '"latest_frame":18' in content[0]["text"]
     assert '"lag_frames":8' in content[0]["text"]

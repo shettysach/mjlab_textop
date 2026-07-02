@@ -25,8 +25,8 @@ from mjlab_textop.robotmdar.planner.vlm import (
 )
 
 DEFAULT_VLM_SYSTEM_PROMPT = (
-    "You choose one humanoid motion command. "
-    "You must output exactly one command from the allowed list. "
+    "You respond with one humanoid motion command. "
+    "You must output exactly one command from the examples. "
     "No explanation."
 )
 
@@ -139,7 +139,7 @@ def parse_args() -> argparse.Namespace:
         choices=("manual", "vlm"),
         default="manual",
     )
-    parser.add_argument("--prompt", default="walk")
+    parser.add_argument("--prompt", default="stand")
     parser.add_argument("--observation-listen-host", default="127.0.0.1")
     parser.add_argument("--observation-listen-port", type=int, default=None)
     parser.add_argument("--observation-path", default="/observation")
@@ -148,7 +148,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--vlm-system-prompt", default=DEFAULT_VLM_SYSTEM_PROMPT)
     parser.add_argument("--vlm-timeout-sec", type=float, default=30.0)
     parser.add_argument("--vlm-max-completion-tokens", type=int, default=32)
-    parser.add_argument("--query-every-blocks", type=int, default=4)
+    parser.add_argument("--query-every-blocks", type=int, default=20)
     parser.add_argument("--log-every-blocks", type=int, default=20)
     args = parser.parse_args()
     if args.planner == "vlm" and args.observation_listen_port is None:
