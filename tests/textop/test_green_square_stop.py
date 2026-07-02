@@ -87,6 +87,22 @@ def test_green_square_marker_spec_fn_adds_visual_non_colliding_geom() -> None:
     assert geom.contype == 0
     assert geom.conaffinity == 0
 
+    walls = {body.name: body for body in spec.bodies if body.name.endswith("_wall")}
+    assert set(walls) == {
+        "green_square_left_wall",
+        "green_square_right_wall",
+        "green_square_end_wall",
+    }
+    assert tuple(walls["green_square_left_wall"].pos) == (24.0, 9.0, 0.75)
+    assert tuple(walls["green_square_right_wall"].pos) == (24.0, -9.0, 0.75)
+    assert tuple(walls["green_square_end_wall"].pos) == (33.0, 0.0, 0.75)
+
+    wall_geom = walls["green_square_left_wall"].geoms[0]
+    assert tuple(wall_geom.size) == (9.0, 0.1, 0.75)
+    assert tuple(wall_geom.rgba) == (0.0, 0.0, 0.0, 0.0)
+    assert wall_geom.contype == 1
+    assert wall_geom.conaffinity == 1
+
 
 def test_green_square_mdp_terms_use_true_goal_position() -> None:
     env = _fake_env(root_pos=(24.0, 0.0, 0.8), root_lin_vel=(0.03, 0.04, 0.0))
