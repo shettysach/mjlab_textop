@@ -160,11 +160,11 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_VLM_DESCRIPTION_SYSTEM_PROMPT,
     )
     parser.add_argument("--vlm-timeout-sec", type=float, default=30.0)
-    parser.add_argument("--vlm-max-completion-tokens", type=int, default=32)
+    parser.add_argument("--vlm-max-completion-tokens", type=int, default=1024)
     parser.add_argument(
         "--vlm-description-max-completion-tokens",
         type=int,
-        default=256,
+        default=1024,
     )
     parser.add_argument("--query-every-blocks", type=int, default=20)
     parser.add_argument("--log-every-blocks", type=int, default=20)
