@@ -463,6 +463,7 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
         base_url="http://127.0.0.1:9379",
         model="gemma-4-e2b-it",
         system_prompt="You are a motion planner.",
+        user_prompt=produce.DEFAULT_VLM_USER_PROMPT,
         timeout_sec=1.5,
         max_completion_tokens=16,
     )
@@ -484,14 +485,7 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     )
     content = posted["payload"]["messages"][1]["content"]
     assert content[0]["type"] == "text"
-    assert "Example motion commands" in content[0]["text"]
-    assert "stand" in content[0]["text"]
-    assert "Return one command as text" in content[0]["text"]
-    assert '"frame":10' in content[0]["text"]
-    assert '"latest_frame":18' in content[0]["text"]
-    assert '"lag_frames":8' in content[0]["text"]
-    assert '"robot_anchor_pos_w":[1.0,2.0,3.0]' in content[0]["text"]
-    assert '"has_image":false' in content[0]["text"]
+    assert content[0]["text"] == produce.DEFAULT_VLM_USER_PROMPT
     assert len(content) == 1
 
 
@@ -522,6 +516,7 @@ def test_http_vlm_prompt_selector_posts_image_from_observation_bytes(
     selector = OpenAIChatPromptSelector(
         base_url="http://127.0.0.1:9379",
         model="gemma-4-e2b-it",
+        user_prompt=produce.DEFAULT_VLM_USER_PROMPT,
     )
 
     prompt = selector.choose_prompt(
@@ -534,8 +529,7 @@ def test_http_vlm_prompt_selector_posts_image_from_observation_bytes(
     content = posted["payload"]["messages"][0]["content"]
     assert prompt == "punch"
     assert content[0]["type"] == "text"
-    assert '"has_image":true' in content[0]["text"]
-    assert '"has_image":true' in content[0]["text"]
+    assert content[0]["text"] == produce.DEFAULT_VLM_USER_PROMPT
     assert content[1] == {
         "type": "image_url",
         "image_url": {"url": "data:image/jpeg;base64,anBlZyBieXRlcw=="},
@@ -564,6 +558,7 @@ def test_http_vlm_prompt_selector_returns_raw_response(monkeypatch) -> None:
     selector = OpenAIChatPromptSelector(
         base_url="http://127.0.0.1:9379",
         model="gemma-4-e2b-it",
+        user_prompt=produce.DEFAULT_VLM_USER_PROMPT,
     )
 
     assert (

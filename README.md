@@ -181,7 +181,10 @@ uvx litert-lm serve --host 127.0.0.1 --port 9379
 ```
 
 Then have the producer listen for MJLab HTTP observations and point it at that
-server. The producer queries the VLM on a fixed block cadence and keeps the last selected prompt between queries. The returned text is used as-is:
+server. The producer queries the VLM on a fixed block cadence and keeps the
+last selected prompt between queries. The default VLM prompts are read from
+[`prompt/SYSTEM.md`](prompt/SYSTEM.md) and [`prompt/USER.md`](prompt/USER.md).
+Override them with `--vlm-system-prompt` and `--vlm-user-prompt` if needed:
 
 ```bash
 uv run python -m mjlab_textop.robotmdar.produce \
@@ -193,8 +196,7 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --observation-listen-port 8766 \
   --query-every-blocks 4 \
   --vlm-base-url http://127.0.0.1:9379 \
-  --vlm-model gemma-4-e2b-it \
-  --vlm-system-prompt "You respond with one humanoid motion command. You must output exactly one command from the examples. No explanation."
+  --vlm-model gemma-4-e2b-it
 ```
 
 To keep manual prompt control while asking the VLM to describe the robot and
@@ -286,28 +288,10 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --observation-listen-port 8766 \
   --query-every-blocks 4 \
   --vlm-base-url http://127.0.0.1:9379 \
-  --vlm-model gemma-4-E4B-it-Q4_K_M.gguf \
-  --vlm-system-prompt "You are given control of a humanoid robot in a simulation.
-Your goal is to 
-1. make the robot reach the target region. 
-2. when the robot is in the region, command output 'stand'.
-Only input simple commands of 1 or 2 words. No reason or explanation is needed.
-
-You must output exactly ONE command string per request.
-No empty strings or responses.
-
-Allowed commands -
-- stand
-- walk
-- step left
-- step right
-"
+  --vlm-model gemma-4-E4B-it-Q4_K_M.gguf
 ```
 
-### Current ONNX runtime note
-
-ONNX policy inference uses the ONNX Runtime provider selected by `--device`
-(`CPUExecutionProvider` for `cpu`, `CUDAExecutionProvider` for `cuda:*`). To
-avoid CUDA I/O binding instability, the actor observation tensor is copied to
-CPU before calling ONNX Runtime, and the action tensor is copied back to the
-original observation device before MJLab uses it.
+> [!NOTE]
+> ONNX policy inference uses the ONNX Runtime provider selected by `--device`
+(`CPUExecutionProvider` for `cpu`, `CUDAExecutionProvider` for `cuda:*`).
+> To avoid CUDA I/O binding instability, the actor observation tensor is copied to CPU before calling ONNX Runtime, and the action tensor is copied back to the original observation device before MJLab uses it.

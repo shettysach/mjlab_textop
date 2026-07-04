@@ -12,11 +12,6 @@ from mjlab_textop.robotmdar.feedback import FeedbackObservation
 DescriptionCallback = Callable[[str], None]
 DescriptionErrorCallback = Callable[[str], None]
 
-ALLOWED_MOTION_PROMPTS = (
-    "walk",
-    "stand",
-)
-
 
 class ObservationProvider(Protocol):
     def start(self) -> None: ...
@@ -254,11 +249,14 @@ class OpenAIChatPromptSelector:
         base_url: str,
         model: str,
         system_prompt: str | None = None,
+        user_prompt: str,
         timeout_sec: float = 30.0,
         max_completion_tokens: int = 32,
     ) -> None:
         if not model:
             raise ValueError("model must be a non-empty string")
+        if not user_prompt:
+            raise ValueError("user_prompt must be a non-empty string")
         if timeout_sec <= 0:
             raise ValueError(f"timeout_sec must be positive, got {timeout_sec}")
         if max_completion_tokens <= 0:
@@ -268,6 +266,7 @@ class OpenAIChatPromptSelector:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.system_prompt = system_prompt
+        self.user_prompt = user_prompt
         self.timeout_sec = timeout_sec
         self.max_completion_tokens = max_completion_tokens
 
@@ -278,13 +277,13 @@ class OpenAIChatPromptSelector:
     ) -> str:
         response = self._post_json(
             _make_chat_completions_payload(
-                state=_make_state_payload(observation=observation),
                 image_bytes=None if observation is None else observation.image_bytes,
                 image_mime_type=(
                     None if observation is None else observation.image_mime_type
                 ),
                 model=self.model,
                 system_prompt=self.system_prompt,
+                user_prompt=self.user_prompt,
                 max_completion_tokens=self.max_completion_tokens,
             )
         )
@@ -355,44 +354,16 @@ class OpenAIChatObservationDescriber:
             return json.loads(response.read().decode("utf-8"))
 
 
-def _make_state_payload(
-    *,
-    observation: FeedbackObservation | None,
-) -> dict[str, Any]:
-    if observation is None:
-        return {"has_observation": False}
-
-    return {
-        "has_observation": True,
-        "frame": observation.frame,
-        "started": observation.started,
-        "latest_frame": observation.latest_frame,
-        "lag_frames": observation.lag_frames,
-        "buffer_frames": observation.buffer_frames,
-        "stale_steps": observation.stale_steps,
-        "consecutive_stale_steps": observation.consecutive_stale_steps,
-        "robot_anchor_pos_w": observation.robot_anchor_pos_w,
-        "robot_anchor_quat_w": observation.robot_anchor_quat_w,
-        "has_image": observation.image_bytes is not None,
-    }
-
-
 def _make_chat_completions_payload(
     *,
-    state: dict[str, Any],
     image_bytes: bytes | None,
     image_mime_type: str | None,
     model: str,
     system_prompt: str | None,
+    user_prompt: str,
     max_completion_tokens: int,
 ) -> dict[str, Any]:
-    text = (
-        "Example motion commands:\n"
-        f"{_allowed_prompt_text()}\n\n"
-        "Return one command as text. No punctuation. No explanation.\n"
-        f"State: {json.dumps(state, separators=(',', ':'))}"
-    )
-    content: list[dict[str, Any]] = [{"type": "text", "text": text}]
+    content: list[dict[str, Any]] = [{"type": "text", "text": user_prompt}]
     if image_bytes is not None and image_mime_type is not None:
         content.append(
             {
@@ -453,7 +424,3 @@ def _make_description_chat_completions_payload(
 
 def _image_data_url(data: bytes, mime_type: str) -> str:
     return f"data:{mime_type};base64,{b64encode(data).decode('ascii')}"
-
-
-def _allowed_prompt_text() -> str:
-    return "\n".join(ALLOWED_MOTION_PROMPTS)
