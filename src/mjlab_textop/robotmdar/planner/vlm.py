@@ -251,7 +251,7 @@ class OpenAIChatPromptSelector:
         system_prompt: str | None = None,
         user_prompt: str,
         timeout_sec: float = 30.0,
-        max_completion_tokens: int = 32,
+        max_tokens: int = 32,
     ) -> None:
         if not model:
             raise ValueError("model must be a non-empty string")
@@ -259,16 +259,14 @@ class OpenAIChatPromptSelector:
             raise ValueError("user_prompt must be a non-empty string")
         if timeout_sec <= 0:
             raise ValueError(f"timeout_sec must be positive, got {timeout_sec}")
-        if max_completion_tokens <= 0:
-            raise ValueError(
-                f"max_completion_tokens must be positive, got {max_completion_tokens}"
-            )
+        if max_tokens <= 0:
+            raise ValueError(f"max_tokens must be positive, got {max_tokens}")
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.system_prompt = system_prompt
         self.user_prompt = user_prompt
         self.timeout_sec = timeout_sec
-        self.max_completion_tokens = max_completion_tokens
+        self.max_tokens = max_tokens
 
     def choose_prompt(
         self,
@@ -284,7 +282,7 @@ class OpenAIChatPromptSelector:
                 model=self.model,
                 system_prompt=self.system_prompt,
                 user_prompt=self.user_prompt,
-                max_completion_tokens=self.max_completion_tokens,
+                max_tokens=self.max_tokens,
             )
         )
         return str(response["choices"][0]["message"]["content"])
@@ -308,21 +306,19 @@ class OpenAIChatObservationDescriber:
         model: str,
         system_prompt: str | None = None,
         timeout_sec: float = 30.0,
-        max_completion_tokens: int = 256,
+        max_tokens: int = 256,
     ) -> None:
         if not model:
             raise ValueError("model must be a non-empty string")
         if timeout_sec <= 0:
             raise ValueError(f"timeout_sec must be positive, got {timeout_sec}")
-        if max_completion_tokens <= 0:
-            raise ValueError(
-                f"max_completion_tokens must be positive, got {max_completion_tokens}"
-            )
+        if max_tokens <= 0:
+            raise ValueError(f"max_tokens must be positive, got {max_tokens}")
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.system_prompt = system_prompt
         self.timeout_sec = timeout_sec
-        self.max_completion_tokens = max_completion_tokens
+        self.max_tokens = max_tokens
 
     def describe(
         self,
@@ -338,7 +334,7 @@ class OpenAIChatObservationDescriber:
                 ),
                 model=self.model,
                 system_prompt=self.system_prompt,
-                max_completion_tokens=self.max_completion_tokens,
+                max_tokens=self.max_tokens,
             )
         )
         return str(response["choices"][0]["message"]["content"])
@@ -361,7 +357,7 @@ def _make_chat_completions_payload(
     model: str,
     system_prompt: str | None,
     user_prompt: str,
-    max_completion_tokens: int,
+    max_tokens: int,
 ) -> dict[str, Any]:
     content: list[dict[str, Any]] = [{"type": "text", "text": user_prompt}]
     if image_bytes is not None and image_mime_type is not None:
@@ -372,7 +368,7 @@ def _make_chat_completions_payload(
             }
         )
     messages: list[dict[str, Any]] = (
-        [{"role": "system", "content": system_prompt}]
+        [{"role": "system", "content": [{"type": "text", "text": system_prompt}]}]
         if system_prompt is not None
         else []
     )
@@ -380,7 +376,7 @@ def _make_chat_completions_payload(
     return {
         "model": model,
         "messages": messages,
-        "max_tokens": max_completion_tokens,
+        "max_tokens": max_tokens,
         "temperature": 0,
     }
 
@@ -392,7 +388,7 @@ def _make_description_chat_completions_payload(
     image_mime_type: str | None,
     model: str,
     system_prompt: str | None,
-    max_completion_tokens: int,
+    max_tokens: int,
 ) -> dict[str, Any]:
     text = (
         "Describe the robot and scene in the observation. Include the robot pose, "
@@ -417,8 +413,44 @@ def _make_description_chat_completions_payload(
     return {
         "model": model,
         "messages": messages,
-        "max_completion_tokens": max_completion_tokens,
+        "max_tokens": max_tokens,
         "temperature": 0,
+    }
+
+
+def _make_state_payload(
+    *,
+    observation: FeedbackObservation | None,
+) -> dict[str, Any]:
+    if observation is None:
+        return {
+            "frame": 0,
+            "started": False,
+            "latest_frame": None,
+            "lag_frames": 0,
+            "buffer_frames": 0,
+            "stale_steps": 0,
+            "consecutive_stale_steps": 0,
+            "robot_anchor_pos_w": [0.0, 0.0, 0.0],
+            "robot_anchor_quat_w": [1.0, 0.0, 0.0, 0.0],
+            "has_image": False,
+        }
+    return {
+        "frame": int(observation.frame),
+        "started": bool(observation.started),
+        "latest_frame": (
+            None if observation.latest_frame is None else int(observation.latest_frame)
+        ),
+        "lag_frames": int(observation.lag_frames),
+        "buffer_frames": int(observation.buffer_frames),
+        "stale_steps": int(observation.stale_steps),
+        "consecutive_stale_steps": int(observation.consecutive_stale_steps),
+        "robot_anchor_pos_w": [float(item) for item in observation.robot_anchor_pos_w],
+        "robot_anchor_quat_w": [
+            float(item) for item in observation.robot_anchor_quat_w
+        ],
+        "has_image": observation.image_bytes is not None
+        and observation.image_mime_type is not None,
     }
 
 

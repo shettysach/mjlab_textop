@@ -465,7 +465,7 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
         system_prompt="You are a motion planner.",
         user_prompt=produce.DEFAULT_VLM_USER_PROMPT,
         timeout_sec=1.5,
-        max_completion_tokens=16,
+        max_tokens=16,
     )
 
     prompt = selector.choose_prompt(
@@ -477,7 +477,7 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     assert posted["timeout"] == 1.5
     assert posted["content_type"] == "application/json"
     assert posted["payload"]["model"] == "gemma-4-e2b-it"
-    assert posted["payload"]["max_completion_tokens"] == 16
+    assert posted["payload"]["max_tokens"] == 16
     assert posted["payload"]["temperature"] == 0
     assert posted["payload"]["messages"][0]["role"] == "system"
     assert posted["payload"]["messages"][0]["content"][0]["text"] == (
@@ -599,7 +599,7 @@ def test_http_vlm_observation_describer_posts_description_request(
         model="gemma-4-e2b-it",
         system_prompt="Describe only.",
         timeout_sec=1.5,
-        max_completion_tokens=128,
+        max_tokens=128,
     )
 
     description = describer.describe(
@@ -613,7 +613,7 @@ def test_http_vlm_observation_describer_posts_description_request(
     assert posted["url"] == "http://127.0.0.1:9379/v1/chat/completions"
     assert posted["timeout"] == 1.5
     assert posted["payload"]["model"] == "gemma-4-e2b-it"
-    assert posted["payload"]["max_completion_tokens"] == 128
+    assert posted["payload"]["max_tokens"] == 128
     assert posted["payload"]["temperature"] == 0
     assert posted["payload"]["messages"][0]["role"] == "system"
     assert posted["payload"]["messages"][0]["content"][0]["text"] == "Describe only."
@@ -641,7 +641,7 @@ def test_make_prompt_planner_supports_describe_mode() -> None:
             vlm_model="gemma-4-e2b-it",
             vlm_description_system_prompt="Describe only.",
             vlm_timeout_sec=1.0,
-            vlm_description_max_completion_tokens=128,
+            vlm_max_tokens=128,
             query_every_blocks=4,
         )
     )

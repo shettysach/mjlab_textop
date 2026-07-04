@@ -165,12 +165,7 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_VLM_DESCRIPTION_SYSTEM_PROMPT,
     )
     parser.add_argument("--vlm-timeout-sec", type=float, default=30.0)
-    parser.add_argument("--vlm-max-completion-tokens", type=int, default=1024)
-    parser.add_argument(
-        "--vlm-description-max-completion-tokens",
-        type=int,
-        default=1024,
-    )
+    parser.add_argument("--vlm-max-tokens", type=int, default=256)
     parser.add_argument("--query-every-blocks", type=int, default=20)
     parser.add_argument("--log-every-blocks", type=int, default=20)
     args = parser.parse_args()
@@ -186,15 +181,9 @@ def parse_args() -> argparse.Namespace:
         raise ValueError(
             f"--vlm-timeout-sec must be positive, got {args.vlm_timeout_sec}"
         )
-    if args.vlm_max_completion_tokens <= 0:
+    if args.vlm_max_tokens <= 0:
         raise ValueError(
-            "--vlm-max-completion-tokens must be positive, "
-            f"got {args.vlm_max_completion_tokens}"
-        )
-    if args.vlm_description_max_completion_tokens <= 0:
-        raise ValueError(
-            "--vlm-description-max-completion-tokens must be positive, "
-            f"got {args.vlm_description_max_completion_tokens}"
+            f"--vlm-max-tokens must be positive, got {args.vlm_max_tokens}"
         )
     if args.planner in {"vlm", "describe"} and not args.vlm_model:
         raise ValueError(f"--vlm-model is required with --planner {args.planner}")
@@ -402,7 +391,7 @@ def make_prompt_planner(
             system_prompt=args.vlm_system_prompt,
             user_prompt=args.vlm_user_prompt,
             timeout_sec=args.vlm_timeout_sec,
-            max_completion_tokens=args.vlm_max_completion_tokens,
+            max_tokens=args.vlm_max_tokens,
         )
         return VlmPromptPlanner(
             feedback=receiver,
@@ -421,7 +410,7 @@ def make_prompt_planner(
             model=args.vlm_model,
             system_prompt=args.vlm_description_system_prompt,
             timeout_sec=args.vlm_timeout_sec,
-            max_completion_tokens=args.vlm_description_max_completion_tokens,
+            max_tokens=args.vlm_max_tokens,
         )
         return DescribingPromptPlanner(
             prompt_planner=ManualPromptPlanner(args.prompt),

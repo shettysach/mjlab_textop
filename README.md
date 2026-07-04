@@ -288,7 +288,9 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --observation-listen-port 8766 \
   --query-every-blocks 4 \
   --vlm-base-url http://127.0.0.1:9379 \
-  --vlm-model gemma-4-E4B-it-Q4_K_M.gguf
+  --vlm-model gemma-4-E4B-it-Q4_K_M.gguf \
+  --vlm-system-prompt ./sys.md \
+  --vlm-user-prompt ./user.md
 ```
 
 > [!NOTE]
