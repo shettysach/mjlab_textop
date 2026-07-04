@@ -259,7 +259,8 @@ The ONNX path uses the online source and the ONNX actor directly, without a
 
 Run the fixed straight navigation demo with the same live transport fields
 as `play-live`. Use either `--checkpoint-file` or `--onnx-file` and select the
-task with `--task straight`:
+task with `--task straight`. Use `--task blocked-straight` for the same straight
+corridor with a centered middle block that requires a left/right bypass:
 
 ```bash
 uv run --extra cu128 mjlab-textop play-live \
@@ -276,7 +277,9 @@ uv run --extra cu128 mjlab-textop play-live \
 This demo uses the `Mjlab-VLA-Straight-G1` task. The environment owns the
 success and termination logic; the producer still supplies the motion prompt
 stream. Start with `stand` or `walk` depending on the prompt policy you are
-testing.
+testing. The blocked variant uses `Mjlab-VLA-BlockedStraight-G1`; its obstacle
+is centered and wide so normal `walk` veer should not count as solving the
+avoidance behavior.
 
 
 ```bash

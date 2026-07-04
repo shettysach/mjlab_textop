@@ -13,6 +13,9 @@ from mjlab_textop.core.mdp.online_commands import TextOpOnlineSourceMode
 from mjlab_textop.core.online.live import SocketTextOpSourceCfg
 from mjlab_textop.core.online.source import TextOpOnlineSource
 from mjlab_textop.core.onnx_policy import CustomOnnxPolicyRunner
+from mjlab_textop.tasks.blocked_straight.registration import (
+    register_blocked_straight_task,
+)
 from mjlab_textop.tasks.online_textop.registration import (
     register_online_textop_onnx_task,
     register_online_textop_task,
@@ -123,6 +126,38 @@ def register_straight_play_task(
         else MotionTrackingOnPolicyRunner
     )
     return register_straight_task(
+        runner_cls=runner_cls,
+        source=source,
+        live_source_cfg=live_source_cfg,
+        source_mode=source_mode,
+        future_steps=future_steps,
+        num_envs=num_envs,
+        anchor_alignment=anchor_alignment,
+        reset_robot_to_reference=reset_robot_to_reference,
+        observation=observation,
+    )
+
+
+def register_blocked_straight_play_task(
+    *,
+    policy: ResolvedPolicy,
+    source: TextOpOnlineSource | None = None,
+    live_source_cfg: SocketTextOpSourceCfg | None = None,
+    source_mode: TextOpOnlineSourceMode,
+    future_steps: int,
+    num_envs: int,
+    anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
+        "align_to_robot_start"
+    ),
+    reset_robot_to_reference: bool = True,
+    observation: OnlineTextOpObservationCfg | None = None,
+) -> str:
+    runner_cls = (
+        CustomOnnxPolicyRunner
+        if policy.kind == "onnx"
+        else MotionTrackingOnPolicyRunner
+    )
+    return register_blocked_straight_task(
         runner_cls=runner_cls,
         source=source,
         live_source_cfg=live_source_cfg,

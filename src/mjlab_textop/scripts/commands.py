@@ -19,13 +19,14 @@ from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
 from mjlab_textop.scripts.utils import (
     ResolvedPolicy,
+    register_blocked_straight_play_task,
     register_straight_play_task,
     register_textop_play_task,
     register_turn_play_task,
 )
 from mjlab_textop.tasks import register_tasks
 
-TextOpLiveTask = Literal["straight", "turn"]
+TextOpLiveTask = Literal["straight", "blocked-straight", "turn"]
 
 
 @dataclass(kw_only=True)
@@ -96,6 +97,7 @@ def _live_task_registry() -> dict[TextOpLiveTask | None, Callable[..., str]]:
     return {
         None: register_textop_play_task,
         "straight": register_straight_play_task,
+        "blocked-straight": register_blocked_straight_play_task,
         "turn": register_turn_play_task,
     }
 
