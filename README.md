@@ -197,6 +197,23 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --vlm-system-prompt "You respond with one humanoid motion command. You must output exactly one command from the examples. No explanation."
 ```
 
+To keep manual prompt control while asking the VLM to describe the robot and
+scene observations, use `--planner describe`. This mode logs VLM descriptions
+but still uses the manual stdin prompt for motion generation:
+
+```bash
+uv run python -m mjlab_textop.robotmdar.produce \
+  --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
+  --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/BABEL-AMASS-ROBOT-23dof-FULL-50fps \
+  --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1 \
+  --planner describe \
+  --prompt "stand" \
+  --observation-listen-port 8766 \
+  --query-every-blocks 4 \
+  --vlm-base-url http://127.0.0.1:9379 \
+  --vlm-model gemma-4-e2b-it
+```
+
 ```bash
 # In mjlab_textop directory
 uv run --extra cu128 mjlab-textop play-live \

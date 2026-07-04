@@ -11,8 +11,11 @@ from mjlab_textop.robotmdar.feedback import (
     parse_feedback_observation,
 )
 from mjlab_textop.robotmdar.planner import (
+    DescribingPromptPlanner,
     ManualPromptPlanner,
+    OpenAIChatObservationDescriber,
     OpenAIChatPromptSelector,
+    VlmDescriptionPlanner,
     VlmPromptPlanner,
 )
 
@@ -70,6 +73,19 @@ class _FixedSelector:
         self.calls += 1
         self.finished.set()
         return self.prompt
+
+
+class _FixedDescriber:
+    def __init__(self, description: str) -> None:
+        self.description = description
+        self.calls = 0
+        self.finished = threading.Event()
+
+    def describe(self, **kwargs) -> str:
+        del kwargs
+        self.calls += 1
+        self.finished.set()
+        return self.description
 
 
 class _BlockingSelector:
@@ -276,6 +292,58 @@ def test_vlm_planner_recovers_after_empty_selector_result() -> None:
     planner.request_stop()
 
 
+def test_vlm_description_planner_queries_describer_on_cadence() -> None:
+    descriptions = []
+    provider = _FakeObservationProvider(_observation())
+    describer = _FixedDescriber("The robot is standing near a green square.")
+    planner = VlmDescriptionPlanner(
+        feedback=provider,
+        describer=describer,
+        query_every_blocks=2,
+        on_description=descriptions.append,
+    )
+
+    planner.start()
+
+    assert provider.started is True
+    planner.tick(block_count=0)
+    assert describer.finished.wait(timeout=1)
+    planner.tick(block_count=1)
+    assert planner.last_description == "The robot is standing near a green square."
+    assert descriptions == ["The robot is standing near a green square."]
+    planner.tick(block_count=2)
+    _wait_for(lambda: describer.calls == 2)
+    assert planner.log_suffix == " vlm_describe=inflight"
+
+    planner.request_stop()
+
+    assert provider.closed is True
+
+
+def test_describing_prompt_planner_keeps_manual_prompt_control() -> None:
+    manual = ManualPromptPlanner("stand")
+    descriptions = []
+    description_planner = VlmDescriptionPlanner(
+        feedback=_FakeObservationProvider(_observation()),
+        describer=_FixedDescriber("The robot is upright."),
+        query_every_blocks=1,
+        on_description=descriptions.append,
+    )
+    planner = DescribingPromptPlanner(
+        prompt_planner=manual,
+        description_planner=description_planner,
+    )
+
+    assert planner.choose_prompt(block_count=0) == "stand"
+    manual.prompt.text = "walk"
+    assert description_planner.describer.finished.wait(timeout=1)
+    assert planner.choose_prompt(block_count=1) == "walk"
+    assert descriptions == ["The robot is upright."]
+    assert produce._prompt_source(planner) == "manual"
+
+    planner.request_stop()
+
+
 def test_producer_log_includes_vlm_prompt_source(monkeypatch) -> None:
     messages = []
     planner = VlmPromptPlanner(
@@ -454,3 +522,86 @@ def test_http_vlm_prompt_selector_returns_raw_response(monkeypatch) -> None:
         )
         == 'STOP. Clear location near pose.g39g}<|"|>'
     )
+
+
+def test_http_vlm_observation_describer_posts_description_request(
+    monkeypatch,
+) -> None:
+    posted = {}
+
+    def fake_urlopen(request, timeout):
+        posted["url"] = request.full_url
+        posted["timeout"] = timeout
+        posted["payload"] = json.loads(request.data.decode("utf-8"))
+        return _FakeResponse(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "The robot is facing a green square.",
+                        }
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr(
+        "mjlab_textop.robotmdar.planner.vlm.urllib.request.urlopen",
+        fake_urlopen,
+    )
+    describer = OpenAIChatObservationDescriber(
+        base_url="http://127.0.0.1:9379",
+        model="gemma-4-e2b-it",
+        system_prompt="Describe only.",
+        timeout_sec=1.5,
+        max_completion_tokens=128,
+    )
+
+    description = describer.describe(
+        observation=_observation(
+            image_bytes=b"jpeg bytes",
+            image_mime_type="image/jpeg",
+        ),
+    )
+
+    assert description == "The robot is facing a green square."
+    assert posted["url"] == "http://127.0.0.1:9379/v1/chat/completions"
+    assert posted["timeout"] == 1.5
+    assert posted["payload"]["model"] == "gemma-4-e2b-it"
+    assert posted["payload"]["max_completion_tokens"] == 128
+    assert posted["payload"]["temperature"] == 0
+    assert posted["payload"]["messages"][0]["role"] == "system"
+    assert posted["payload"]["messages"][0]["content"][0]["text"] == "Describe only."
+    content = posted["payload"]["messages"][1]["content"]
+    assert content[0]["type"] == "text"
+    assert "Describe the robot and scene" in content[0]["text"]
+    assert "Do not choose or suggest a robot command" in content[0]["text"]
+    assert '"frame":10' in content[0]["text"]
+    assert '"has_image":true' in content[0]["text"]
+    assert content[1] == {
+        "type": "image_url",
+        "image_url": {"url": "data:image/jpeg;base64,anBlZyBieXRlcw=="},
+    }
+
+
+def test_make_prompt_planner_supports_describe_mode() -> None:
+    planner = produce.make_prompt_planner(
+        Namespace(
+            planner="describe",
+            prompt="stand",
+            observation_listen_host="127.0.0.1",
+            observation_listen_port=8766,
+            observation_path="/observation",
+            vlm_base_url="http://127.0.0.1:9379",
+            vlm_model="gemma-4-e2b-it",
+            vlm_description_system_prompt="Describe only.",
+            vlm_timeout_sec=1.0,
+            vlm_description_max_completion_tokens=128,
+            query_every_blocks=4,
+        )
+    )
+
+    assert isinstance(planner, DescribingPromptPlanner)
+    assert planner.choose_prompt(block_count=0) == "stand"
+
+    planner.request_stop()
