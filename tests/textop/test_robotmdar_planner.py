@@ -88,6 +88,18 @@ class _FixedDescriber:
         return self.description
 
 
+class _FailingDescriber:
+    def __init__(self) -> None:
+        self.calls = 0
+        self.finished = threading.Event()
+
+    def describe(self, **kwargs) -> str:
+        del kwargs
+        self.calls += 1
+        self.finished.set()
+        raise TimeoutError("vlm timed out")
+
+
 class _BlockingSelector:
     def __init__(self, prompt: str) -> None:
         self.prompt = prompt
@@ -318,6 +330,44 @@ def test_vlm_description_planner_queries_describer_on_cadence() -> None:
     planner.request_stop()
 
     assert provider.closed is True
+
+
+def test_vlm_description_planner_reports_empty_descriptions() -> None:
+    errors = []
+    planner = VlmDescriptionPlanner(
+        feedback=_FakeObservationProvider(_observation()),
+        describer=_FixedDescriber("   "),
+        query_every_blocks=1,
+        on_error=errors.append,
+    )
+
+    planner.tick(block_count=0)
+    assert planner.describer.finished.wait(timeout=1)
+    planner.tick(block_count=1)
+
+    assert planner.last_error == "Empty"
+    assert errors == ["Empty"]
+
+    planner.request_stop()
+
+
+def test_vlm_description_planner_reports_describer_errors() -> None:
+    errors = []
+    planner = VlmDescriptionPlanner(
+        feedback=_FakeObservationProvider(_observation()),
+        describer=_FailingDescriber(),
+        query_every_blocks=1,
+        on_error=errors.append,
+    )
+
+    planner.tick(block_count=0)
+    assert planner.describer.finished.wait(timeout=1)
+    planner.tick(block_count=1)
+
+    assert planner.last_error == "TimeoutError"
+    assert errors == ["TimeoutError"]
+
+    planner.request_stop()
 
 
 def test_describing_prompt_planner_keeps_manual_prompt_control() -> None:

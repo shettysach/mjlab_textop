@@ -10,6 +10,7 @@ from typing import Any, Protocol
 from mjlab_textop.robotmdar.feedback import FeedbackObservation
 
 DescriptionCallback = Callable[[str], None]
+DescriptionErrorCallback = Callable[[str], None]
 
 ALLOWED_MOTION_PROMPTS = (
     "walk",
@@ -130,6 +131,7 @@ class VlmDescriptionPlanner:
         describer: "OpenAIChatObservationDescriber",
         query_every_blocks: int,
         on_description: DescriptionCallback | None = None,
+        on_error: DescriptionErrorCallback | None = None,
     ) -> None:
         if query_every_blocks <= 0:
             raise ValueError(
@@ -139,6 +141,7 @@ class VlmDescriptionPlanner:
         self.describer = describer
         self.query_every_blocks = query_every_blocks
         self.on_description = on_description
+        self.on_error = on_error
         self.last_description: str | None = None
         self.last_error: str | None = None
         self._stop = False
@@ -195,6 +198,7 @@ class VlmDescriptionPlanner:
             description = self._future.result().strip()
             if not description:
                 self.last_error = "Empty"
+                self._emit_error("Empty")
                 return
             self.last_description = description
             self.last_error = None
@@ -202,8 +206,13 @@ class VlmDescriptionPlanner:
                 self.on_description(description)
         except Exception as exc:
             self.last_error = type(exc).__name__
+            self._emit_error(type(exc).__name__)
         finally:
             self._future = None
+
+    def _emit_error(self, error: str) -> None:
+        if self.on_error is not None:
+            self.on_error(error)
 
     def _should_query_describer(self, block_count: int) -> bool:
         if self._last_query_block is None:

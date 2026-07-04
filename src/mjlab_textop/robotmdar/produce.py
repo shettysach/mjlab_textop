@@ -424,6 +424,7 @@ def make_prompt_planner(
                 describer=describer,
                 query_every_blocks=args.query_every_blocks,
                 on_description=_log_vlm_description,
+                on_error=_log_vlm_description_error,
             ),
         )
     return ManualPromptPlanner(args.prompt)
@@ -431,6 +432,10 @@ def make_prompt_planner(
 
 def _log_vlm_description(description: str) -> None:
     _log_producer_message(f"vlm_description {description}")
+
+
+def _log_vlm_description_error(error: str) -> None:
+    _log_producer_message(f"vlm_description_error {error}")
 
 
 if __name__ == "__main__":
