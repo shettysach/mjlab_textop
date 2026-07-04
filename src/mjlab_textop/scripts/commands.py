@@ -19,13 +19,13 @@ from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
 from mjlab_textop.scripts.utils import (
     ResolvedPolicy,
-    register_green_square_stop_play_task,
+    register_straight_play_task,
     register_textop_play_task,
     register_turn_play_task,
 )
 from mjlab_textop.tasks import register_tasks
 
-TextOpLiveTask = Literal["textop", "green-square-stop", "turn-task"]
+TextOpLiveTask = Literal["straight", "turn"]
 
 
 @dataclass(kw_only=True)
@@ -41,7 +41,7 @@ class NormalizeCommand:
 
 @dataclass(kw_only=True)
 class PlayLiveCommand:
-    task: TextOpLiveTask = "textop"
+    task: TextOpLiveTask | None = None
     checkpoint_file: str | None = None
     onnx_file: str | None = None
     host: str = "127.0.0.1"
@@ -92,11 +92,11 @@ def play_live_textop_motion(
     run_play(task_name, play_cfg)
 
 
-def _live_task_registry() -> dict[TextOpLiveTask, Callable[..., str]]:
+def _live_task_registry() -> dict[TextOpLiveTask | None, Callable[..., str]]:
     return {
-        "textop": register_textop_play_task,
-        "green-square-stop": register_green_square_stop_play_task,
-        "turn-task": register_turn_play_task,
+        None: register_textop_play_task,
+        "straight": register_straight_play_task,
+        "turn": register_turn_play_task,
     }
 
 

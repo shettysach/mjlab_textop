@@ -6,7 +6,9 @@ from typing import TYPE_CHECKING
 import mujoco
 
 if TYPE_CHECKING:
-    from mujoco import MjSpec
+    from mujoco import MjSpec  # ty: ignore[unresolved-import]
+
+MJGEOM_BOX = mujoco.mjtGeom.mjGEOM_BOX  # ty: ignore[unresolved-attribute]
 
 
 def make_turn_task_spec_fn(
@@ -31,7 +33,7 @@ def make_turn_task_spec_fn(
         )
         body.add_geom(
             name="turn_task_goal_visual",
-            type=mujoco.mjtGeom.mjGEOM_BOX,
+            type=MJGEOM_BOX,
             size=(goal_size * 0.5, goal_size * 0.5, thickness * 0.5),
             rgba=goal_rgba,
             contype=0,
@@ -120,7 +122,7 @@ def _add_wall(
     body.pos = pos
     body.add_geom(
         name=f"{name}_collision",
-        type=mujoco.mjtGeom.mjGEOM_BOX,
+        type=MJGEOM_BOX,
         size=size,
         rgba=rgba,
         contype=1,

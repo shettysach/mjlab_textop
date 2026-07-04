@@ -13,18 +13,20 @@ from mjlab_textop.core.mdp.online_commands import TextOpOnlineSourceMode
 from mjlab_textop.core.online.live import SocketTextOpSourceCfg
 from mjlab_textop.core.online.source import TextOpOnlineSource
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
-from mjlab_textop.tasks.green_square_stop import mdp
-from mjlab_textop.tasks.green_square_stop.assets import make_green_square_spec_fn
 from mjlab_textop.tasks.online_textop.env_cfg import (
     make_online_textop_g1_flat_tracking_env_cfg,
     make_online_textop_onnx_g1_flat_tracking_env_cfg,
 )
+from mjlab_textop.tasks.straight import mdp
+from mjlab_textop.tasks.turn.assets import make_turn_task_spec_fn
 
 
 @dataclass(frozen=True)
-class GreenSquareStopTaskCfg:
-    goal_pos_w: tuple[float, float, float] = (24.0, 0.0, 0.0)
-    goal_size: float = 18.0
+class TurnTaskCfg:
+    goal_pos_w: tuple[float, float, float] = (12.0, -12.0, 0.0)
+    goal_size: float = 2.0
+    corridor_width: float = 4.0
+    corner_x: float = 12.0
     success_radius: float = 0.25
     stop_trigger_radius: float = 0.55
     speed_threshold: float = 0.10
@@ -32,10 +34,10 @@ class GreenSquareStopTaskCfg:
     timeout_s: float = 20.0
 
 
-GREEN_SQUARE_STOP_TASK_CFG = GreenSquareStopTaskCfg()
+TURN_TASK_CFG = TurnTaskCfg()
 
 
-def make_green_square_stop_g1_env_cfg(
+def make_turn_task_g1_env_cfg(
     *,
     play: bool = True,
     future_steps: int = TEXTOP_FUTURE_STEPS,
@@ -47,7 +49,7 @@ def make_green_square_stop_g1_env_cfg(
     ),
     reset_robot_to_reference: bool = True,
     observation: OnlineTextOpObservationCfg | None = None,
-    task_cfg: GreenSquareStopTaskCfg = GREEN_SQUARE_STOP_TASK_CFG,
+    task_cfg: TurnTaskCfg = TURN_TASK_CFG,
 ):
     cfg = make_online_textop_g1_flat_tracking_env_cfg(
         play=play,
@@ -59,10 +61,10 @@ def make_green_square_stop_g1_env_cfg(
         reset_robot_to_reference=reset_robot_to_reference,
         observation=observation,
     )
-    return _configure_green_square_stop_cfg(cfg, task_cfg=task_cfg)
+    return _configure_turn_task_cfg(cfg, task_cfg=task_cfg)
 
 
-def make_green_square_stop_onnx_g1_env_cfg(
+def make_turn_task_onnx_g1_env_cfg(
     *,
     play: bool = True,
     future_steps: int = TEXTOP_FUTURE_STEPS,
@@ -74,7 +76,7 @@ def make_green_square_stop_onnx_g1_env_cfg(
     ),
     reset_robot_to_reference: bool = True,
     observation: OnlineTextOpObservationCfg | None = None,
-    task_cfg: GreenSquareStopTaskCfg = GREEN_SQUARE_STOP_TASK_CFG,
+    task_cfg: TurnTaskCfg = TURN_TASK_CFG,
 ):
     cfg = make_online_textop_onnx_g1_flat_tracking_env_cfg(
         play=play,
@@ -86,33 +88,35 @@ def make_green_square_stop_onnx_g1_env_cfg(
         reset_robot_to_reference=reset_robot_to_reference,
         observation=observation,
     )
-    return _configure_green_square_stop_cfg(cfg, task_cfg=task_cfg)
+    return _configure_turn_task_cfg(cfg, task_cfg=task_cfg)
 
 
-def _configure_green_square_stop_cfg(
+def _configure_turn_task_cfg(
     cfg,
     *,
-    task_cfg: GreenSquareStopTaskCfg,
+    task_cfg: TurnTaskCfg,
 ):
     cfg.scene.num_envs = 1
-    cfg.scene.spec_fn = make_green_square_spec_fn(
+    cfg.scene.spec_fn = make_turn_task_spec_fn(
         goal_pos_w=task_cfg.goal_pos_w,
-        size=task_cfg.goal_size,
+        goal_size=task_cfg.goal_size,
+        corridor_width=task_cfg.corridor_width,
+        corner_x=task_cfg.corner_x,
     )
     cfg.episode_length_s = task_cfg.timeout_s
     cfg.rewards = {}
     cfg.metrics.update(
         {
-            "green_square_goal_distance": MetricsTermCfg(
+            "turn_task_goal_distance": MetricsTermCfg(
                 func=mdp.robot_goal_distance,
                 params={"goal_pos_w": task_cfg.goal_pos_w},
                 reduce="last",
             ),
-            "green_square_xy_speed": MetricsTermCfg(
+            "turn_task_xy_speed": MetricsTermCfg(
                 func=mdp.robot_xy_speed,
                 reduce="last",
             ),
-            "green_square_stop_trigger": MetricsTermCfg(
+            "turn_task_stop_trigger": MetricsTermCfg(
                 func=mdp.stop_trigger_active,
                 params={
                     "goal_pos_w": task_cfg.goal_pos_w,
@@ -120,7 +124,7 @@ def _configure_green_square_stop_cfg(
                 },
                 reduce="last",
             ),
-            "green_square_inside_success_radius": MetricsTermCfg(
+            "turn_task_inside_success_radius": MetricsTermCfg(
                 func=mdp.inside_goal_radius,
                 params={
                     "goal_pos_w": task_cfg.goal_pos_w,
@@ -142,7 +146,7 @@ def _configure_green_square_stop_cfg(
                 "asset_cfg": SceneEntityCfg("robot"),
             },
         ),
-        "green_square_success": TerminationTermCfg(
+        "turn_task_success": TerminationTermCfg(
             func=mdp.success_held,
             params={
                 "goal_pos_w": task_cfg.goal_pos_w,
@@ -152,7 +156,7 @@ def _configure_green_square_stop_cfg(
             },
             time_out=True,
         ),
-        "green_square_overshot": TerminationTermCfg(
+        "turn_task_overshot": TerminationTermCfg(
             func=mdp.overshot_goal,
             params={"goal_pos_w": task_cfg.goal_pos_w, "margin": 1.0},
         ),

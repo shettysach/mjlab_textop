@@ -192,7 +192,7 @@ def test_play_live_uses_custom_observation_camera_geometry(
     assert observation_camera.elevation == -8.0
 
 
-def test_green_square_live_uses_green_square_task_registration(
+def test_straight_live_uses_straight_task_registration(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -203,7 +203,7 @@ def test_green_square_live_uses_green_square_task_registration(
         lambda: None,
     )
     monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.register_green_square_stop_play_task",
+        "mjlab_textop.scripts.commands.register_straight_play_task",
         lambda **kwargs: _fake_register_task(calls, kwargs),
     )
     monkeypatch.setattr(
@@ -215,7 +215,7 @@ def test_green_square_live_uses_green_square_task_registration(
 
     play_live_textop_motion(
         PlayLiveCommand(
-            task="green-square-stop",
+            task="straight",
             onnx_file=str(onnx_file),
             observation_url="http://127.0.0.1:8766/observation",
         ),

@@ -13,28 +13,28 @@ from mjlab_textop.core.online.source import TextOpOnlineSource
 from mjlab_textop.core.onnx_policy import CustomOnnxPolicyRunner
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
 from mjlab_textop.core.task import StaticTaskSpec
-from mjlab_textop.tasks.green_square_stop.env_cfg import (
-    make_green_square_stop_g1_env_cfg,
-    make_green_square_stop_onnx_g1_env_cfg,
+from mjlab_textop.tasks.straight.env_cfg import (
+    make_straight_g1_env_cfg,
+    make_straight_onnx_g1_env_cfg,
 )
-from mjlab_textop.tasks.green_square_stop.ppo_cfg import (
+from mjlab_textop.tasks.straight.ppo_cfg import (
     unitree_g1_tracking_ppo_runner_cfg,
 )
 
-GREEN_SQUARE_STOP_TASK_NAME = "Mjlab-VLA-GreenSquareStop-G1"
+STRAIGHT_TASK_NAME = "Mjlab-VLA-Straight-G1"
 
 STATIC_TASK_SPECS = [
     StaticTaskSpec(
-        task_id=GREEN_SQUARE_STOP_TASK_NAME,
-        make_env_cfg=lambda: make_green_square_stop_g1_env_cfg(play=True),
-        make_play_env_cfg=lambda: make_green_square_stop_g1_env_cfg(play=True),
+        task_id=STRAIGHT_TASK_NAME,
+        make_env_cfg=lambda: make_straight_g1_env_cfg(play=True),
+        make_play_env_cfg=lambda: make_straight_g1_env_cfg(play=True),
         make_rl_cfg=unitree_g1_tracking_ppo_runner_cfg,
         runner_cls=MotionTrackingOnPolicyRunner,
     ),
 ]
 
 
-def register_green_square_stop_task(
+def register_straight_task(
     *,
     runner_cls: type,
     source: TextOpOnlineSource | None = None,
@@ -50,11 +50,11 @@ def register_green_square_stop_task(
 ) -> str:
     mode_name = source_mode.capitalize()
     runner_name = "Onnx" if runner_cls is CustomOnnxPolicyRunner else "Checkpoint"
-    task_name = f"{GREEN_SQUARE_STOP_TASK_NAME}-{runner_name}-{mode_name}-{uuid4().hex}"
+    task_name = f"{STRAIGHT_TASK_NAME}-{runner_name}-{mode_name}-{uuid4().hex}"
     make_env_cfg = (
-        make_green_square_stop_onnx_g1_env_cfg
+        make_straight_onnx_g1_env_cfg
         if runner_cls is CustomOnnxPolicyRunner
-        else make_green_square_stop_g1_env_cfg
+        else make_straight_g1_env_cfg
     )
     env_cfg = make_env_cfg(
         play=True,

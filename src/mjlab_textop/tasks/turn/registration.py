@@ -13,11 +13,11 @@ from mjlab_textop.core.online.source import TextOpOnlineSource
 from mjlab_textop.core.onnx_policy import CustomOnnxPolicyRunner
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
 from mjlab_textop.core.task import StaticTaskSpec
-from mjlab_textop.tasks.turn_task.env_cfg import (
+from mjlab_textop.tasks.turn.env_cfg import (
     make_turn_task_g1_env_cfg,
     make_turn_task_onnx_g1_env_cfg,
 )
-from mjlab_textop.tasks.turn_task.ppo_cfg import (
+from mjlab_textop.tasks.turn.ppo_cfg import (
     unitree_g1_tracking_ppo_runner_cfg,
 )
 

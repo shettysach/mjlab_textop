@@ -13,14 +13,14 @@ from mjlab_textop.core.mdp.online_commands import TextOpOnlineSourceMode
 from mjlab_textop.core.online.live import SocketTextOpSourceCfg
 from mjlab_textop.core.online.source import TextOpOnlineSource
 from mjlab_textop.core.onnx_policy import CustomOnnxPolicyRunner
-from mjlab_textop.tasks.green_square_stop.registration import (
-    register_green_square_stop_task,
-)
 from mjlab_textop.tasks.online_textop.registration import (
     register_online_textop_onnx_task,
     register_online_textop_task,
 )
-from mjlab_textop.tasks.turn_task.registration import register_turn_task
+from mjlab_textop.tasks.straight.registration import (
+    register_straight_task,
+)
+from mjlab_textop.tasks.turn.registration import register_turn_task
 
 
 def verify_resolved(resolved: Path, label: str) -> Path:
@@ -103,7 +103,7 @@ def register_textop_play_task(
         )
 
 
-def register_green_square_stop_play_task(
+def register_straight_play_task(
     *,
     policy: ResolvedPolicy,
     source: TextOpOnlineSource | None = None,
@@ -122,7 +122,7 @@ def register_green_square_stop_play_task(
         if policy.kind == "onnx"
         else MotionTrackingOnPolicyRunner
     )
-    return register_green_square_stop_task(
+    return register_straight_task(
         runner_cls=runner_cls,
         source=source,
         live_source_cfg=live_source_cfg,

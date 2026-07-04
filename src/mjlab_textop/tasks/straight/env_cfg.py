@@ -13,20 +13,18 @@ from mjlab_textop.core.mdp.online_commands import TextOpOnlineSourceMode
 from mjlab_textop.core.online.live import SocketTextOpSourceCfg
 from mjlab_textop.core.online.source import TextOpOnlineSource
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
-from mjlab_textop.tasks.green_square_stop import mdp
 from mjlab_textop.tasks.online_textop.env_cfg import (
     make_online_textop_g1_flat_tracking_env_cfg,
     make_online_textop_onnx_g1_flat_tracking_env_cfg,
 )
-from mjlab_textop.tasks.turn_task.assets import make_turn_task_spec_fn
+from mjlab_textop.tasks.straight import mdp
+from mjlab_textop.tasks.straight.assets import make_straight_spec_fn
 
 
 @dataclass(frozen=True)
-class TurnTaskCfg:
-    goal_pos_w: tuple[float, float, float] = (12.0, -12.0, 0.0)
-    goal_size: float = 2.0
-    corridor_width: float = 4.0
-    corner_x: float = 12.0
+class StraightTaskCfg:
+    goal_pos_w: tuple[float, float, float] = (24.0, 0.0, 0.0)
+    goal_size: float = 18.0
     success_radius: float = 0.25
     stop_trigger_radius: float = 0.55
     speed_threshold: float = 0.10
@@ -34,10 +32,10 @@ class TurnTaskCfg:
     timeout_s: float = 20.0
 
 
-TURN_TASK_CFG = TurnTaskCfg()
+STRAIGHT_TASK_CFG = StraightTaskCfg()
 
 
-def make_turn_task_g1_env_cfg(
+def make_straight_g1_env_cfg(
     *,
     play: bool = True,
     future_steps: int = TEXTOP_FUTURE_STEPS,
@@ -49,7 +47,7 @@ def make_turn_task_g1_env_cfg(
     ),
     reset_robot_to_reference: bool = True,
     observation: OnlineTextOpObservationCfg | None = None,
-    task_cfg: TurnTaskCfg = TURN_TASK_CFG,
+    task_cfg: StraightTaskCfg = STRAIGHT_TASK_CFG,
 ):
     cfg = make_online_textop_g1_flat_tracking_env_cfg(
         play=play,
@@ -61,10 +59,10 @@ def make_turn_task_g1_env_cfg(
         reset_robot_to_reference=reset_robot_to_reference,
         observation=observation,
     )
-    return _configure_turn_task_cfg(cfg, task_cfg=task_cfg)
+    return _configure_straight_cfg(cfg, task_cfg=task_cfg)
 
 
-def make_turn_task_onnx_g1_env_cfg(
+def make_straight_onnx_g1_env_cfg(
     *,
     play: bool = True,
     future_steps: int = TEXTOP_FUTURE_STEPS,
@@ -76,7 +74,7 @@ def make_turn_task_onnx_g1_env_cfg(
     ),
     reset_robot_to_reference: bool = True,
     observation: OnlineTextOpObservationCfg | None = None,
-    task_cfg: TurnTaskCfg = TURN_TASK_CFG,
+    task_cfg: StraightTaskCfg = STRAIGHT_TASK_CFG,
 ):
     cfg = make_online_textop_onnx_g1_flat_tracking_env_cfg(
         play=play,
@@ -88,35 +86,33 @@ def make_turn_task_onnx_g1_env_cfg(
         reset_robot_to_reference=reset_robot_to_reference,
         observation=observation,
     )
-    return _configure_turn_task_cfg(cfg, task_cfg=task_cfg)
+    return _configure_straight_cfg(cfg, task_cfg=task_cfg)
 
 
-def _configure_turn_task_cfg(
+def _configure_straight_cfg(
     cfg,
     *,
-    task_cfg: TurnTaskCfg,
+    task_cfg: StraightTaskCfg,
 ):
     cfg.scene.num_envs = 1
-    cfg.scene.spec_fn = make_turn_task_spec_fn(
+    cfg.scene.spec_fn = make_straight_spec_fn(
         goal_pos_w=task_cfg.goal_pos_w,
-        goal_size=task_cfg.goal_size,
-        corridor_width=task_cfg.corridor_width,
-        corner_x=task_cfg.corner_x,
+        size=task_cfg.goal_size,
     )
     cfg.episode_length_s = task_cfg.timeout_s
     cfg.rewards = {}
     cfg.metrics.update(
         {
-            "turn_task_goal_distance": MetricsTermCfg(
+            "straight_goal_distance": MetricsTermCfg(
                 func=mdp.robot_goal_distance,
                 params={"goal_pos_w": task_cfg.goal_pos_w},
                 reduce="last",
             ),
-            "turn_task_xy_speed": MetricsTermCfg(
+            "straight_xy_speed": MetricsTermCfg(
                 func=mdp.robot_xy_speed,
                 reduce="last",
             ),
-            "turn_task_stop_trigger": MetricsTermCfg(
+            "straight_stop_trigger": MetricsTermCfg(
                 func=mdp.stop_trigger_active,
                 params={
                     "goal_pos_w": task_cfg.goal_pos_w,
@@ -124,7 +120,7 @@ def _configure_turn_task_cfg(
                 },
                 reduce="last",
             ),
-            "turn_task_inside_success_radius": MetricsTermCfg(
+            "straight_inside_success_radius": MetricsTermCfg(
                 func=mdp.inside_goal_radius,
                 params={
                     "goal_pos_w": task_cfg.goal_pos_w,
@@ -146,7 +142,7 @@ def _configure_turn_task_cfg(
                 "asset_cfg": SceneEntityCfg("robot"),
             },
         ),
-        "turn_task_success": TerminationTermCfg(
+        "straight_success": TerminationTermCfg(
             func=mdp.success_held,
             params={
                 "goal_pos_w": task_cfg.goal_pos_w,
@@ -156,7 +152,7 @@ def _configure_turn_task_cfg(
             },
             time_out=True,
         ),
-        "turn_task_overshot": TerminationTermCfg(
+        "straight_overshot": TerminationTermCfg(
             func=mdp.overshot_goal,
             params={"goal_pos_w": task_cfg.goal_pos_w, "margin": 1.0},
         ),

@@ -252,15 +252,15 @@ bytes in the same request.
 The ONNX path uses the online source and the ONNX actor directly, without a
 `.pt` checkpoint.
 
-#### Green-square live task
+#### Straight live task
 
-Run the fixed green-square navigation demo with the same live transport fields
+Run the fixed straight navigation demo with the same live transport fields
 as `play-live`. Use either `--checkpoint-file` or `--onnx-file` and select the
-task with `--task green-square-stop`:
+task with `--task straight`:
 
 ```bash
 uv run --extra cu128 mjlab-textop play-live \
-  --task green-square-stop \
+  --task straight \
   --onnx-file $ONNX_PATH \
   --host 127.0.0.1 \
   --port 8765 \
@@ -270,10 +270,10 @@ uv run --extra cu128 mjlab-textop play-live \
   --observation-image-height 480
 ```
 
-This demo uses the `Mjlab-VLA-GreenSquareStop-G1` task. The environment owns
-the success and termination logic; the producer still supplies the motion
-prompt stream. Start with `stand` or `walk` depending on the
-prompt policy you are testing.
+This demo uses the `Mjlab-VLA-Straight-G1` task. The environment owns the
+success and termination logic; the producer still supplies the motion prompt
+stream. Start with `stand` or `walk` depending on the prompt policy you are
+testing.
 
 
 ```bash
@@ -289,7 +289,7 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --vlm-model gemma-4-E4B-it-Q4_K_M.gguf \
   --vlm-system-prompt "You are given control of a humanoid robot in a simulation.
 Your goal is to 
-1. make the robot reach the green region. 
+1. make the robot reach the target region. 
 2. when the robot is in the region, command output 'stand'.
 Only input simple commands of 1 or 2 words. No reason or explanation is needed.
 

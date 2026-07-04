@@ -5,8 +5,8 @@ from mjlab.tasks.registry import list_tasks, load_env_cfg, load_runner_cls
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
 from mjlab_textop.tasks import register_tasks
-from mjlab_textop.tasks.turn_task.env_cfg import TURN_TASK_CFG
-from mjlab_textop.tasks.turn_task.registration import TURN_TASK_NAME
+from mjlab_textop.tasks.turn.env_cfg import TURN_TASK_CFG
+from mjlab_textop.tasks.turn.registration import TURN_TASK_NAME
 
 
 def test_turn_task_registers() -> None:
@@ -35,7 +35,7 @@ def test_turn_task_env_cfg_has_fixed_goal_eval_terms() -> None:
 def test_turn_task_spec_fn_adds_narrow_l_shaped_walls() -> None:
     register_tasks()
     cfg = load_env_cfg(TURN_TASK_NAME, play=True)
-    spec = mujoco.MjSpec()
+    spec = mujoco.MjSpec()  # ty: ignore[unresolved-attribute]
 
     assert cfg.scene.spec_fn is not None
     cfg.scene.spec_fn(spec)
