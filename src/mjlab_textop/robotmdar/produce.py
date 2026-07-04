@@ -28,14 +28,10 @@ from mjlab_textop.robotmdar.planner.vlm import (
 )
 
 PROMPT_DIR = Path(__file__).resolve().parents[3] / "prompt"
+DEFAULT_VLM_SYSTEM_PROMPT_FILE = PROMPT_DIR / "SYSTEM.md"
+DEFAULT_VLM_USER_PROMPT_FILE = PROMPT_DIR / "USER.md"
 
 
-def _read_prompt_file(filename: str) -> str:
-    return (PROMPT_DIR / filename).read_text(encoding="utf-8")
-
-
-DEFAULT_VLM_SYSTEM_PROMPT = _read_prompt_file("SYSTEM.md")
-DEFAULT_VLM_USER_PROMPT = _read_prompt_file("USER.md")
 DEFAULT_VLM_DESCRIPTION_SYSTEM_PROMPT = (
     "You describe observations from a humanoid robot simulation. "
     "Describe the robot and the visible scene. Do not choose motion commands."
@@ -158,8 +154,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--observation-path", default="/observation")
     parser.add_argument("--vlm-base-url", default="http://127.0.0.1:9379")
     parser.add_argument("--vlm-model", default=None)
-    parser.add_argument("--vlm-system-prompt", default=DEFAULT_VLM_SYSTEM_PROMPT)
-    parser.add_argument("--vlm-user-prompt", default=DEFAULT_VLM_USER_PROMPT)
+    parser.add_argument(
+        "--vlm-system-prompt",
+        type=Path,
+        default=DEFAULT_VLM_SYSTEM_PROMPT_FILE,
+    )
+    parser.add_argument(
+        "--vlm-user-prompt",
+        type=Path,
+        default=DEFAULT_VLM_USER_PROMPT_FILE,
+    )
     parser.add_argument(
         "--vlm-description-system-prompt",
         default=DEFAULT_VLM_DESCRIPTION_SYSTEM_PROMPT,
@@ -388,8 +392,8 @@ def make_prompt_planner(
         selector = OpenAIChatPromptSelector(
             base_url=args.vlm_base_url,
             model=args.vlm_model,
-            system_prompt=args.vlm_system_prompt,
-            user_prompt=args.vlm_user_prompt,
+            system_prompt=_read_prompt_path(args.vlm_system_prompt),
+            user_prompt=_read_prompt_path(args.vlm_user_prompt),
             timeout_sec=args.vlm_timeout_sec,
             max_tokens=args.vlm_max_tokens,
         )
@@ -423,6 +427,10 @@ def make_prompt_planner(
             ),
         )
     return ManualPromptPlanner(args.prompt)
+
+
+def _read_prompt_path(path: str | Path) -> str:
+    return Path(path).expanduser().read_text(encoding="utf-8")
 
 
 def _log_vlm_description(description: str) -> None:

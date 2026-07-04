@@ -147,6 +147,10 @@ def _observation(
     )
 
 
+def _default_vlm_user_prompt() -> str:
+    return produce._read_prompt_path(produce.DEFAULT_VLM_USER_PROMPT_FILE)
+
+
 def test_parse_feedback_observation() -> None:
     observation = parse_feedback_observation(
         {
@@ -463,7 +467,7 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
         base_url="http://127.0.0.1:9379",
         model="gemma-4-e2b-it",
         system_prompt="You are a motion planner.",
-        user_prompt=produce.DEFAULT_VLM_USER_PROMPT,
+        user_prompt=_default_vlm_user_prompt(),
         timeout_sec=1.5,
         max_tokens=16,
     )
@@ -485,7 +489,7 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     )
     content = posted["payload"]["messages"][1]["content"]
     assert content[0]["type"] == "text"
-    assert content[0]["text"] == produce.DEFAULT_VLM_USER_PROMPT
+    assert content[0]["text"] == _default_vlm_user_prompt()
     assert len(content) == 1
 
 
@@ -516,7 +520,7 @@ def test_http_vlm_prompt_selector_posts_image_from_observation_bytes(
     selector = OpenAIChatPromptSelector(
         base_url="http://127.0.0.1:9379",
         model="gemma-4-e2b-it",
-        user_prompt=produce.DEFAULT_VLM_USER_PROMPT,
+        user_prompt=_default_vlm_user_prompt(),
     )
 
     prompt = selector.choose_prompt(
@@ -529,7 +533,7 @@ def test_http_vlm_prompt_selector_posts_image_from_observation_bytes(
     content = posted["payload"]["messages"][0]["content"]
     assert prompt == "punch"
     assert content[0]["type"] == "text"
-    assert content[0]["text"] == produce.DEFAULT_VLM_USER_PROMPT
+    assert content[0]["text"] == _default_vlm_user_prompt()
     assert content[1] == {
         "type": "image_url",
         "image_url": {"url": "data:image/jpeg;base64,anBlZyBieXRlcw=="},
@@ -558,7 +562,7 @@ def test_http_vlm_prompt_selector_returns_raw_response(monkeypatch) -> None:
     selector = OpenAIChatPromptSelector(
         base_url="http://127.0.0.1:9379",
         model="gemma-4-e2b-it",
-        user_prompt=produce.DEFAULT_VLM_USER_PROMPT,
+        user_prompt=_default_vlm_user_prompt(),
     )
 
     assert (
@@ -567,6 +571,36 @@ def test_http_vlm_prompt_selector_returns_raw_response(monkeypatch) -> None:
         )
         == 'STOP. Clear location near pose.g39g}<|"|>'
     )
+
+
+def test_make_prompt_planner_reads_vlm_prompt_files(tmp_path) -> None:
+    system_prompt_file = tmp_path / "sys.md"
+    user_prompt_file = tmp_path / "user.md"
+    system_prompt_file.write_text("System file prompt.\n", encoding="utf-8")
+    user_prompt_file.write_text("User file prompt.\n", encoding="utf-8")
+
+    planner = produce.make_prompt_planner(
+        Namespace(
+            planner="vlm",
+            prompt="stand",
+            observation_listen_host="127.0.0.1",
+            observation_listen_port=8766,
+            observation_path="/observation",
+            vlm_base_url="http://127.0.0.1:9379",
+            vlm_model="gemma-4-e2b-it",
+            vlm_system_prompt=system_prompt_file,
+            vlm_user_prompt=user_prompt_file,
+            vlm_timeout_sec=1.0,
+            vlm_max_tokens=128,
+            query_every_blocks=4,
+        )
+    )
+
+    assert isinstance(planner, VlmPromptPlanner)
+    assert planner.selector.system_prompt == "System file prompt.\n"
+    assert planner.selector.user_prompt == "User file prompt.\n"
+
+    planner.request_stop()
 
 
 def test_http_vlm_observation_describer_posts_description_request(
