@@ -14,15 +14,7 @@ DescriptionErrorCallback = Callable[[str], None]
 
 ALLOWED_MOTION_PROMPTS = (
     "walk",
-    "step left",
-    "step right",
     "stand",
-    "wave",
-    "punch",
-    "dance",
-    "sit",
-    "squat",
-    "stop",
 )
 
 
