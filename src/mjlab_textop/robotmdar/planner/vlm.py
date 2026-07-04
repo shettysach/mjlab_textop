@@ -409,7 +409,7 @@ def _make_chat_completions_payload(
             }
         )
     messages: list[dict[str, Any]] = (
-        [{"role": "system", "content": [{"type": "text", "text": system_prompt}]}]
+        [{"role": "system", "content": system_prompt}]
         if system_prompt is not None
         else []
     )
