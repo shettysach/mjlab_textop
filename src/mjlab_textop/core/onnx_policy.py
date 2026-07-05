@@ -60,7 +60,7 @@ class TextOpOnnxPolicy:
         return torch.from_numpy(action_textop_np).to(obs_device)
 
 
-class CustomOnnxPolicyRunner:
+class OnnxPolicyRunner:
     """Runner adapter so MJLab's play script can load an ONNX policy."""
 
     def __init__(

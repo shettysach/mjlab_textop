@@ -8,10 +8,10 @@ from mjlab.tasks.registry import list_tasks, load_env_cfg, load_runner_cls
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
 from mjlab_textop.core.mdp.observations import future_joint_window_textop_order
-from mjlab_textop.core.onnx_policy import CustomOnnxPolicyRunner
+from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
 from mjlab_textop.scripts.utils import (
     ResolvedPolicy,
-    register_straight_play_task,
+    register_generic_play_task,
 )
 from mjlab_textop.tasks import register_tasks
 from mjlab_textop.tasks.straight import mdp
@@ -20,6 +20,7 @@ from mjlab_textop.tasks.straight.env_cfg import (
 )
 from mjlab_textop.tasks.straight.registration import (
     STRAIGHT_TASK_NAME,
+    register_straight_task,
 )
 
 
@@ -50,14 +51,15 @@ def test_straight_play_task_uses_onnx_runner(tmp_path) -> None:
     onnx_file = tmp_path / "policy.onnx"
     onnx_file.write_text("onnx")
 
-    task_name = register_straight_play_task(
+    task_name = register_generic_play_task(
+        task_registrar=register_straight_task,
         policy=ResolvedPolicy("onnx", onnx_file),
         source_mode="live",
         future_steps=2,
         num_envs=1,
     )
 
-    assert load_runner_cls(task_name) is CustomOnnxPolicyRunner
+    assert load_runner_cls(task_name) is OnnxPolicyRunner
     env_cfg = load_env_cfg(task_name, play=True)
     assert env_cfg.scene.num_envs == 1
     assert "straight_success" in env_cfg.terminations
@@ -78,9 +80,7 @@ def test_straight_spec_fn_adds_visual_non_colliding_geom() -> None:
     goal_body = next(body for body in spec.bodies if body.name == "straight_goal")
     assert goal_body is not None
     assert tuple(goal_body.pos) == (24.0, 0.0, 0.005)
-    geom = next(
-        geom for geom in goal_body.geoms if geom.name == "straight_goal_visual"
-    )
+    geom = next(geom for geom in goal_body.geoms if geom.name == "straight_goal_visual")
     assert geom is not None
     assert tuple(geom.size) == (9.0, 9.0, 0.005)
     assert geom.contype == 0

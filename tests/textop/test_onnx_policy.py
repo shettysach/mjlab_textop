@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 import torch
 
-from mjlab_textop.core.onnx_policy import CustomOnnxPolicyRunner, TextOpOnnxPolicy
+from mjlab_textop.core.onnx_policy import OnnxPolicyRunner, TextOpOnnxPolicy
 from mjlab_textop.core.schema import TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
 
 
@@ -135,7 +135,7 @@ def test_textop_onnx_runner_loads_inference_policy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install_fake_onnxruntime(monkeypatch)
-    runner = CustomOnnxPolicyRunner(env=None, train_cfg={}, device="cpu")
+    runner = OnnxPolicyRunner(env=None, train_cfg={}, device="cpu")
 
     with pytest.raises(RuntimeError, match="has not been loaded"):
         runner.get_inference_policy()

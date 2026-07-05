@@ -66,6 +66,8 @@ class OnlineTextOpObservationCfg:
 
 class HttpObservationPublisher:
     def __init__(self, cfg: HttpObservationPublisherCfg) -> None:
+        if not cfg.url.strip():
+            raise ValueError("URL must be non-empty")
         if cfg.timeout_sec <= 0:
             raise ValueError(f"timeout_sec must be positive, got {cfg.timeout_sec}")
         self.cfg = cfg

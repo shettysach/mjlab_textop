@@ -10,7 +10,7 @@ from mjlab_textop.core.feedback.observation import OnlineTextOpObservationCfg
 from mjlab_textop.core.mdp.online_commands import TextOpOnlineSourceMode
 from mjlab_textop.core.online.live import SocketTextOpSourceCfg
 from mjlab_textop.core.online.source import TextOpOnlineSource
-from mjlab_textop.core.onnx_policy import CustomOnnxPolicyRunner
+from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
 from mjlab_textop.core.task import StaticTaskSpec
 from mjlab_textop.tasks.blocked_straight.env_cfg import (
@@ -50,11 +50,11 @@ def register_blocked_straight_task(
     observation: OnlineTextOpObservationCfg | None = None,
 ) -> str:
     mode_name = source_mode.capitalize()
-    runner_name = "Onnx" if runner_cls is CustomOnnxPolicyRunner else "Checkpoint"
+    runner_name = "Onnx" if runner_cls is OnnxPolicyRunner else "Checkpoint"
     task_name = f"{BLOCKED_STRAIGHT_TASK_NAME}-{runner_name}-{mode_name}-{uuid4().hex}"
     make_env_cfg = (
         make_blocked_straight_onnx_g1_env_cfg
-        if runner_cls is CustomOnnxPolicyRunner
+        if runner_cls is OnnxPolicyRunner
         else make_blocked_straight_g1_env_cfg
     )
     env_cfg = make_env_cfg(

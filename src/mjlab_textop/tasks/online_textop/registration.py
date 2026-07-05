@@ -10,7 +10,7 @@ from mjlab_textop.core.feedback.observation import OnlineTextOpObservationCfg
 from mjlab_textop.core.mdp.online_commands import TextOpOnlineSourceMode
 from mjlab_textop.core.online.live import SocketTextOpSourceCfg
 from mjlab_textop.core.online.source import TextOpOnlineSource
-from mjlab_textop.core.onnx_policy import CustomOnnxPolicyRunner
+from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
 from mjlab_textop.core.task import StaticTaskSpec
 from mjlab_textop.tasks.online_textop.env_cfg import (
@@ -45,13 +45,14 @@ STATIC_TASK_SPECS = [
             play=True
         ),
         make_rl_cfg=unitree_g1_tracking_ppo_runner_cfg,
-        runner_cls=CustomOnnxPolicyRunner,
+        runner_cls=OnnxPolicyRunner,
     ),
 ]
 
 
 def register_online_textop_task(
     *,
+    runner_cls: type = MotionTrackingOnPolicyRunner,
     source: TextOpOnlineSource | None = None,
     live_source_cfg: SocketTextOpSourceCfg | None = None,
     source_mode: TextOpOnlineSourceMode,
@@ -65,8 +66,18 @@ def register_online_textop_task(
     observation: OnlineTextOpObservationCfg | None = None,
 ) -> str:
     mode_name = source_mode.capitalize()
-    task_name = f"{ONLINE_TEXTOP_TASK_NAME}-{mode_name}-{uuid4().hex}"
-    env_cfg = make_online_textop_g1_flat_tracking_env_cfg(
+    task_name_prefix = (
+        ONLINE_TEXTOP_ONNX_TASK_NAME
+        if runner_cls is OnnxPolicyRunner
+        else ONLINE_TEXTOP_TASK_NAME
+    )
+    task_name = f"{task_name_prefix}-{mode_name}-{uuid4().hex}"
+    make_env_cfg = (
+        make_online_textop_onnx_g1_flat_tracking_env_cfg
+        if runner_cls is OnnxPolicyRunner
+        else make_online_textop_g1_flat_tracking_env_cfg
+    )
+    env_cfg = make_env_cfg(
         play=True,
         future_steps=future_steps,
         source=source,
@@ -84,7 +95,7 @@ def register_online_textop_task(
         env_cfg=env_cfg,
         play_env_cfg=env_cfg,
         rl_cfg=unitree_g1_tracking_ppo_runner_cfg(),
-        runner_cls=MotionTrackingOnPolicyRunner,
+        runner_cls=runner_cls,
     )
     return task_name
 
@@ -103,26 +114,15 @@ def register_online_textop_onnx_task(
     reference_debug_vis: bool | None = None,
     observation: OnlineTextOpObservationCfg | None = None,
 ) -> str:
-    mode_name = source_mode.capitalize()
-    task_name = f"{ONLINE_TEXTOP_ONNX_TASK_NAME}-{mode_name}-{uuid4().hex}"
-    env_cfg = make_online_textop_onnx_g1_flat_tracking_env_cfg(
-        play=True,
-        future_steps=future_steps,
+    return register_online_textop_task(
+        runner_cls=OnnxPolicyRunner,
         source=source,
         live_source_cfg=live_source_cfg,
         source_mode=source_mode,
+        future_steps=future_steps,
+        num_envs=num_envs,
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
         reference_debug_vis=reference_debug_vis,
         observation=observation,
     )
-    env_cfg.scene.num_envs = num_envs
-
-    register_mjlab_task(
-        task_id=task_name,
-        env_cfg=env_cfg,
-        play_env_cfg=env_cfg,
-        rl_cfg=unitree_g1_tracking_ppo_runner_cfg(),
-        runner_cls=CustomOnnxPolicyRunner,
-    )
-    return task_name

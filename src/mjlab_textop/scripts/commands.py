@@ -20,19 +20,19 @@ from mjlab_textop.scripts.utils import (
     ResolvedPolicy,
     TaskRegistrar,
     register_generic_play_task,
-    register_textop_play_task,
 )
 from mjlab_textop.tasks import register_tasks
 from mjlab_textop.tasks.blocked_straight.registration import (
     register_blocked_straight_task,
 )
+from mjlab_textop.tasks.online_textop.registration import register_online_textop_task
 from mjlab_textop.tasks.straight.registration import register_straight_task
 from mjlab_textop.tasks.turn.registration import register_turn_task
 
 TextOpLiveTask = Literal["default", "straight", "blocked-straight", "turn"]
 
 LIVE_TASK_REGISTRY: dict[TextOpLiveTask, TaskRegistrar] = {
-    "default": register_textop_play_task,
+    "default": register_online_textop_task,
     "straight": register_straight_task,
     "blocked-straight": register_blocked_straight_task,
     "turn": register_turn_task,
@@ -115,9 +115,9 @@ def _register_live_task(
         future_steps=cfg.future_steps,
         num_envs=cfg.num_envs,
         anchor_alignment=cfg.anchor_alignment,
-        observation=observation,
         reset_robot_to_reference=cfg.reset_robot_to_reference,
         reference_debug_vis=cfg.reference_debug_vis,
+        observation=observation,
     )
 
 
@@ -179,7 +179,8 @@ def play_online_textop_motion(
 ) -> None:
     register_tasks()
     source = make_mjlab_npz_replay_source(motion_file, block_size=cfg.block_size)
-    task_name = register_textop_play_task(
+    task_name = register_generic_play_task(
+        task_registrar=register_online_textop_task,
         policy=policy,
         source=source,
         source_mode="replay",

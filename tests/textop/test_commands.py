@@ -13,9 +13,10 @@ from mjlab_textop.core.mdp.offline_commands import (
     textop_motion_command_cfg_from,
     use_textop_motion_command,
 )
+from mjlab_textop.scripts import commands as commands_module
 from mjlab_textop.scripts.commands import (
-    PlayLiveCommand,
     ObservationParams,
+    PlayLiveCommand,
     play_live_textop_motion,
 )
 from mjlab_textop.scripts.utils import ResolvedPolicy, resolve_policy
@@ -88,8 +89,13 @@ def test_play_live_without_images_uses_mjlab_run_play(monkeypatch, tmp_path) -> 
         "mjlab_textop.scripts.commands.register_tasks",
         lambda: None,
     )
+    monkeypatch.setitem(
+        commands_module.LIVE_TASK_REGISTRY,
+        "default",
+        object(),
+    )
     monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.register_textop_play_task",
+        "mjlab_textop.scripts.commands.register_generic_play_task",
         lambda **kwargs: _fake_register_task(calls, kwargs),
     )
     monkeypatch.setattr(
@@ -111,6 +117,7 @@ def test_play_live_without_images_uses_mjlab_run_play(monkeypatch, tmp_path) -> 
     task_name, play_cfg = calls["run_play"]
     assert task_name == "task"
     assert play_cfg.video is False
+    assert calls["task_kwargs"]["task_registrar"] is commands_module.LIVE_TASK_REGISTRY["default"]
     assert calls["task_kwargs"]["reference_debug_vis"] is False
 
 
@@ -130,8 +137,13 @@ def test_play_live_with_images_does_not_enable_video_recording(
         "mjlab_textop.scripts.commands.register_tasks",
         lambda: None,
     )
+    monkeypatch.setitem(
+        commands_module.LIVE_TASK_REGISTRY,
+        "default",
+        object(),
+    )
     monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.register_textop_play_task",
+        "mjlab_textop.scripts.commands.register_generic_play_task",
         lambda **kwargs: _fake_register_task(calls, kwargs),
     )
     monkeypatch.setattr(
@@ -177,8 +189,13 @@ def test_play_live_uses_custom_observation_camera_geometry(
         "mjlab_textop.scripts.commands.register_tasks",
         lambda: None,
     )
+    monkeypatch.setitem(
+        commands_module.LIVE_TASK_REGISTRY,
+        "default",
+        object(),
+    )
     monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.register_textop_play_task",
+        "mjlab_textop.scripts.commands.register_generic_play_task",
         lambda **kwargs: _fake_register_task(calls, kwargs),
     )
     monkeypatch.setattr(
@@ -216,8 +233,13 @@ def test_straight_live_uses_straight_task_registration(
         "mjlab_textop.scripts.commands.register_tasks",
         lambda: None,
     )
+    monkeypatch.setitem(
+        commands_module.LIVE_TASK_REGISTRY,
+        "straight",
+        object(),
+    )
     monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.register_straight_play_task",
+        "mjlab_textop.scripts.commands.register_generic_play_task",
         lambda **kwargs: _fake_register_task(calls, kwargs),
     )
     monkeypatch.setattr(
@@ -243,6 +265,7 @@ def test_straight_live_uses_straight_task_registration(
     assert play_cfg.checkpoint_file == str(onnx_file)
     assert calls["task_kwargs"]["policy"].kind == "onnx"
     assert calls["task_kwargs"]["source_mode"] == "live"
+    assert calls["task_kwargs"]["task_registrar"] is commands_module.LIVE_TASK_REGISTRY["straight"]
     assert calls["task_kwargs"]["observation"].publisher is not None
 
 
@@ -256,8 +279,13 @@ def test_blocked_straight_live_uses_blocked_straight_task_registration(
         "mjlab_textop.scripts.commands.register_tasks",
         lambda: None,
     )
+    monkeypatch.setitem(
+        commands_module.LIVE_TASK_REGISTRY,
+        "blocked-straight",
+        object(),
+    )
     monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.register_blocked_straight_play_task",
+        "mjlab_textop.scripts.commands.register_generic_play_task",
         lambda **kwargs: _fake_register_task(calls, kwargs),
     )
     monkeypatch.setattr(
@@ -283,6 +311,10 @@ def test_blocked_straight_live_uses_blocked_straight_task_registration(
     assert play_cfg.checkpoint_file == str(onnx_file)
     assert calls["task_kwargs"]["policy"].kind == "onnx"
     assert calls["task_kwargs"]["source_mode"] == "live"
+    assert (
+        calls["task_kwargs"]["task_registrar"]
+        is commands_module.LIVE_TASK_REGISTRY["blocked-straight"]
+    )
     assert calls["task_kwargs"]["observation"].publisher is not None
 
 
