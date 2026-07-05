@@ -15,6 +15,7 @@ from mjlab_textop.core.mdp.offline_commands import (
 )
 from mjlab_textop.scripts.commands import (
     PlayLiveCommand,
+    ObservationParams,
     play_live_textop_motion,
 )
 from mjlab_textop.scripts.utils import ResolvedPolicy, resolve_policy
@@ -100,7 +101,9 @@ def test_play_live_without_images_uses_mjlab_run_play(monkeypatch, tmp_path) -> 
     play_live_textop_motion(
         PlayLiveCommand(
             checkpoint_file=str(policy_file),
-            observation_url="http://127.0.0.1:8766/observation",
+            observation=ObservationParams(
+                url="http://127.0.0.1:8766/observation",
+            ),
         ),
         policy=ResolvedPolicy("checkpoint", policy_file),
     )
@@ -108,6 +111,13 @@ def test_play_live_without_images_uses_mjlab_run_play(monkeypatch, tmp_path) -> 
     task_name, play_cfg = calls["run_play"]
     assert task_name == "task"
     assert play_cfg.video is False
+    assert calls["task_kwargs"]["reference_debug_vis"] is False
+
+
+def test_play_live_defaults_reference_debug_vis_off() -> None:
+    assert PlayLiveCommand().reference_debug_vis is False
+    assert PlayLiveCommand().observation is None
+    assert ObservationParams().url == "http://127.0.0.1:8766/observation"
 
 
 def test_play_live_with_images_does_not_enable_video_recording(
@@ -133,7 +143,9 @@ def test_play_live_with_images_does_not_enable_video_recording(
     play_live_textop_motion(
         PlayLiveCommand(
             checkpoint_file=str(policy_file),
-            observation_url="http://127.0.0.1:8766/observation",
+            observation=ObservationParams(
+                url="http://127.0.0.1:8766/observation",
+            ),
         ),
         policy=ResolvedPolicy("checkpoint", policy_file),
     )
@@ -178,10 +190,12 @@ def test_play_live_uses_custom_observation_camera_geometry(
     play_live_textop_motion(
         PlayLiveCommand(
             checkpoint_file=str(policy_file),
-            observation_url="http://127.0.0.1:8766/observation",
-            observation_camera_distance=1.25,
-            observation_camera_azimuth=175.0,
-            observation_camera_elevation=-8.0,
+            observation=ObservationParams(
+                url="http://127.0.0.1:8766/observation",
+                camera_distance=1.25,
+                camera_azimuth=175.0,
+                camera_elevation=-8.0,
+            ),
         ),
         policy=ResolvedPolicy("checkpoint", policy_file),
     )
@@ -217,7 +231,9 @@ def test_straight_live_uses_straight_task_registration(
         PlayLiveCommand(
             task="straight",
             onnx_file=str(onnx_file),
-            observation_url="http://127.0.0.1:8766/observation",
+            observation=ObservationParams(
+                url="http://127.0.0.1:8766/observation",
+            ),
         ),
         policy=ResolvedPolicy("onnx", onnx_file),
     )
@@ -255,7 +271,9 @@ def test_blocked_straight_live_uses_blocked_straight_task_registration(
         PlayLiveCommand(
             task="blocked-straight",
             onnx_file=str(onnx_file),
-            observation_url="http://127.0.0.1:8766/observation",
+            observation=ObservationParams(
+                url="http://127.0.0.1:8766/observation",
+            ),
         ),
         policy=ResolvedPolicy("onnx", onnx_file),
     )
@@ -266,6 +284,8 @@ def test_blocked_straight_live_uses_blocked_straight_task_registration(
     assert calls["task_kwargs"]["policy"].kind == "onnx"
     assert calls["task_kwargs"]["source_mode"] == "live"
     assert calls["task_kwargs"]["observation"].publisher is not None
+
+
 def _fake_register_task(calls: dict, kwargs: dict) -> str:
     calls["task_kwargs"] = kwargs
     return "task"

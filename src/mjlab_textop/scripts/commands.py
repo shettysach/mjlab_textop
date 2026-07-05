@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -19,14 +18,25 @@ from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
 from mjlab_textop.scripts.utils import (
     ResolvedPolicy,
-    register_blocked_straight_play_task,
-    register_straight_play_task,
+    TaskRegistrar,
+    register_generic_play_task,
     register_textop_play_task,
-    register_turn_play_task,
 )
 from mjlab_textop.tasks import register_tasks
+from mjlab_textop.tasks.blocked_straight.registration import (
+    register_blocked_straight_task,
+)
+from mjlab_textop.tasks.straight.registration import register_straight_task
+from mjlab_textop.tasks.turn.registration import register_turn_task
 
-TextOpLiveTask = Literal["straight", "blocked-straight", "turn"]
+TextOpLiveTask = Literal["default", "straight", "blocked-straight", "turn"]
+
+LIVE_TASK_REGISTRY: dict[TextOpLiveTask, TaskRegistrar] = {
+    "default": register_textop_play_task,
+    "straight": register_straight_task,
+    "blocked-straight": register_blocked_straight_task,
+    "turn": register_turn_task,
+}
 
 
 @dataclass(kw_only=True)
@@ -42,7 +52,7 @@ class NormalizeCommand:
 
 @dataclass(kw_only=True)
 class PlayLiveCommand:
-    task: TextOpLiveTask | None = None
+    task: TextOpLiveTask = "default"
     checkpoint_file: str | None = None
     onnx_file: str | None = None
     host: str = "127.0.0.1"
@@ -56,15 +66,20 @@ class PlayLiveCommand:
         "align_to_robot_start"
     )
     reset_robot_to_reference: bool = True
-    reference_debug_vis: bool = True
-    observation_url: str | None = None
-    observation_timeout_sec: float = 1.0
-    observation_every_frames: int = 5
-    observation_image_width: int | None = 320
-    observation_image_height: int | None = 240
-    observation_camera_distance: float = 2.0
-    observation_camera_azimuth: float = 0.0
-    observation_camera_elevation: float = -15.0
+    reference_debug_vis: bool = False
+    observation: ObservationParams | None = None
+
+
+@dataclass(kw_only=True)
+class ObservationParams:
+    url: str = "http://127.0.0.1:8766/observation"
+    timeout_sec: float = 1.0
+    every_frames: int = 5
+    image_width: int = 320
+    image_height: int = 240
+    camera_distance: float = 2.0
+    camera_azimuth: float = 0.0
+    camera_elevation: float = -15.0
 
 
 def play_live_textop_motion(
@@ -73,35 +88,37 @@ def play_live_textop_motion(
     policy: ResolvedPolicy,
 ) -> None:
     register_tasks()
-    task_name = _live_task_registry()[cfg.task](
-        policy=policy,
-        live_source_cfg=_make_live_source_cfg(cfg),
-        source_mode="live",
-        future_steps=cfg.future_steps,
-        num_envs=cfg.num_envs,
-        anchor_alignment=cfg.anchor_alignment,
-        observation=_make_online_observation(cfg),
-        reset_robot_to_reference=cfg.reset_robot_to_reference,
-        reference_debug_vis=cfg.reference_debug_vis,
-    )
+    task_name = _register_live_task(cfg, policy=policy)
     play_cfg = PlayConfig(
         agent="trained",
         checkpoint_file=str(policy.file),
         num_envs=cfg.num_envs,
         device=cfg.device,
-        video_width=cfg.observation_image_width if cfg.observation_url else None,
-        video_height=cfg.observation_image_height if cfg.observation_url else None,
+        video_width=cfg.observation.image_width if cfg.observation else None,
+        video_height=cfg.observation.image_height if cfg.observation else None,
     )
     run_play(task_name, play_cfg)
 
 
-def _live_task_registry() -> dict[TextOpLiveTask | None, Callable[..., str]]:
-    return {
-        None: register_textop_play_task,
-        "straight": register_straight_play_task,
-        "blocked-straight": register_blocked_straight_play_task,
-        "turn": register_turn_play_task,
-    }
+def _register_live_task(
+    cfg: PlayLiveCommand,
+    *,
+    policy: ResolvedPolicy,
+) -> str:
+    live_source_cfg = _make_live_source_cfg(cfg)
+    observation = _make_online_observation(cfg)
+    return register_generic_play_task(
+        task_registrar=LIVE_TASK_REGISTRY[cfg.task],
+        policy=policy,
+        live_source_cfg=live_source_cfg,
+        source_mode="live",
+        future_steps=cfg.future_steps,
+        num_envs=cfg.num_envs,
+        anchor_alignment=cfg.anchor_alignment,
+        observation=observation,
+        reset_robot_to_reference=cfg.reset_robot_to_reference,
+        reference_debug_vis=cfg.reference_debug_vis,
+    )
 
 
 def _make_live_source_cfg(cfg: PlayLiveCommand) -> SocketTextOpSourceCfg:
@@ -114,28 +131,24 @@ def _make_live_source_cfg(cfg: PlayLiveCommand) -> SocketTextOpSourceCfg:
 
 
 def _make_online_observation(cfg: PlayLiveCommand) -> OnlineTextOpObservationCfg:
-    observation_publisher_cfg = (
-        HttpObservationPublisherCfg(
-            url=cfg.observation_url,
-            timeout_sec=cfg.observation_timeout_sec,
-        )
-        if cfg.observation_url is not None
-        else None
+    if cfg.observation is None:
+        return OnlineTextOpObservationCfg()
+
+    observation_publisher_cfg = HttpObservationPublisherCfg(
+        url=cfg.observation.url,
+        timeout_sec=cfg.observation.timeout_sec,
     )
-    observation_publisher = (
-        HttpObservationPublisher(observation_publisher_cfg)
-        if observation_publisher_cfg is not None
-        else None
-    )
+    observation_publisher = HttpObservationPublisher(observation_publisher_cfg)
+
     return OnlineTextOpObservationCfg(
         publisher=observation_publisher,
-        publish_interval=cfg.observation_every_frames,
+        publish_interval=cfg.observation.every_frames,
         camera=make_torso_observation_camera(
-            width=cfg.observation_image_width or 320,
-            height=cfg.observation_image_height or 240,
-            distance=cfg.observation_camera_distance,
-            azimuth=cfg.observation_camera_azimuth,
-            elevation=cfg.observation_camera_elevation,
+            width=cfg.observation.image_width,
+            height=cfg.observation.image_height,
+            distance=cfg.observation.camera_distance,
+            azimuth=cfg.observation.camera_azimuth,
+            elevation=cfg.observation.camera_elevation,
         ),
     )
 

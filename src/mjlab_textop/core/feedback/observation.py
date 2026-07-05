@@ -53,7 +53,9 @@ class HttpObservationPublisherCfg:
 class OnlineTextOpObservationCfg:
     publisher: TextOpObservationPublisher | None = None
     publish_interval: int = 1
-    camera: ViewerConfig = field(default_factory=lambda: make_torso_observation_camera())
+    camera: ViewerConfig = field(
+        default_factory=lambda: make_torso_observation_camera()
+    )
 
     def __post_init__(self) -> None:
         if self.publish_interval <= 0:
@@ -64,8 +66,6 @@ class OnlineTextOpObservationCfg:
 
 class HttpObservationPublisher:
     def __init__(self, cfg: HttpObservationPublisherCfg) -> None:
-        if not cfg.url:
-            raise ValueError("Observation publisher URL must be non-empty")
         if cfg.timeout_sec <= 0:
             raise ValueError(f"timeout_sec must be positive, got {cfg.timeout_sec}")
         self.cfg = cfg
@@ -140,7 +140,7 @@ def make_http_observation_payload(
         "image": {
             "mime_type": image.mime_type,
             "data": b64encode(image.data).decode("ascii"),
-        }
+        },
     }
 
 

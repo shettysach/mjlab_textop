@@ -223,10 +223,11 @@ uv run --extra cu128 mjlab-textop play-live \
   --checkpoint-file $CHECKPOINT \
   --host 127.0.0.1 \
   --port 8765 \
-  --observation-url http://127.0.0.1:8766/observation \
-  --observation-every-frames 20 \
-  --observation-image-width 640 \
-  --observation-image-height 480
+  observation:observation-command \
+  --observation.url http://127.0.0.1:8766/observation \
+  --observation.every-frames 20 \
+  --observation.image-width 640 \
+  --observation.image-height 480
 ```
 
 To run the same live source with TextOp's released `latest.onnx` policy:
@@ -238,10 +239,11 @@ uv run --extra cu128 mjlab-textop play-live \
   --onnx-file $ONNX_PATH \
   --host 127.0.0.1 \
   --port 8765 \
-  --observation-url http://127.0.0.1:8766/observation \
-  --observation-every-frames 20 \
-  --observation-image-width 640 \
-  --observation-image-height 480
+  observation:observation-command \
+  --observation.url http://127.0.0.1:8766/observation \
+  --observation.every-frames 20 \
+  --observation.image-width 640 \
+  --observation.image-height 480
 ```
 
 The live producer sends 50 Hz-indexed motion chunks. MJLab consumes them at the
@@ -255,9 +257,12 @@ bytes in the same request.
 The ONNX path uses the online source and the ONNX actor directly, without a
 `.pt` checkpoint.
 
-The `play-live` viewer also renders the live RobotMDAR reference as a
-translucent ghost robot by default. Disable that overlay with
-`--reference-debug-vis false` if you only want the simulated robot.
+The `play-live` viewer can render the live RobotMDAR reference as a
+translucent ghost robot. Enable that overlay with `--reference-debug-vis true`
+if you want it alongside the simulated robot.
+
+Live MJLab observations are off by default. Select
+`observation:observation-command` to enable the HTTP observation publisher.
 
 #### Straight live task
 
@@ -268,14 +273,15 @@ corridor with a centered middle block that requires a left/right bypass:
 
 ```bash
 uv run --extra cu128 mjlab-textop play-live \
-  --task straight \
   --onnx-file $ONNX_PATH \
   --host 127.0.0.1 \
   --port 8765 \
-  --observation-url http://127.0.0.1:8766/observation \
-  --observation-every-frames 20 \
-  --observation-image-width 640 \
-  --observation-image-height 480
+  observation:observation-command \
+  --observation.url http://127.0.0.1:8766/observation \
+  --observation.every-frames 20 \
+  --observation.image-width 640 \
+  --observation.image-height 480 \
+  --task straight
 ```
 
 This demo uses the `Mjlab-VLA-Straight-G1` task. The environment owns the
