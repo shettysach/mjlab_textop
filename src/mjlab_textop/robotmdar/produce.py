@@ -20,22 +20,13 @@ from mjlab_textop.core.robotmdar import (
 from mjlab_textop.robotmdar.feedback import HttpObservationReceiver
 from mjlab_textop.robotmdar.planner.manual import ManualPromptPlanner
 from mjlab_textop.robotmdar.planner.vlm import (
-    DescribingPromptPlanner,
-    OpenAIChatObservationDescriber,
     OpenAIChatPromptSelector,
-    VlmDescriptionPlanner,
     VlmPromptPlanner,
 )
 
 PROMPT_DIR = Path(__file__).resolve().parents[3] / "prompt"
 DEFAULT_VLM_SYSTEM_PROMPT_FILE = PROMPT_DIR / "SYSTEM.md"
 DEFAULT_VLM_USER_PROMPT_FILE = PROMPT_DIR / "USER.md"
-
-
-DEFAULT_VLM_DESCRIPTION_SYSTEM_PROMPT = (
-    "You describe observations from a humanoid robot simulation. "
-    "Describe the robot and the visible scene. Do not choose motion commands."
-)
 
 
 @dataclass(frozen=True)
@@ -96,8 +87,6 @@ def run_producer(args: argparse.Namespace) -> None:
     planner.start()
     if isinstance(planner, VlmPromptPlanner):
         _log_producer_message("Using VLM planner.")
-    elif isinstance(planner, DescribingPromptPlanner):
-        _log_producer_message("Using manual planner with VLM descriptions.")
 
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
@@ -145,7 +134,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guidance-scale", type=float, default=5.0)
     parser.add_argument(
         "--planner",
-        choices=("manual", "vlm", "describe"),
+        choices=("manual", "vlm"),
         default="manual",
     )
     parser.add_argument("--prompt", default="stand")
@@ -164,20 +153,16 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_VLM_USER_PROMPT_FILE,
     )
-    parser.add_argument(
-        "--vlm-description-system-prompt",
-        default=DEFAULT_VLM_DESCRIPTION_SYSTEM_PROMPT,
-    )
     parser.add_argument("--vlm-timeout-sec", type=float, default=30.0)
     parser.add_argument("--vlm-max-tokens", type=int, default=256)
     parser.add_argument("--query-every-blocks", type=int, default=20)
     parser.add_argument("--log-every-blocks", type=int, default=20)
     args = parser.parse_args()
-    if args.planner in {"vlm", "describe"} and args.observation_listen_port is None:
+    if args.planner == "vlm" and args.observation_listen_port is None:
         raise ValueError(
             f"--observation-listen-port is required with --planner {args.planner}"
         )
-    if args.query_every_blocks <= 0:
+    if args.planner == "vlm" and args.query_every_blocks <= 0:
         raise ValueError(
             f"--query-every-blocks must be positive, got {args.query_every_blocks}"
         )
@@ -189,7 +174,7 @@ def parse_args() -> argparse.Namespace:
         raise ValueError(
             f"--vlm-max-tokens must be positive, got {args.vlm_max_tokens}"
         )
-    if args.planner in {"vlm", "describe"} and not args.vlm_model:
+    if args.planner == "vlm" and not args.vlm_model:
         raise ValueError(f"--vlm-model is required with --planner {args.planner}")
     return args
 
@@ -216,7 +201,7 @@ def _run_producer_stream(
     history_len: int,
     future_len: int,
     abs_pose: Any,
-    planner: ManualPromptPlanner | VlmPromptPlanner | DescribingPromptPlanner,
+    planner: ManualPromptPlanner | VlmPromptPlanner,
 ) -> None:
     frame_index = 0
     next_send_time = time.monotonic()
@@ -299,7 +284,7 @@ def _generate_motion_block(
 
 def _log_block_timing(
     *,
-    planner: ManualPromptPlanner | VlmPromptPlanner | DescribingPromptPlanner,
+    planner: ManualPromptPlanner | VlmPromptPlanner,
     args: argparse.Namespace,
     block_count: int,
     frame_index: int,
@@ -330,7 +315,7 @@ def _log_block_timing(
 
 
 def _prompt_source(
-    planner: ManualPromptPlanner | VlmPromptPlanner | DescribingPromptPlanner,
+    planner: ManualPromptPlanner | VlmPromptPlanner,
 ) -> str:
     if isinstance(planner, VlmPromptPlanner):
         return planner.current_prompt_source
@@ -382,7 +367,7 @@ def _register_hydra_resolvers(OmegaConf) -> None:
 
 def make_prompt_planner(
     args: argparse.Namespace,
-) -> ManualPromptPlanner | VlmPromptPlanner | DescribingPromptPlanner:
+) -> ManualPromptPlanner | VlmPromptPlanner:
     if args.planner == "vlm":
         receiver = HttpObservationReceiver(
             host=args.observation_listen_host,
@@ -403,42 +388,11 @@ def make_prompt_planner(
             initial_prompt=args.prompt,
             query_every_blocks=args.query_every_blocks,
         )
-    if args.planner == "describe":
-        receiver = HttpObservationReceiver(
-            host=args.observation_listen_host,
-            port=args.observation_listen_port,
-            path=args.observation_path,
-        )
-        describer = OpenAIChatObservationDescriber(
-            base_url=args.vlm_base_url,
-            model=args.vlm_model,
-            system_prompt=args.vlm_description_system_prompt,
-            timeout_sec=args.vlm_timeout_sec,
-            max_tokens=args.vlm_max_tokens,
-        )
-        return DescribingPromptPlanner(
-            prompt_planner=ManualPromptPlanner(args.prompt),
-            description_planner=VlmDescriptionPlanner(
-                feedback=receiver,
-                describer=describer,
-                query_every_blocks=args.query_every_blocks,
-                on_description=_log_vlm_description,
-                on_error=_log_vlm_description_error,
-            ),
-        )
     return ManualPromptPlanner(args.prompt)
 
 
 def _read_prompt_path(path: str | Path) -> str:
     return Path(path).expanduser().read_text(encoding="utf-8")
-
-
-def _log_vlm_description(description: str) -> None:
-    _log_producer_message(f"vlm_description {description}")
-
-
-def _log_vlm_description_error(error: str) -> None:
-    _log_producer_message(f"vlm_description_error {error}")
 
 
 if __name__ == "__main__":
