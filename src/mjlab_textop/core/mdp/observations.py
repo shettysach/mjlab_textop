@@ -71,6 +71,21 @@ def future_anchor_pos_b(
     return pos_b.reshape(env.num_envs, -1)
 
 
+def future_anchor_pos_b_zero(
+    env: ManagerBasedRlEnv,
+    command_name: str = "motion",
+) -> torch.Tensor:
+    command = _get_future_reference_command(env, command_name)
+    future_steps = command.future_anchor_pos_w.shape[1]
+
+    return torch.zeros(
+        env.num_envs,
+        future_steps * 3,
+        device=command.future_anchor_pos_w.device,
+        dtype=command.future_anchor_pos_w.dtype,
+    )
+
+
 def future_anchor_ori_b(
     env: ManagerBasedRlEnv,
     command_name: str = "motion",

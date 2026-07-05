@@ -201,6 +201,15 @@ def test_textop_onnx_actor_observation_order_and_no_corruption() -> None:
     assert env_cfg.observations["actor"].enable_corruption is False
 
 
+def test_textop_onnx_actor_zeroes_future_anchor_position() -> None:
+    ensure_textop_task_registered()
+    env_cfg = load_env_cfg(ONLINE_TEXTOP_ONNX_TASK_NAME)
+
+    term = env_cfg.observations["actor"].terms["future_anchor_pos_b"]
+
+    assert term.func.__name__ == "future_anchor_pos_b_zero"
+
+
 def test_textop_critic_observation_order_keeps_privileged_terms() -> None:
     ensure_textop_task_registered()
     env_cfg = load_env_cfg(TEXTOP_TASK_NAME)

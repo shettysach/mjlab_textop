@@ -9,7 +9,7 @@ from mjlab.tasks.tracking.config.g1.env_cfgs import unitree_g1_flat_tracking_env
 from mjlab_textop.core.feedback.observation import OnlineTextOpObservationCfg
 from mjlab_textop.core.mdp.observations import (
     future_anchor_ori_b,
-    future_anchor_pos_b,
+    future_anchor_pos_b_zero,
     future_joint_window_textop_order,
     joint_pos_rel_textop_order,
     joint_vel_rel_textop_order,
@@ -109,7 +109,7 @@ def configure_textop_onnx_actor_observations(cfg) -> None:
             params={"command_name": "motion"},
         ),
         "future_anchor_pos_b": ObservationTermCfg(
-            func=future_anchor_pos_b,
+            func=future_anchor_pos_b_zero,
             params={"command_name": "motion"},
         ),
         "future_anchor_ori_b": ObservationTermCfg(
