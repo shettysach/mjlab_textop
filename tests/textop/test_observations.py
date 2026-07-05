@@ -11,7 +11,6 @@ import mjlab_textop.core.mdp.observations as textop_observations
 from mjlab_textop.core.mdp.observations import (
     future_anchor_ori_b,
     future_anchor_pos_b,
-    future_anchor_pos_b_zero,
     future_joint_window,
     joint_pos_rel_textop_order,
     joint_vel_rel_textop_order,
@@ -131,25 +130,6 @@ def test_future_anchor_pos_b_uses_robot_anchor_frame() -> None:
         out.reshape(1, 5, 3),
         future_anchor_pos_w - robot_anchor_pos_w[:, None, :],
     )
-
-
-def test_future_anchor_pos_b_zero_matches_anchor_pos_shape() -> None:
-    future_anchor_pos_w = torch.arange(2 * 4 * 3, dtype=torch.float64).reshape(
-        2,
-        4,
-        3,
-    )
-    env = _fake_env_with_command(
-        future_anchor_pos_w=future_anchor_pos_w,
-        future_joint_pos=torch.zeros(2, 4, 29, dtype=torch.float64),
-    )
-
-    out = future_anchor_pos_b_zero(env)
-
-    assert out.shape == (2, 12)
-    assert out.device == future_anchor_pos_w.device
-    assert out.dtype == future_anchor_pos_w.dtype
-    torch.testing.assert_close(out, torch.zeros_like(out))
 
 
 def test_future_anchor_ori_b_identity_orientation() -> None:
