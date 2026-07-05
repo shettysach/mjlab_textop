@@ -13,6 +13,7 @@ from mjlab_textop.core.mdp.online_commands import TextOpOnlineSourceMode
 from mjlab_textop.core.online.live import SocketTextOpSourceCfg
 from mjlab_textop.core.online.source import TextOpOnlineSource
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
+from mjlab_textop.tasks.collisions import use_g1_feet_only_collision
 from mjlab_textop.tasks.blocked_straight.assets import (
     make_blocked_straight_spec_fn,
 )
@@ -102,6 +103,7 @@ def _configure_blocked_straight_cfg(
     *,
     task_cfg: BlockedStraightTaskCfg,
 ):
+    use_g1_feet_only_collision(cfg)
     cfg.scene.num_envs = 1
     cfg.scene.spec_fn = make_blocked_straight_spec_fn(
         goal_pos_w=task_cfg.goal_pos_w,

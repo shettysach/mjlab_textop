@@ -271,11 +271,13 @@ def _query_vlm(
 
     _log_debug_message("vlm_debug_request")
     try:
-        response = selector.choose_prompt(observation=observation)
+        selection = selector.choose_prompt_with_debug(observation=observation)
     except Exception as exc:
         _log_debug_message(f"vlm_debug_error {type(exc).__name__}: {exc}")
         return
-    _log_debug_message(f"vlm_debug_response {response}")
+    if selection.reasoning is not None:
+        _log_debug_message(f"vlm_debug_reasoning {selection.reasoning}")
+    _log_debug_message(f"vlm_debug_response {selection.prompt}")
 
 
 def _log_debug_message(message: str) -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import mujoco
+from mjlab.asset_zoo.robots.unitree_g1.g1_constants import FEET_ONLY_COLLISION
 from mjlab.tasks.registry import list_tasks, load_env_cfg, load_runner_cls
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
@@ -24,6 +25,7 @@ def test_turn_task_env_cfg_has_fixed_goal_eval_terms() -> None:
     assert cfg.episode_length_s == 20.0
     assert cfg.rewards == {}
     assert cfg.scene.spec_fn is not None
+    assert cfg.scene.entities["robot"].collisions == (FEET_ONLY_COLLISION,)
     assert "turn_task_success" in cfg.terminations
     assert "turn_task_goal_distance" in cfg.metrics
     assert (

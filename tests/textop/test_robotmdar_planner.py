@@ -456,6 +456,69 @@ def test_http_vlm_prompt_selector_returns_raw_response(monkeypatch) -> None:
     )
 
 
+def test_http_vlm_prompt_selector_returns_debug_reasoning(monkeypatch) -> None:
+    raw_response = {
+        "choices": [
+            {
+                "message": {
+                    "content": "sidestep left",
+                    "reasoning_content": "Obstacle is in front, so move laterally.",
+                }
+            }
+        ]
+    }
+
+    def fake_urlopen(request, timeout):
+        del request, timeout
+        return _FakeResponse(raw_response)
+
+    monkeypatch.setattr(
+        "mjlab_textop.robotmdar.planner.vlm.urllib.request.urlopen",
+        fake_urlopen,
+    )
+    selector = OpenAIChatPromptSelector(
+        base_url="http://127.0.0.1:9379",
+        model="gemma-4-e2b-it",
+        user_prompt=_default_vlm_user_prompt(),
+    )
+
+    selection = selector.choose_prompt_with_debug(observation=_observation())
+
+    assert selection.prompt == "sidestep left"
+    assert selection.reasoning == "Obstacle is in front, so move laterally."
+    assert selection.response == raw_response
+
+
+def test_http_vlm_prompt_selector_returns_choice_reasoning(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        del request, timeout
+        return _FakeResponse(
+            {
+                "choices": [
+                    {
+                        "message": {"content": "stop"},
+                        "reasoning": "The path is blocked.",
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr(
+        "mjlab_textop.robotmdar.planner.vlm.urllib.request.urlopen",
+        fake_urlopen,
+    )
+    selector = OpenAIChatPromptSelector(
+        base_url="http://127.0.0.1:9379",
+        model="gemma-4-e2b-it",
+        user_prompt=_default_vlm_user_prompt(),
+    )
+
+    selection = selector.choose_prompt_with_debug(observation=_observation())
+
+    assert selection.prompt == "stop"
+    assert selection.reasoning == "The path is blocked."
+
+
 def test_make_prompt_planner_reads_vlm_prompt_files(tmp_path) -> None:
     system_prompt_file = tmp_path / "sys.md"
     user_prompt_file = tmp_path / "user.md"

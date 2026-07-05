@@ -4,6 +4,7 @@ import json
 import urllib.request
 from base64 import b64encode
 from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from mjlab_textop.robotmdar.feedback import FeedbackObservation
@@ -15,6 +16,13 @@ class ObservationProvider(Protocol):
     def close(self) -> None: ...
 
     def latest(self) -> FeedbackObservation | None: ...
+
+
+@dataclass(frozen=True)
+class VlmPromptSelection:
+    prompt: str
+    reasoning: str | None
+    response: dict[str, Any]
 
 
 class VlmPromptPlanner:
@@ -136,6 +144,13 @@ class OpenAIChatPromptSelector:
         *,
         observation: FeedbackObservation | None,
     ) -> str:
+        return self.choose_prompt_with_debug(observation=observation).prompt
+
+    def choose_prompt_with_debug(
+        self,
+        *,
+        observation: FeedbackObservation | None,
+    ) -> VlmPromptSelection:
         response = self._post_json(
             _make_chat_completions_payload(
                 image_bytes=None if observation is None else observation.image_bytes,
@@ -148,7 +163,13 @@ class OpenAIChatPromptSelector:
                 max_tokens=self.max_tokens,
             )
         )
-        return response["choices"][0]["message"]["content"]
+        choice = response["choices"][0]
+        message = choice["message"]
+        return VlmPromptSelection(
+            prompt=message["content"],
+            reasoning=_extract_reasoning(choice),
+            response=response,
+        )
 
     def _post_json(self, payload: dict[str, Any]) -> dict[str, Any]:
         request = urllib.request.Request(
@@ -194,3 +215,27 @@ def _make_chat_completions_payload(
 
 def _image_data_url(data: bytes, mime_type: str) -> str:
     return f"data:{mime_type};base64,{b64encode(data).decode('ascii')}"
+
+
+def _extract_reasoning(choice: dict[str, Any]) -> str | None:
+    message = choice.get("message")
+    candidates: list[Any] = []
+    if isinstance(message, dict):
+        candidates.extend(
+            [
+                message.get("reasoning"),
+                message.get("reasoning_content"),
+                message.get("thinking"),
+            ]
+        )
+    candidates.extend(
+        [
+            choice.get("reasoning"),
+            choice.get("reasoning_content"),
+            choice.get("thinking"),
+        ]
+    )
+    for candidate in candidates:
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate
+    return None

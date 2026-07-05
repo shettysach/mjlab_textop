@@ -223,7 +223,7 @@ uv run --extra cu128 mjlab-textop play-live \
   --checkpoint-file $CHECKPOINT \
   --host 127.0.0.1 \
   --port 8765 \
-  observation:observation-command \
+  observation:observation-params \
   --observation.url http://127.0.0.1:8766/observation \
   --observation.every-frames 20 \
   --observation.image-width 640 \
@@ -239,7 +239,7 @@ uv run --extra cu128 mjlab-textop play-live \
   --onnx-file $ONNX_PATH \
   --host 127.0.0.1 \
   --port 8765 \
-  observation:observation-command \
+  observation:observation-params \
   --observation.url http://127.0.0.1:8766/observation \
   --observation.every-frames 20 \
   --observation.image-width 640 \
@@ -262,7 +262,7 @@ translucent ghost robot. Enable that overlay with `--reference-debug-vis true`
 if you want it alongside the simulated robot.
 
 Live MJLab observations are off by default. Select
-`observation:observation-command` to enable the HTTP observation publisher.
+`observation:observation-params` to enable the HTTP observation publisher.
 
 #### Straight live task
 
@@ -276,12 +276,12 @@ uv run --extra cu128 mjlab-textop play-live \
   --onnx-file $ONNX_PATH \
   --host 127.0.0.1 \
   --port 8765 \
-  observation:observation-command \
+  --task straight \
+  observation:observation-params \
   --observation.url http://127.0.0.1:8766/observation \
   --observation.every-frames 20 \
   --observation.image-width 640 \
   --observation.image-height 480 \
-  --task straight
 ```
 
 This demo uses the `Mjlab-VLA-Straight-G1` task. The environment owns the
