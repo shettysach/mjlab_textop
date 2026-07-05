@@ -255,6 +255,10 @@ bytes in the same request.
 The ONNX path uses the online source and the ONNX actor directly, without a
 `.pt` checkpoint.
 
+The `play-live` viewer also renders the live RobotMDAR reference as a
+translucent ghost robot by default. Disable that overlay with
+`--reference-debug-vis false` if you only want the simulated robot.
+
 #### Straight live task
 
 Run the fixed straight navigation demo with the same live transport fields
