@@ -43,12 +43,6 @@ class TextOpObservationPublisher(Protocol):
         """Publish one MJLab observation payload."""
 
 
-@dataclass(frozen=True)
-class HttpObservationPublisherCfg:
-    url: str = "http://127.0.0.1:8766/observation"
-    timeout_sec: float = 1.0
-
-
 @dataclass(frozen=True, kw_only=True)
 class OnlineTextOpObservationCfg:
     publisher: TextOpObservationPublisher | None = None
@@ -65,12 +59,18 @@ class OnlineTextOpObservationCfg:
 
 
 class HttpObservationPublisher:
-    def __init__(self, cfg: HttpObservationPublisherCfg) -> None:
-        if not cfg.url.strip():
+    def __init__(
+        self,
+        *,
+        url: str = "http://127.0.0.1:8766/observation",
+        timeout_sec: float = 1.0,
+    ) -> None:
+        if not url.strip():
             raise ValueError("URL must be non-empty")
-        if cfg.timeout_sec <= 0:
-            raise ValueError(f"timeout_sec must be positive, got {cfg.timeout_sec}")
-        self.cfg = cfg
+        if timeout_sec <= 0:
+            raise ValueError(f"timeout_sec must be positive, got {timeout_sec}")
+        self.url = url
+        self.timeout_sec = timeout_sec
 
     def publish(
         self,
@@ -79,7 +79,7 @@ class HttpObservationPublisher:
         image: ObservationImage,
     ) -> None:
         request = urllib.request.Request(
-            self.cfg.url,
+            self.url,
             data=json.dumps(
                 make_http_observation_payload(state=state, image=image),
                 separators=(",", ":"),
@@ -87,7 +87,7 @@ class HttpObservationPublisher:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=self.cfg.timeout_sec) as response:
+        with urllib.request.urlopen(request, timeout=self.timeout_sec) as response:
             response.read()
 
 

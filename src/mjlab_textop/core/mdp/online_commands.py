@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Literal, cast
 
 import numpy as np
@@ -77,9 +77,7 @@ class OnlineTextOpMotionCommandCfg(CommandTermCfg):
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     )
-    observation: OnlineTextOpObservationCfg = field(
-        default_factory=OnlineTextOpObservationCfg
-    )
+    observation: OnlineTextOpObservationCfg | None = None
 
     def __post_init__(self) -> None:
         if self.future_steps <= 0:
@@ -127,7 +125,11 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._last_stale_steps = 0
         self._consecutive_stale_steps = 0
         self._last_stale_frame: int | None = None
-        self.observation_reporter = OnlineObservationReporter(cfg.observation, env)
+        self.observation_reporter = (
+            None
+            if cfg.observation is None
+            else OnlineObservationReporter(cfg.observation, env)
+        )
         self._anchor_pos_offset_w = torch.zeros(3, device=self.device)
         self._future_cache_frame: int | None = None
         self._future_cache: TextOpFutureWindow | None = None
@@ -219,19 +221,20 @@ class OnlineTextOpMotionCommand(CommandTerm):
                 "online_bad_messages",
                 getattr(diagnostics, "bad_messages", 0),
             )
-        self.observation_reporter.maybe_publish(
-            OnlineObservationState(
-                frame=self.current_frame,
-                started=self._started,
-                latest_index=latest_index,
-                lag_frames=lag_frames,
-                buffer_frames=self.buffer.frame_count,
-                stale_steps=self._last_stale_steps,
-                consecutive_stale_steps=self._consecutive_stale_steps,
-                robot_anchor_pos_w=self.robot_anchor_pos_w[0],
-                robot_anchor_quat_w=self.robot_anchor_quat_w[0],
+        if self.observation_reporter is not None:
+            self.observation_reporter.maybe_publish(
+                OnlineObservationState(
+                    frame=self.current_frame,
+                    started=self._started,
+                    latest_index=latest_index,
+                    lag_frames=lag_frames,
+                    buffer_frames=self.buffer.frame_count,
+                    stale_steps=self._last_stale_steps,
+                    consecutive_stale_steps=self._consecutive_stale_steps,
+                    robot_anchor_pos_w=self.robot_anchor_pos_w[0],
+                    robot_anchor_quat_w=self.robot_anchor_quat_w[0],
+                )
             )
-        )
 
     def _resample_command(self, env_ids: torch.Tensor) -> None:
         if len(env_ids) == 0:
@@ -558,9 +561,7 @@ class OnlineObservationReporter:
             self._image_renderer = renderer
 
         debug_callback = (
-            env.update_visualizers
-            if hasattr(env, "update_visualizers")
-            else None
+            env.update_visualizers if hasattr(env, "update_visualizers") else None
         )
         self._sync_camera_orientation(renderer)
         renderer.update(env.sim.data, debug_vis_callback=debug_callback)
@@ -622,5 +623,5 @@ def use_online_textop_motion_command(
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
-        observation=observation or OnlineTextOpObservationCfg(),
+        observation=observation,
     )

@@ -9,7 +9,6 @@ from mjlab.scripts.play import PlayConfig, run_play
 
 from mjlab_textop.core.feedback.observation import (
     HttpObservationPublisher,
-    HttpObservationPublisherCfg,
     OnlineTextOpObservationCfg,
     make_torso_observation_camera,
 )
@@ -19,7 +18,6 @@ from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
 from mjlab_textop.scripts.utils import (
     ResolvedPolicy,
     TaskRegistrar,
-    register_generic_play_task,
 )
 from mjlab_textop.tasks import register_tasks
 from mjlab_textop.tasks.blocked_straight.registration import (
@@ -88,7 +86,22 @@ def play_live_textop_motion(
     policy: ResolvedPolicy,
 ) -> None:
     register_tasks()
-    task_name = _register_live_task(cfg, policy=policy)
+    task_name = LIVE_TASK_REGISTRY[cfg.task](
+        runner_cls=policy.runner_cls,
+        live_source_cfg=SocketTextOpSourceCfg(
+            host=cfg.host,
+            port=cfg.port,
+            fps=cfg.fps,
+            max_queue_blocks=cfg.max_queue_blocks,
+        ),
+        source_mode="live",
+        future_steps=cfg.future_steps,
+        num_envs=cfg.num_envs,
+        anchor_alignment=cfg.anchor_alignment,
+        reset_robot_to_reference=cfg.reset_robot_to_reference,
+        reference_debug_vis=cfg.reference_debug_vis,
+        observation=_make_online_observation(cfg),
+    )
     play_cfg = PlayConfig(
         agent="trained",
         checkpoint_file=str(policy.file),
@@ -100,56 +113,26 @@ def play_live_textop_motion(
     run_play(task_name, play_cfg)
 
 
-def _register_live_task(
-    cfg: PlayLiveCommand,
-    *,
-    policy: ResolvedPolicy,
-) -> str:
-    live_source_cfg = _make_live_source_cfg(cfg)
-    observation = _make_online_observation(cfg)
-    return register_generic_play_task(
-        task_registrar=LIVE_TASK_REGISTRY[cfg.task],
-        policy=policy,
-        live_source_cfg=live_source_cfg,
-        source_mode="live",
-        future_steps=cfg.future_steps,
-        num_envs=cfg.num_envs,
-        anchor_alignment=cfg.anchor_alignment,
-        reset_robot_to_reference=cfg.reset_robot_to_reference,
-        reference_debug_vis=cfg.reference_debug_vis,
-        observation=observation,
-    )
-
-
-def _make_live_source_cfg(cfg: PlayLiveCommand) -> SocketTextOpSourceCfg:
-    return SocketTextOpSourceCfg(
-        host=cfg.host,
-        port=cfg.port,
-        fps=cfg.fps,
-        max_queue_blocks=cfg.max_queue_blocks,
-    )
-
-
-def _make_online_observation(cfg: PlayLiveCommand) -> OnlineTextOpObservationCfg:
+def _make_online_observation(cfg: PlayLiveCommand) -> OnlineTextOpObservationCfg | None:
     if cfg.observation is None:
-        return OnlineTextOpObservationCfg()
+        return None
 
-    observation_publisher_cfg = HttpObservationPublisherCfg(
+    publisher = HttpObservationPublisher(
         url=cfg.observation.url,
         timeout_sec=cfg.observation.timeout_sec,
     )
-    observation_publisher = HttpObservationPublisher(observation_publisher_cfg)
+    camera = make_torso_observation_camera(
+        width=cfg.observation.image_width,
+        height=cfg.observation.image_height,
+        distance=cfg.observation.camera_distance,
+        azimuth=cfg.observation.camera_azimuth,
+        elevation=cfg.observation.camera_elevation,
+    )
 
     return OnlineTextOpObservationCfg(
-        publisher=observation_publisher,
+        publisher=publisher,
         publish_interval=cfg.observation.every_frames,
-        camera=make_torso_observation_camera(
-            width=cfg.observation.image_width,
-            height=cfg.observation.image_height,
-            distance=cfg.observation.camera_distance,
-            azimuth=cfg.observation.camera_azimuth,
-            elevation=cfg.observation.camera_elevation,
-        ),
+        camera=camera,
     )
 
 
@@ -179,9 +162,8 @@ def play_online_textop_motion(
 ) -> None:
     register_tasks()
     source = make_mjlab_npz_replay_source(motion_file, block_size=cfg.block_size)
-    task_name = register_generic_play_task(
-        task_registrar=register_online_textop_task,
-        policy=policy,
+    task_name = register_online_textop_task(
+        runner_cls=policy.runner_cls,
         source=source,
         source_mode="replay",
         future_steps=cfg.future_steps,

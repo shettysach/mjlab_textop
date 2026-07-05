@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Literal
+from typing import Literal, Protocol
 
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
@@ -13,6 +13,8 @@ from mjlab_textop.core.mdp.online_commands import TextOpOnlineSourceMode
 from mjlab_textop.core.online.live import SocketTextOpSourceCfg
 from mjlab_textop.core.online.source import TextOpOnlineSource
 from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
+
+PolicyRunnerCls = type[MotionTrackingOnPolicyRunner] | type[OnnxPolicyRunner]
 
 
 def verify_resolved(resolved: Path, label: str) -> Path:
@@ -25,7 +27,7 @@ def verify_resolved(resolved: Path, label: str) -> Path:
 
 @dataclass(frozen=True)
 class ResolvedPolicy:
-    kind: Literal["checkpoint", "onnx"]
+    runner_cls: PolicyRunnerCls
     file: Path
 
 
@@ -38,7 +40,7 @@ def resolve_policy(
 
     if checkpoint_file is not None:
         return ResolvedPolicy(
-            "checkpoint",
+            MotionTrackingOnPolicyRunner,
             verify_resolved(
                 Path(checkpoint_file).expanduser().resolve(),
                 "Checkpoint file",
@@ -47,7 +49,7 @@ def resolve_policy(
 
     if onnx_file is not None:
         return ResolvedPolicy(
-            "onnx",
+            OnnxPolicyRunner,
             verify_resolved(
                 Path(onnx_file).expanduser().resolve(),
                 "ONNX policy file",
@@ -57,37 +59,20 @@ def resolve_policy(
     raise ValueError("Pass exactly one of --checkpoint-file or --onnx-file")
 
 
-TaskRegistrar = Callable[..., str]
-
-
-def register_generic_play_task(
-    *,
-    task_registrar: TaskRegistrar,
-    policy: ResolvedPolicy,
-    source: TextOpOnlineSource | None = None,
-    live_source_cfg: SocketTextOpSourceCfg | None = None,
-    source_mode: TextOpOnlineSourceMode,
-    future_steps: int,
-    num_envs: int,
-    anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
-        "align_to_robot_start"
-    ),
-    reset_robot_to_reference: bool = True,
-    reference_debug_vis: bool = False,
-    observation: OnlineTextOpObservationCfg | None = None,
-) -> str:
-    runner_cls = (
-        OnnxPolicyRunner if policy.kind == "onnx" else MotionTrackingOnPolicyRunner
-    )
-    return task_registrar(
-        runner_cls=runner_cls,
-        source=source,
-        live_source_cfg=live_source_cfg,
-        source_mode=source_mode,
-        future_steps=future_steps,
-        num_envs=num_envs,
-        anchor_alignment=anchor_alignment,
-        reset_robot_to_reference=reset_robot_to_reference,
-        reference_debug_vis=reference_debug_vis,
-        observation=observation,
-    )
+class TaskRegistrar(Protocol):
+    def __call__(
+        self,
+        *,
+        runner_cls: PolicyRunnerCls,
+        source: TextOpOnlineSource | None = None,
+        live_source_cfg: SocketTextOpSourceCfg | None = None,
+        source_mode: TextOpOnlineSourceMode,
+        future_steps: int,
+        num_envs: int,
+        anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
+            "align_to_robot_start"
+        ),
+        reset_robot_to_reference: bool = True,
+        reference_debug_vis: bool | None = None,
+        observation: OnlineTextOpObservationCfg | None = None,
+    ) -> str: ...

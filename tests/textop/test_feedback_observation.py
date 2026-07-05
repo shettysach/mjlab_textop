@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from copy import deepcopy
 
 import pytest
 import torch
@@ -9,7 +8,6 @@ import torch
 from mjlab_textop.core.feedback.observation import (
     OBSERVATION_JPEG_QUALITY,
     HttpObservationPublisher,
-    HttpObservationPublisherCfg,
     ObservationImage,
     OnlineObservationState,
     OnlineTextOpObservationCfg,
@@ -107,10 +105,8 @@ def test_http_observation_publisher_posts_state_and_image(monkeypatch) -> None:
         fake_urlopen,
     )
     publisher = HttpObservationPublisher(
-        HttpObservationPublisherCfg(
-            url="http://127.0.0.1:9999/observation",
-            timeout_sec=2.0,
-        )
+        url="http://127.0.0.1:9999/observation",
+        timeout_sec=2.0,
     )
 
     publisher.publish(
@@ -132,15 +128,7 @@ def test_http_observation_publisher_posts_state_and_image(monkeypatch) -> None:
 
 def test_http_observation_publisher_rejects_empty_url() -> None:
     with pytest.raises(ValueError, match="URL must be non-empty"):
-        HttpObservationPublisher(HttpObservationPublisherCfg(url=""))
-
-
-def test_http_observation_publisher_cfg_is_deepcopyable() -> None:
-    cfg = HttpObservationPublisherCfg(url="http://127.0.0.1:8766/observation")
-
-    copied = deepcopy(cfg)
-
-    assert copied == cfg
+        HttpObservationPublisher(url="")
 
 
 def test_make_http_observation_payload_includes_image() -> None:

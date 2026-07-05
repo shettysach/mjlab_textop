@@ -9,10 +9,6 @@ from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
 from mjlab_textop.core.mdp.observations import future_joint_window_textop_order
 from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
-from mjlab_textop.scripts.utils import (
-    ResolvedPolicy,
-    register_generic_play_task,
-)
 from mjlab_textop.tasks import register_tasks
 from mjlab_textop.tasks.straight import mdp
 from mjlab_textop.tasks.straight.env_cfg import (
@@ -51,9 +47,8 @@ def test_straight_play_task_uses_onnx_runner(tmp_path) -> None:
     onnx_file = tmp_path / "policy.onnx"
     onnx_file.write_text("onnx")
 
-    task_name = register_generic_play_task(
-        task_registrar=register_straight_task,
-        policy=ResolvedPolicy("onnx", onnx_file),
+    task_name = register_straight_task(
+        runner_cls=OnnxPolicyRunner,
         source_mode="live",
         future_steps=2,
         num_envs=1,

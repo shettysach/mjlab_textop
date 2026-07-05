@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 from mjlab.tasks.tracking.mdp.commands import MotionCommand, MotionCommandCfg
+from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
 from mjlab_textop.core.mdp.offline_commands import (
     TextOpMotionCommand,
@@ -13,6 +14,7 @@ from mjlab_textop.core.mdp.offline_commands import (
     textop_motion_command_cfg_from,
     use_textop_motion_command,
 )
+from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
 from mjlab_textop.scripts import commands as commands_module
 from mjlab_textop.scripts.commands import (
     ObservationParams,
@@ -47,7 +49,7 @@ def test_resolve_policy_accepts_checkpoint_file(tmp_path) -> None:
         onnx_file=None,
     )
 
-    assert policy.kind == "checkpoint"
+    assert policy.runner_cls is MotionTrackingOnPolicyRunner
     assert policy.file == checkpoint_file.resolve()
 
 
@@ -60,7 +62,7 @@ def test_resolve_policy_accepts_onnx_file(tmp_path) -> None:
         onnx_file=str(onnx_file),
     )
 
-    assert policy.kind == "onnx"
+    assert policy.runner_cls is OnnxPolicyRunner
     assert policy.file == onnx_file.resolve()
 
 
@@ -92,10 +94,6 @@ def test_play_live_without_images_uses_mjlab_run_play(monkeypatch, tmp_path) -> 
     monkeypatch.setitem(
         commands_module.LIVE_TASK_REGISTRY,
         "default",
-        object(),
-    )
-    monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.register_generic_play_task",
         lambda **kwargs: _fake_register_task(calls, kwargs),
     )
     monkeypatch.setattr(
@@ -105,20 +103,18 @@ def test_play_live_without_images_uses_mjlab_run_play(monkeypatch, tmp_path) -> 
     policy_file = tmp_path / "policy.pt"
     policy_file.write_text("checkpoint")
     play_live_textop_motion(
-        PlayLiveCommand(
-            checkpoint_file=str(policy_file),
-            observation=ObservationParams(
-                url="http://127.0.0.1:8766/observation",
-            ),
-        ),
-        policy=ResolvedPolicy("checkpoint", policy_file),
+        PlayLiveCommand(checkpoint_file=str(policy_file)),
+        policy=ResolvedPolicy(MotionTrackingOnPolicyRunner, policy_file),
     )
 
     task_name, play_cfg = calls["run_play"]
     assert task_name == "task"
     assert play_cfg.video is False
-    assert calls["task_kwargs"]["task_registrar"] is commands_module.LIVE_TASK_REGISTRY["default"]
+    assert play_cfg.video_width is None
+    assert play_cfg.video_height is None
+    assert calls["task_kwargs"]["runner_cls"] is MotionTrackingOnPolicyRunner
     assert calls["task_kwargs"]["reference_debug_vis"] is False
+    assert calls["task_kwargs"]["observation"] is None
 
 
 def test_play_live_defaults_reference_debug_vis_off() -> None:
@@ -140,10 +136,6 @@ def test_play_live_with_images_does_not_enable_video_recording(
     monkeypatch.setitem(
         commands_module.LIVE_TASK_REGISTRY,
         "default",
-        object(),
-    )
-    monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.register_generic_play_task",
         lambda **kwargs: _fake_register_task(calls, kwargs),
     )
     monkeypatch.setattr(
@@ -159,7 +151,7 @@ def test_play_live_with_images_does_not_enable_video_recording(
                 url="http://127.0.0.1:8766/observation",
             ),
         ),
-        policy=ResolvedPolicy("checkpoint", policy_file),
+        policy=ResolvedPolicy(MotionTrackingOnPolicyRunner, policy_file),
     )
 
     task_name, play_cfg = calls["run_play"]
@@ -192,10 +184,6 @@ def test_play_live_uses_custom_observation_camera_geometry(
     monkeypatch.setitem(
         commands_module.LIVE_TASK_REGISTRY,
         "default",
-        object(),
-    )
-    monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.register_generic_play_task",
         lambda **kwargs: _fake_register_task(calls, kwargs),
     )
     monkeypatch.setattr(
@@ -214,7 +202,7 @@ def test_play_live_uses_custom_observation_camera_geometry(
                 camera_elevation=-8.0,
             ),
         ),
-        policy=ResolvedPolicy("checkpoint", policy_file),
+        policy=ResolvedPolicy(MotionTrackingOnPolicyRunner, policy_file),
     )
 
     observation_camera = calls["task_kwargs"]["observation"].camera
@@ -236,10 +224,6 @@ def test_straight_live_uses_straight_task_registration(
     monkeypatch.setitem(
         commands_module.LIVE_TASK_REGISTRY,
         "straight",
-        object(),
-    )
-    monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.register_generic_play_task",
         lambda **kwargs: _fake_register_task(calls, kwargs),
     )
     monkeypatch.setattr(
@@ -257,15 +241,14 @@ def test_straight_live_uses_straight_task_registration(
                 url="http://127.0.0.1:8766/observation",
             ),
         ),
-        policy=ResolvedPolicy("onnx", onnx_file),
+        policy=ResolvedPolicy(OnnxPolicyRunner, onnx_file),
     )
 
     task_name, play_cfg = calls["run_play"]
     assert task_name == "task"
     assert play_cfg.checkpoint_file == str(onnx_file)
-    assert calls["task_kwargs"]["policy"].kind == "onnx"
+    assert calls["task_kwargs"]["runner_cls"] is OnnxPolicyRunner
     assert calls["task_kwargs"]["source_mode"] == "live"
-    assert calls["task_kwargs"]["task_registrar"] is commands_module.LIVE_TASK_REGISTRY["straight"]
     assert calls["task_kwargs"]["observation"].publisher is not None
 
 
@@ -282,10 +265,6 @@ def test_blocked_straight_live_uses_blocked_straight_task_registration(
     monkeypatch.setitem(
         commands_module.LIVE_TASK_REGISTRY,
         "blocked-straight",
-        object(),
-    )
-    monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.register_generic_play_task",
         lambda **kwargs: _fake_register_task(calls, kwargs),
     )
     monkeypatch.setattr(
@@ -303,18 +282,14 @@ def test_blocked_straight_live_uses_blocked_straight_task_registration(
                 url="http://127.0.0.1:8766/observation",
             ),
         ),
-        policy=ResolvedPolicy("onnx", onnx_file),
+        policy=ResolvedPolicy(OnnxPolicyRunner, onnx_file),
     )
 
     task_name, play_cfg = calls["run_play"]
     assert task_name == "task"
     assert play_cfg.checkpoint_file == str(onnx_file)
-    assert calls["task_kwargs"]["policy"].kind == "onnx"
+    assert calls["task_kwargs"]["runner_cls"] is OnnxPolicyRunner
     assert calls["task_kwargs"]["source_mode"] == "live"
-    assert (
-        calls["task_kwargs"]["task_registrar"]
-        is commands_module.LIVE_TASK_REGISTRY["blocked-straight"]
-    )
     assert calls["task_kwargs"]["observation"].publisher is not None
 
 

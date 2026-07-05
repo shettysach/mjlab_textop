@@ -587,6 +587,19 @@ def test_online_command_publishes_observations_with_images_on_interval(
     assert [image.data for image in publisher.images] == [b"jpeg", b"jpeg"]
 
 
+def test_online_command_does_not_create_observation_reporter_by_default() -> None:
+    command = OnlineTextOpMotionCommand(
+        OnlineTextOpMotionCommandCfg(
+            source=QueueTextOpOnlineSource([motion_block(frames=8)]),
+            future_steps=5,
+        ),
+        fake_env(),
+    )
+
+    assert command.cfg.observation is None
+    assert command.observation_reporter is None
+
+
 def test_online_observation_reporter_uses_observation_camera(monkeypatch) -> None:
     calls = {}
 
