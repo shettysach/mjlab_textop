@@ -135,6 +135,32 @@ def test_online_textop_replay_task_can_disable_reference_reset() -> None:
     assert env_cfg.commands["motion"].reset_robot_to_reference is False
 
 
+def test_online_textop_replay_task_can_disable_reference_debug_vis() -> None:
+    source = QueueTextOpOnlineSource(
+        [
+            TextOpMotionBlock(
+                index=0,
+                joint_pos=np.zeros((5, 29), dtype=np.float32),
+                joint_vel=np.zeros((5, 29), dtype=np.float32),
+                anchor_pos_w=np.zeros((5, 3), dtype=np.float32),
+                anchor_quat_w=np.tile(
+                    np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32),
+                    (5, 1),
+                ),
+            )
+        ]
+    )
+
+    task_name = register_online_textop_task(
+        source=source,
+        source_mode="replay",
+        reference_debug_vis=False,
+    )
+    env_cfg = load_env_cfg(task_name, play=True)
+
+    assert env_cfg.commands["motion"].debug_vis is False
+
+
 def test_online_textop_live_task_uses_live_source_mode() -> None:
     source = QueueTextOpOnlineSource([], fps=50.0)
 

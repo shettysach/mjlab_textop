@@ -56,6 +56,7 @@ class PlayLiveCommand:
         "align_to_robot_start"
     )
     reset_robot_to_reference: bool = True
+    reference_debug_vis: bool = True
     observation_url: str | None = None
     observation_timeout_sec: float = 1.0
     observation_every_frames: int = 5
@@ -81,6 +82,7 @@ def play_live_textop_motion(
         anchor_alignment=cfg.anchor_alignment,
         observation=_make_online_observation(cfg),
         reset_robot_to_reference=cfg.reset_robot_to_reference,
+        reference_debug_vis=cfg.reference_debug_vis,
     )
     play_cfg = PlayConfig(
         agent="trained",

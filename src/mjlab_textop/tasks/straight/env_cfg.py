@@ -46,6 +46,7 @@ def make_straight_g1_env_cfg(
         "align_to_robot_start"
     ),
     reset_robot_to_reference: bool = True,
+    reference_debug_vis: bool | None = None,
     observation: OnlineTextOpObservationCfg | None = None,
     task_cfg: StraightTaskCfg = STRAIGHT_TASK_CFG,
 ):
@@ -57,6 +58,7 @@ def make_straight_g1_env_cfg(
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
+        reference_debug_vis=reference_debug_vis,
         observation=observation,
     )
     return _configure_straight_cfg(cfg, task_cfg=task_cfg)
@@ -73,6 +75,7 @@ def make_straight_onnx_g1_env_cfg(
         "align_to_robot_start"
     ),
     reset_robot_to_reference: bool = True,
+    reference_debug_vis: bool | None = None,
     observation: OnlineTextOpObservationCfg | None = None,
     task_cfg: StraightTaskCfg = STRAIGHT_TASK_CFG,
 ):
@@ -84,6 +87,7 @@ def make_straight_onnx_g1_env_cfg(
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
+        reference_debug_vis=reference_debug_vis,
         observation=observation,
     )
     return _configure_straight_cfg(cfg, task_cfg=task_cfg)

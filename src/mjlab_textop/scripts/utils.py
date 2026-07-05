@@ -80,6 +80,7 @@ def register_textop_play_task(
         "align_to_robot_start"
     ),
     reset_robot_to_reference: bool = True,
+    reference_debug_vis: bool = True,
     observation: OnlineTextOpObservationCfg | None = None,
 ) -> str:
     if policy.kind == "onnx":
@@ -91,6 +92,7 @@ def register_textop_play_task(
             num_envs=num_envs,
             anchor_alignment=anchor_alignment,
             reset_robot_to_reference=reset_robot_to_reference,
+            reference_debug_vis=reference_debug_vis,
             observation=observation,
         )
     else:
@@ -102,6 +104,7 @@ def register_textop_play_task(
             num_envs=num_envs,
             anchor_alignment=anchor_alignment,
             reset_robot_to_reference=reset_robot_to_reference,
+            reference_debug_vis=reference_debug_vis,
             observation=observation,
         )
 
@@ -118,6 +121,7 @@ def register_straight_play_task(
         "align_to_robot_start"
     ),
     reset_robot_to_reference: bool = True,
+    reference_debug_vis: bool = True,
     observation: OnlineTextOpObservationCfg | None = None,
 ) -> str:
     runner_cls = (
@@ -134,6 +138,7 @@ def register_straight_play_task(
         num_envs=num_envs,
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
+        reference_debug_vis=reference_debug_vis,
         observation=observation,
     )
 
@@ -150,6 +155,7 @@ def register_blocked_straight_play_task(
         "align_to_robot_start"
     ),
     reset_robot_to_reference: bool = True,
+    reference_debug_vis: bool = True,
     observation: OnlineTextOpObservationCfg | None = None,
 ) -> str:
     runner_cls = (
@@ -166,6 +172,7 @@ def register_blocked_straight_play_task(
         num_envs=num_envs,
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
+        reference_debug_vis=reference_debug_vis,
         observation=observation,
     )
 
@@ -182,6 +189,7 @@ def register_turn_play_task(
         "align_to_robot_start"
     ),
     reset_robot_to_reference: bool = True,
+    reference_debug_vis: bool = True,
     observation: OnlineTextOpObservationCfg | None = None,
 ) -> str:
     runner_cls = (
@@ -198,5 +206,6 @@ def register_turn_play_task(
         num_envs=num_envs,
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
+        reference_debug_vis=reference_debug_vis,
         observation=observation,
     )

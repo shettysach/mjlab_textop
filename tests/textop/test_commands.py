@@ -108,6 +108,7 @@ def test_play_live_without_images_uses_mjlab_run_play(monkeypatch, tmp_path) -> 
     task_name, play_cfg = calls["run_play"]
     assert task_name == "task"
     assert play_cfg.video is False
+    assert calls["task_kwargs"]["reference_debug_vis"] is True
 
 
 def test_play_live_with_images_does_not_enable_video_recording(
@@ -266,6 +267,35 @@ def test_blocked_straight_live_uses_blocked_straight_task_registration(
     assert calls["task_kwargs"]["policy"].kind == "onnx"
     assert calls["task_kwargs"]["source_mode"] == "live"
     assert calls["task_kwargs"]["observation"].publisher is not None
+
+
+def test_play_live_can_disable_reference_debug_vis(monkeypatch, tmp_path) -> None:
+    calls = {}
+
+    monkeypatch.setattr(
+        "mjlab_textop.scripts.commands.register_tasks",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "mjlab_textop.scripts.commands.register_textop_play_task",
+        lambda **kwargs: _fake_register_task(calls, kwargs),
+    )
+    monkeypatch.setattr(
+        "mjlab_textop.scripts.commands.run_play",
+        lambda task_name, play_cfg: calls.update(run_play=(task_name, play_cfg)),
+    )
+    policy_file = tmp_path / "policy.pt"
+    policy_file.write_text("checkpoint")
+
+    play_live_textop_motion(
+        PlayLiveCommand(
+            checkpoint_file=str(policy_file),
+            reference_debug_vis=False,
+        ),
+        policy=ResolvedPolicy("checkpoint", policy_file),
+    )
+
+    assert calls["task_kwargs"]["reference_debug_vis"] is False
 
 
 def _fake_register_task(calls: dict, kwargs: dict) -> str:

@@ -271,7 +271,7 @@ def _query_vlm(
 
     _log_debug_message("vlm_debug_request")
     try:
-        response = selector.choose_prompt(observation=observation).strip()
+        response = selector.choose_prompt(observation=observation)
     except Exception as exc:
         _log_debug_message(f"vlm_debug_error {type(exc).__name__}: {exc}")
         return

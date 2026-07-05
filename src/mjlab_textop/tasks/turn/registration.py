@@ -46,6 +46,7 @@ def register_turn_task(
         "align_to_robot_start"
     ),
     reset_robot_to_reference: bool = True,
+    reference_debug_vis: bool | None = None,
     observation: OnlineTextOpObservationCfg | None = None,
 ) -> str:
     mode_name = source_mode.capitalize()
@@ -64,6 +65,7 @@ def register_turn_task(
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
+        reference_debug_vis=reference_debug_vis,
         observation=observation,
     )
     env_cfg.scene.num_envs = num_envs

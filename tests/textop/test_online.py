@@ -51,6 +51,39 @@ class _RecordingObservationPublisher:
         self.images.append(image)
 
 
+class _RecordingDebugVisualizer:
+    env_idx = 0
+    show_all_envs = False
+
+    def __init__(self) -> None:
+        self.ghosts = []
+
+    def get_env_indices(self, num_envs: int):
+        del num_envs
+        return [0]
+
+    def add_ghost_mesh(
+        self,
+        qpos,
+        *,
+        model,
+        mocap_pos=None,
+        mocap_quat=None,
+        alpha=0.5,
+        label=None,
+    ):
+        self.ghosts.append(
+            {
+                "qpos": qpos.copy(),
+                "model": model,
+                "mocap_pos": mocap_pos,
+                "mocap_quat": mocap_quat,
+                "alpha": alpha,
+                "label": label,
+            }
+        )
+
+
 def test_rolling_buffer_reindexes_and_slices_first_five_frames() -> None:
     block = motion_block(frames=8)
     buffer = TextOpRollingMotionBuffer()
@@ -215,6 +248,43 @@ def test_online_command_polls_source_and_exposes_five_step_window() -> None:
 
     command._update_command()
     assert command.current_frame == 1
+
+
+def test_online_command_debug_vis_skips_before_start() -> None:
+    command = OnlineTextOpMotionCommand(
+        OnlineTextOpMotionCommandCfg(source=QueueTextOpOnlineSource(), future_steps=5),
+        fake_env(),
+    )
+    visualizer = _RecordingDebugVisualizer()
+
+    command._debug_vis_impl(visualizer)
+
+    assert visualizer.ghosts == []
+
+
+def test_online_command_debug_vis_draws_reference_ghost_qpos() -> None:
+    block = motion_block(frames=8)
+    command = OnlineTextOpMotionCommand(
+        OnlineTextOpMotionCommandCfg(
+            source=QueueTextOpOnlineSource([block]),
+            future_steps=5,
+        ),
+        fake_env(),
+    )
+    command._update_command()
+    visualizer = _RecordingDebugVisualizer()
+
+    command._debug_vis_impl(visualizer)
+
+    assert len(visualizer.ghosts) == 1
+    ghost = visualizer.ghosts[0]
+    assert ghost["alpha"] == 0.5
+    assert ghost["label"] == "online_reference_0"
+    np.testing.assert_allclose(ghost["qpos"][:3], command.anchor_pos_w[0].numpy())
+    np.testing.assert_allclose(ghost["qpos"][3:7], command.anchor_quat_w[0].numpy())
+    np.testing.assert_allclose(ghost["qpos"][7:], command.joint_pos[0].numpy())
+    np.testing.assert_allclose(ghost["model"].geom_rgba[0], [0.5, 0.7, 0.5, 0.5])
+    assert ghost["model"].geom_rgba[1, 3] == 0.0
 
 
 def test_online_command_reuses_future_window_for_current_frame() -> None:
@@ -810,6 +880,38 @@ def test_use_online_textop_motion_command_preserves_injected_source() -> None:
 
     assert env_cfg.commands["motion"].source is source
     assert env_cfg.commands["motion"].source_mode == "live"
+
+
+def test_use_online_textop_motion_command_preserves_existing_debug_vis() -> None:
+    env_cfg = SimpleNamespace(
+        commands={
+            "motion": SimpleNamespace(
+                entity_name="robot",
+                anchor_body_name="pelvis",
+                debug_vis=True,
+            )
+        }
+    )
+
+    use_online_textop_motion_command(env_cfg)
+
+    assert env_cfg.commands["motion"].debug_vis is True
+
+
+def test_use_online_textop_motion_command_can_override_debug_vis() -> None:
+    env_cfg = SimpleNamespace(
+        commands={
+            "motion": SimpleNamespace(
+                entity_name="robot",
+                anchor_body_name="pelvis",
+                debug_vis=True,
+            )
+        }
+    )
+
+    use_online_textop_motion_command(env_cfg, debug_vis=False)
+
+    assert env_cfg.commands["motion"].debug_vis is False
 
 
 def test_use_online_textop_motion_command_can_disable_reference_reset() -> None:

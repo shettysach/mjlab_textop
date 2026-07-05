@@ -33,7 +33,7 @@ class VlmPromptPlanner:
         self.feedback = feedback
         self.selector = selector
         self.current_prompt = initial_prompt
-        self.current_prompt_source = "fallback"
+        self.current_prompt_source = "initial"
         self.query_every_blocks = query_every_blocks
         self.last_error: str | None = None
         self._stop = False
@@ -52,9 +52,11 @@ class VlmPromptPlanner:
     @property
     def log_suffix(self) -> str:
         state = "inflight" if self._future is not None else "idle"
-        suffix = f" vlm={state}"
+        suffix = f" vlm_state={state}"
+        if self._last_query_block is not None:
+            suffix += f" vlm_last_query_block={self._last_query_block}"
         if self.last_error is not None:
-            suffix += f" vlm_error={self.last_error}"
+            suffix += f" vlm_last_error={self.last_error!r}"
         return suffix
 
     def start(self) -> None:
@@ -88,15 +90,12 @@ class VlmPromptPlanner:
             return
 
         try:
-            next_prompt = self._future.result().strip()
-            if not next_prompt:
-                self.last_error = "Empty"
-                return
+            next_prompt = self._future.result()
             self.current_prompt = next_prompt
-            self.current_prompt_source = "prev"
+            self.current_prompt_source = "vlm"
             self.last_error = None
         except Exception as exc:
-            self.last_error = type(exc).__name__
+            self.last_error = f"{type(exc).__name__}: {exc}"
         finally:
             self._future = None
 
@@ -149,7 +148,7 @@ class OpenAIChatPromptSelector:
                 max_tokens=self.max_tokens,
             )
         )
-        return str(response["choices"][0]["message"]["content"])
+        return response["choices"][0]["message"]["content"]
 
     def _post_json(self, payload: dict[str, Any]) -> dict[str, Any]:
         request = urllib.request.Request(

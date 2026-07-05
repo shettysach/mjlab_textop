@@ -45,6 +45,10 @@ def fake_env(
     )
     robot = SimpleNamespace(
         body_names=["pelvis"],
+        indexing=SimpleNamespace(
+            free_joint_q_adr=torch.arange(7),
+            joint_q_adr=torch.arange(7, 36),
+        ),
         data=SimpleNamespace(
             body_link_pos_w=body_pos,
             body_link_quat_w=torch.tensor([[[1.0, 0.0, 0.0, 0.0]]]).repeat(
@@ -77,6 +81,15 @@ def fake_env(
         device="cpu",
         step_dt=step_dt,
         scene={"robot": robot},
+        sim=SimpleNamespace(
+            mj_model=SimpleNamespace(
+                nq=36,
+                ngeom=2,
+                geom_contype=np.array([0, 1], dtype=np.int32),
+                geom_conaffinity=np.array([0, 1], dtype=np.int32),
+                geom_rgba=np.ones((2, 4), dtype=np.float32),
+            )
+        ),
     )
 
 

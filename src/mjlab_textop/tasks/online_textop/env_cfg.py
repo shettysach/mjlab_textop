@@ -39,6 +39,7 @@ def make_online_textop_g1_flat_tracking_env_cfg(
         "align_to_robot_start"
     ),
     reset_robot_to_reference: bool = True,
+    reference_debug_vis: bool | None = None,
     observation: OnlineTextOpObservationCfg | None = None,
 ):
     cfg = unitree_g1_flat_tracking_env_cfg(play=play)
@@ -52,6 +53,7 @@ def make_online_textop_g1_flat_tracking_env_cfg(
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
+        debug_vis=reference_debug_vis,
         observation=observation,
     )
     cfg.commands["motion"].anchor_body_name = "pelvis"  # ty:ignore[unresolved-attribute]
@@ -73,6 +75,7 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
         "align_to_robot_start"
     ),
     reset_robot_to_reference: bool = True,
+    reference_debug_vis: bool | None = None,
     observation: OnlineTextOpObservationCfg | None = None,
 ):
     cfg = unitree_g1_flat_tracking_env_cfg(play=play)
@@ -86,6 +89,7 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
+        debug_vis=reference_debug_vis,
         observation=observation,
     )
     cfg.commands["motion"].anchor_body_name = "pelvis"  # ty:ignore[unresolved-attribute]
