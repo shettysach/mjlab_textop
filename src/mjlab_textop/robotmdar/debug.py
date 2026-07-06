@@ -83,7 +83,7 @@ def run_debug(args: argparse.Namespace) -> None:
     prompt = PromptState(text=args.prompt)
     input_thread = threading.Thread(
         target=_prompt_loop,
-        args=(prompt, receiver, selector),
+        args=(prompt, receiver, selector, args.debug_dir),
         daemon=True,
     )
 
@@ -152,6 +152,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--vlm-timeout-sec", type=float, default=30.0)
     parser.add_argument("--vlm-max-tokens", type=int, default=256)
+    parser.add_argument("--debug-dir", type=Path, default=None)
     parser.add_argument("--log-every-blocks", type=int, default=20)
     args = parser.parse_args()
     if args.vlm_timeout_sec <= 0:
@@ -242,6 +243,7 @@ def _prompt_loop(
     prompt: PromptState,
     receiver: HttpObservationReceiver,
     selector: OpenAIChatPromptSelector,
+    debug_dir: Path | None,
 ) -> None:
     while not prompt.stop:
         try:
@@ -253,7 +255,7 @@ def _prompt_loop(
         finally:
             prompt.input_active = False
         if text == "?":
-            _query_vlm(receiver, selector)
+            _query_vlm(receiver, selector, debug_dir)
         elif text.lower() in {"q", "quit", "exit"}:
             prompt.stop = True
         elif text:
@@ -263,12 +265,15 @@ def _prompt_loop(
 def _query_vlm(
     receiver: HttpObservationReceiver,
     selector: OpenAIChatPromptSelector,
+    debug_dir: Path | None = None,
 ) -> None:
     observation = receiver.latest()
     if observation is None:
         _log_debug_message("vlm_debug_error No observation received yet.")
         return
 
+    if debug_dir is not None:
+        _save_vlm_debug_image(observation, debug_dir)
     _log_debug_message("vlm_debug_request")
     try:
         selection = selector.choose_prompt_with_debug(observation=observation)
@@ -278,6 +283,17 @@ def _query_vlm(
     if selection.reasoning is not None:
         _log_debug_message(f"vlm_debug_reasoning {selection.reasoning}")
     _log_debug_message(f"vlm_debug_response {selection.prompt}")
+
+
+def _save_vlm_debug_image(observation: Any, debug_dir: Path) -> None:
+    if observation.image_bytes is None or observation.image_mime_type is None:
+        _log_debug_message("vlm_debug_image none")
+        return
+
+    debug_dir.mkdir(parents=True, exist_ok=True)
+    image_path = debug_dir / f"frame_{observation.frame}.jpg"
+    image_path.write_bytes(observation.image_bytes)
+    _log_debug_message(f"vlm_debug_image {image_path}")
 
 
 def _log_debug_message(message: str) -> None:
