@@ -27,6 +27,9 @@ from mjlab_textop.tasks.textop_tracking.env_cfg import (
     configure_textop_critic_observations,
 )
 
+TEXTOP_DEPLOY_SIM_TIMESTEP = 0.002
+TEXTOP_DEPLOY_DECIMATION = 10
+
 
 def make_online_textop_g1_flat_tracking_env_cfg(
     *,
@@ -35,8 +38,6 @@ def make_online_textop_g1_flat_tracking_env_cfg(
     source: TextOpOnlineSource | None = None,
     live_source_cfg: SocketTextOpSourceCfg | None = None,
     source_mode: TextOpOnlineSourceMode = "live",
-    sim_timestep: float | None = None,
-    decimation: int | None = None,
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     ),
@@ -59,7 +60,7 @@ def make_online_textop_g1_flat_tracking_env_cfg(
         observation=observation,
     )
     cfg.commands["motion"].anchor_body_name = "pelvis"  # ty:ignore[unresolved-attribute]
-    _configure_online_textop_timing(cfg, sim_timestep=sim_timestep, decimation=decimation)
+    _configure_textop_deploy_timing(cfg)
     configure_textop_actor_observations(cfg)
     configure_textop_critic_observations(cfg)
     configure_online_textop_tracking_terms(cfg)
@@ -74,8 +75,6 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
     source: TextOpOnlineSource | None = None,
     live_source_cfg: SocketTextOpSourceCfg | None = None,
     source_mode: TextOpOnlineSourceMode = "live",
-    sim_timestep: float | None = None,
-    decimation: int | None = None,
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     ),
@@ -98,7 +97,7 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
         observation=observation,
     )
     cfg.commands["motion"].anchor_body_name = "pelvis"  # ty:ignore[unresolved-attribute]
-    _configure_online_textop_timing(cfg, sim_timestep=sim_timestep, decimation=decimation)
+    _configure_textop_deploy_timing(cfg)
     configure_textop_onnx_actor_observations(cfg)
     configure_online_textop_tracking_terms(cfg)
 
@@ -107,16 +106,11 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
     return cfg
 
 
-def _configure_online_textop_timing(
-    cfg,
-    *,
-    sim_timestep: float | None,
-    decimation: int | None,
-) -> None:
-    if sim_timestep is not None:
-        cfg.sim.mujoco.timestep = sim_timestep
-    if decimation is not None:
-        cfg.decimation = decimation
+# TextOp's MuJoCo ONNX deploy uses 2 ms physics steps with decimation 10.
+# Keep the 50 Hz policy rate, but avoid MJLab's coarser 5 ms physics step.
+def _configure_textop_deploy_timing(cfg) -> None:
+    cfg.sim.mujoco.timestep = TEXTOP_DEPLOY_SIM_TIMESTEP
+    cfg.decimation = TEXTOP_DEPLOY_DECIMATION
 
 
 def configure_textop_onnx_actor_observations(cfg) -> None:

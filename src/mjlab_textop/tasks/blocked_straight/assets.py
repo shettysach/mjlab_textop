@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING
 
 import mujoco
 
+from mjlab_textop.tasks.wall_contact import _add_wall
+
 if TYPE_CHECKING:
     from mujoco import MjSpec  # ty: ignore[unresolved-import]
 
@@ -47,60 +49,44 @@ def make_blocked_straight_spec_fn(
         corridor_center_x = (corridor_back_x + corridor_end_x) * 0.5
         corridor_half_length = (corridor_end_x - corridor_back_x) * 0.5
         wall_z = goal_pos_w[2] + half_wall_height
-        _add_box(
+        _add_wall(
             spec,
             name="blocked_straight_left_wall",
             pos=(corridor_center_x, goal_pos_w[1] + half_size, wall_z),
             size=(corridor_half_length, half_wall_thickness, half_wall_height),
             rgba=wall_rgba,
         )
-        _add_box(
+        _add_wall(
             spec,
             name="blocked_straight_right_wall",
             pos=(corridor_center_x, goal_pos_w[1] - half_size, wall_z),
             size=(corridor_half_length, half_wall_thickness, half_wall_height),
             rgba=wall_rgba,
         )
-        _add_box(
+        _add_wall(
             spec,
             name="blocked_straight_end_wall",
             pos=(corridor_end_x, goal_pos_w[1], wall_z),
             size=(half_wall_thickness, half_size, half_wall_height),
             rgba=wall_rgba,
         )
-        _add_box(
+        _add_wall(
             spec,
             name="blocked_straight_back_wall",
             pos=(corridor_back_x, goal_pos_w[1], wall_z),
             size=(half_wall_thickness, half_size, half_wall_height),
             rgba=wall_rgba,
         )
-        _add_box(
+        _add_wall(
             spec,
             name="blocked_straight_center_block",
             pos=(obstacle_pos_xy[0], obstacle_pos_xy[1], wall_z),
-            size=(obstacle_size_xy[0] * 0.5, obstacle_size_xy[1] * 0.5, half_wall_height),
+            size=(
+                obstacle_size_xy[0] * 0.5,
+                obstacle_size_xy[1] * 0.5,
+                half_wall_height,
+            ),
             rgba=obstacle_rgba,
         )
 
     return add_blocked_straight
-
-
-def _add_box(
-    spec: "MjSpec",
-    *,
-    name: str,
-    pos: tuple[float, float, float],
-    size: tuple[float, float, float],
-    rgba: tuple[float, float, float, float],
-) -> None:
-    body = spec.worldbody.add_body(name=name)
-    body.pos = pos
-    body.add_geom(
-        name=f"{name}_collision",
-        type=MJGEOM_BOX,
-        size=size,
-        rgba=rgba,
-        contype=1,
-        conaffinity=1,
-    )

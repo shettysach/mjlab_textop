@@ -120,8 +120,6 @@ def test_play_live_without_images_uses_mjlab_run_play(monkeypatch, tmp_path) -> 
 def test_play_live_defaults_reference_debug_vis_off() -> None:
     assert PlayLiveCommand().reference_debug_vis is False
     assert PlayLiveCommand().observation is None
-    assert PlayLiveCommand().sim_timestep == 0.005
-    assert PlayLiveCommand().decimation == 4
     assert ObservationParams().url == "http://127.0.0.1:8766/observation"
 
 
@@ -211,37 +209,6 @@ def test_play_live_uses_custom_observation_camera_geometry(
     assert observation_camera.distance == 1.25
     assert observation_camera.azimuth == 175.0
     assert observation_camera.elevation == -8.0
-
-
-def test_play_live_forwards_timing_overrides(monkeypatch, tmp_path) -> None:
-    calls = {}
-
-    monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.register_tasks",
-        lambda: None,
-    )
-    monkeypatch.setitem(
-        commands_module.LIVE_TASK_REGISTRY,
-        "default",
-        lambda **kwargs: _fake_register_task(calls, kwargs),
-    )
-    monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.run_play",
-        lambda task_name, play_cfg: calls.update(run_play=(task_name, play_cfg)),
-    )
-    policy_file = tmp_path / "policy.pt"
-    policy_file.write_text("checkpoint")
-    play_live_textop_motion(
-        PlayLiveCommand(
-            checkpoint_file=str(policy_file),
-            sim_timestep=0.002,
-            decimation=10,
-        ),
-        policy=ResolvedPolicy(MotionTrackingOnPolicyRunner, policy_file),
-    )
-
-    assert calls["task_kwargs"]["sim_timestep"] == 0.002
-    assert calls["task_kwargs"]["decimation"] == 10
 
 
 def test_straight_live_uses_straight_task_registration(

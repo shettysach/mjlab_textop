@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING
 
 import mujoco
 
+from mjlab_textop.tasks.wall_contact import _add_wall
+
 if TYPE_CHECKING:
     from mujoco import MjSpec  # ty: ignore[unresolved-import]
 
@@ -108,23 +110,3 @@ def make_turn_task_spec_fn(
         )
 
     return add_turn_task
-
-
-def _add_wall(
-    spec: "MjSpec",
-    *,
-    name: str,
-    pos: tuple[float, float, float],
-    size: tuple[float, float, float],
-    rgba: tuple[float, float, float, float],
-) -> None:
-    body = spec.worldbody.add_body(name=name)
-    body.pos = pos
-    body.add_geom(
-        name=f"{name}_collision",
-        type=MJGEOM_BOX,
-        size=size,
-        rgba=rgba,
-        contype=1,
-        conaffinity=1,
-    )
