@@ -24,15 +24,17 @@ from mjlab_textop.tasks.blocked_straight.registration import (
     register_blocked_straight_task,
 )
 from mjlab_textop.tasks.online_textop.registration import register_online_textop_task
+from mjlab_textop.tasks.side_goals.registration import register_side_goals_task
 from mjlab_textop.tasks.straight.registration import register_straight_task
 from mjlab_textop.tasks.turn.registration import register_turn_task
 
-TextOpLiveTask = Literal["default", "straight", "blocked-straight", "turn"]
+TextOpLiveTask = Literal["default", "straight", "blocked-straight", "side-goals", "turn"]
 
 LIVE_TASK_REGISTRY: dict[TextOpLiveTask, TaskRegistrar] = {
     "default": register_online_textop_task,
     "straight": register_straight_task,
     "blocked-straight": register_blocked_straight_task,
+    "side-goals": register_side_goals_task,
     "turn": register_turn_task,
 }
 

@@ -10,6 +10,9 @@ def register_tasks() -> None:
     from mjlab_textop.tasks.online_textop.registration import (
         STATIC_TASK_SPECS as ONLINE_TEXTOP_TASK_SPECS,
     )
+    from mjlab_textop.tasks.side_goals.registration import (
+        STATIC_TASK_SPECS as SIDE_GOALS_TASK_SPECS,
+    )
     from mjlab_textop.tasks.straight.registration import (
         STATIC_TASK_SPECS as STRAIGHT_TASK_SPECS,
     )
@@ -26,6 +29,7 @@ def register_tasks() -> None:
             *ONLINE_TEXTOP_TASK_SPECS,
             *STRAIGHT_TASK_SPECS,
             *BLOCKED_STRAIGHT_TASK_SPECS,
+            *SIDE_GOALS_TASK_SPECS,
             *TURN_TASK_SPECS,
         ]
     )

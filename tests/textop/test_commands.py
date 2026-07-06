@@ -293,6 +293,47 @@ def test_blocked_straight_live_uses_blocked_straight_task_registration(
     assert calls["task_kwargs"]["observation"].publisher is not None
 
 
+def test_side_goals_live_uses_side_goals_task_registration(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    calls = {}
+
+    monkeypatch.setattr(
+        "mjlab_textop.scripts.commands.register_tasks",
+        lambda: None,
+    )
+    monkeypatch.setitem(
+        commands_module.LIVE_TASK_REGISTRY,
+        "side-goals",
+        lambda **kwargs: _fake_register_task(calls, kwargs),
+    )
+    monkeypatch.setattr(
+        "mjlab_textop.scripts.commands.run_play",
+        lambda task_name, play_cfg: calls.update(run_play=(task_name, play_cfg)),
+    )
+    onnx_file = tmp_path / "policy.onnx"
+    onnx_file.write_text("onnx")
+
+    play_live_textop_motion(
+        PlayLiveCommand(
+            task="side-goals",
+            onnx_file=str(onnx_file),
+            observation=ObservationParams(
+                url="http://127.0.0.1:8766/observation",
+            ),
+        ),
+        policy=ResolvedPolicy(OnnxPolicyRunner, onnx_file),
+    )
+
+    task_name, play_cfg = calls["run_play"]
+    assert task_name == "task"
+    assert play_cfg.checkpoint_file == str(onnx_file)
+    assert calls["task_kwargs"]["runner_cls"] is OnnxPolicyRunner
+    assert calls["task_kwargs"]["source_mode"] == "live"
+    assert calls["task_kwargs"]["observation"].publisher is not None
+
+
 def _fake_register_task(calls: dict, kwargs: dict) -> str:
     calls["task_kwargs"] = kwargs
     return "task"
