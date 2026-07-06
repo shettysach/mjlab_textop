@@ -123,6 +123,7 @@ class OpenAIChatPromptSelector:
         user_prompt: str,
         timeout_sec: float = 30.0,
         max_tokens: int = 32,
+        include_history: bool = False,
     ) -> None:
         if not model:
             raise ValueError("model must be a non-empty string")
@@ -138,6 +139,8 @@ class OpenAIChatPromptSelector:
         self.user_prompt = user_prompt
         self.timeout_sec = timeout_sec
         self.max_tokens = max_tokens
+        self.include_history = include_history
+        self.prompt_history: list[str] = []
 
     def choose_prompt(
         self,
@@ -154,6 +157,9 @@ class OpenAIChatPromptSelector:
         response = self._post_json(
             _make_chat_completions_payload(
                 observation=observation,
+                prompt_history=(
+                    self.prompt_history if self.include_history else []
+                ),
                 model=self.model,
                 system_prompt=self.system_prompt,
                 user_prompt=self.user_prompt,
@@ -162,8 +168,11 @@ class OpenAIChatPromptSelector:
         )
         choice = response["choices"][0]
         message = choice["message"]
+        prompt = message["content"]
+        if self.include_history:
+            self.prompt_history.append(prompt)
         return VlmPromptSelection(
-            prompt=message["content"],
+            prompt=prompt,
             reasoning=_extract_reasoning(choice),
             response=response,
         )
@@ -182,6 +191,7 @@ class OpenAIChatPromptSelector:
 def _make_chat_completions_payload(
     *,
     observation: FeedbackObservation | None,
+    prompt_history: list[str],
     model: str,
     system_prompt: str | None,
     user_prompt: str,
@@ -210,6 +220,13 @@ def _make_chat_completions_payload(
         [{"role": "system", "content": [{"type": "text", "text": system_prompt}]}]
         if system_prompt is not None
         else []
+    )
+    messages.extend(
+        {
+            "role": "assistant",
+            "content": [{"type": "text", "text": prompt}],
+        }
+        for prompt in prompt_history
     )
     messages.append({"role": "user", "content": content})
     return {

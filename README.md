@@ -185,7 +185,8 @@ server. The producer queries the VLM on a fixed block cadence and keeps the
 last selected prompt between queries. The default VLM prompts are read from
 [`prompt/SYSTEM.md`](prompt/SYSTEM.md) and [`prompt/USER.md`](prompt/USER.md).
 Override them with `--vlm-system-prompt` and `--vlm-user-prompt` file paths
-if needed:
+if needed. Add `--vlm-history` to send previous VLM-selected prompts back to
+the VLM on later requests:
 
 ```bash
 uv run python -m mjlab_textop.robotmdar.produce \

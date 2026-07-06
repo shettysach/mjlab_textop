@@ -79,6 +79,7 @@ def run_debug(args: argparse.Namespace) -> None:
         user_prompt=_read_prompt_path(args.vlm_user_prompt),
         timeout_sec=args.vlm_timeout_sec,
         max_tokens=args.vlm_max_tokens,
+        include_history=args.vlm_history,
     )
     prompt = PromptState(text=args.prompt)
     input_thread = threading.Thread(
@@ -152,6 +153,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--vlm-timeout-sec", type=float, default=30.0)
     parser.add_argument("--vlm-max-tokens", type=int, default=256)
+    parser.add_argument(
+        "--vlm-history",
+        action="store_true",
+        help="Send previous VLM-selected prompts back on later VLM requests.",
+    )
     parser.add_argument("--debug-dir", type=Path, default=None)
     parser.add_argument("--log-every-blocks", type=int, default=20)
     args = parser.parse_args()

@@ -452,6 +452,50 @@ def test_http_vlm_prompt_selector_posts_image_from_observation_bytes(
     }
 
 
+def test_http_vlm_prompt_selector_can_send_prompt_history(monkeypatch) -> None:
+    posted = []
+    responses = iter(
+        [
+            {"choices": [{"message": {"content": "walk"}}]},
+            {"choices": [{"message": {"content": "stand"}}]},
+        ]
+    )
+
+    def fake_urlopen(request, timeout):
+        del timeout
+        posted.append(json.loads(request.data.decode("utf-8")))
+        return _FakeResponse(next(responses))
+
+    monkeypatch.setattr(
+        "mjlab_textop.robotmdar.planner.vlm.urllib.request.urlopen",
+        fake_urlopen,
+    )
+    selector = OpenAIChatPromptSelector(
+        base_url="http://127.0.0.1:9379",
+        model="gemma-4-e2b-it",
+        system_prompt="You are a motion planner.",
+        user_prompt=_default_vlm_user_prompt(),
+        include_history=True,
+    )
+
+    assert selector.choose_prompt(observation=_observation()) == "walk"
+    assert selector.choose_prompt(observation=_observation()) == "stand"
+
+    assert [message["role"] for message in posted[0]["messages"]] == [
+        "system",
+        "user",
+    ]
+    assert [message["role"] for message in posted[1]["messages"]] == [
+        "system",
+        "assistant",
+        "user",
+    ]
+    assert posted[1]["messages"][1] == {
+        "role": "assistant",
+        "content": [{"type": "text", "text": "walk"}],
+    }
+
+
 def test_http_vlm_prompt_selector_returns_raw_response(monkeypatch) -> None:
     def fake_urlopen(request, timeout):
         del request, timeout
@@ -567,6 +611,7 @@ def test_make_prompt_planner_reads_vlm_prompt_files(tmp_path) -> None:
             vlm_user_prompt=user_prompt_file,
             vlm_timeout_sec=1.0,
             vlm_max_tokens=128,
+            vlm_history=True,
             query_every_blocks=4,
         )
     )
@@ -574,5 +619,6 @@ def test_make_prompt_planner_reads_vlm_prompt_files(tmp_path) -> None:
     assert isinstance(planner, VlmPromptPlanner)
     assert planner.selector.system_prompt == "System file prompt.\n"
     assert planner.selector.user_prompt == "User file prompt.\n"
+    assert planner.selector.include_history is True
 
     planner.request_stop()
