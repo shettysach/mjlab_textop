@@ -77,8 +77,8 @@ def test_side_goals_spec_fn_adds_two_goals_and_four_walls() -> None:
     green_goal = next(
         body for body in spec.bodies if body.name == "side_goals_green_goal"
     )
-    assert tuple(blue_goal.pos) == (0.0, 4.5, 0.005)
-    assert tuple(green_goal.pos) == (0.0, -4.5, 0.005)
+    assert tuple(blue_goal.pos) == (0.0, 5.0, 0.005)
+    assert tuple(green_goal.pos) == (0.0, -5.0, 0.005)
 
     blue_geom = next(
         geom
@@ -90,11 +90,11 @@ def test_side_goals_spec_fn_adds_two_goals_and_four_walls() -> None:
         for geom in green_goal.geoms
         if geom.name == "side_goals_green_goal_visual"
     )
-    assert tuple(blue_geom.size) == (4.5, 4.5, 0.005)
+    assert tuple(blue_geom.size) == (4.0, 4.0, 0.005)
     assert tuple(blue_geom.rgba) == (0.0, 0.0, 1.0, 1.0)
     assert blue_geom.contype == 0
     assert blue_geom.conaffinity == 0
-    assert tuple(green_geom.size) == (4.5, 4.5, 0.005)
+    assert tuple(green_geom.size) == (4.0, 4.0, 0.005)
     assert tuple(green_geom.rgba) == (0.0, 1.0, 0.0, 1.0)
     assert green_geom.contype == 0
     assert green_geom.conaffinity == 0
