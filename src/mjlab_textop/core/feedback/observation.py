@@ -137,8 +137,8 @@ def make_http_observation_payload(
     state: dict[str, Any],
     image: ObservationImage,
 ) -> dict[str, Any]:
+    del state
     return {
-        "state": state,
         "image": {
             "mime_type": image.mime_type,
             "data": b64encode(image.data).decode("ascii"),

@@ -38,16 +38,30 @@ def test_query_vlm_does_not_save_image_without_debug_dir(tmp_path, capsys) -> No
     assert "vlm_debug_image" not in capsys.readouterr().err
 
 
-def test_query_vlm_saves_image_when_debug_dir_is_passed(tmp_path, capsys) -> None:
+def test_query_vlm_saves_unique_images_when_debug_dir_is_passed(
+    tmp_path,
+    capsys,
+) -> None:
     _query_vlm(
         _Receiver(_observation(image_bytes=b"jpg bytes", image_mime_type="image/jpeg")),
         _Selector(VlmPromptSelection(prompt="wave", reasoning=None, response={})),
         tmp_path,
     )
+    _query_vlm(
+        _Receiver(
+            _observation(image_bytes=b"next jpg bytes", image_mime_type="image/jpeg")
+        ),
+        _Selector(VlmPromptSelection(prompt="stand", reasoning=None, response={})),
+        tmp_path,
+    )
 
-    image_path = tmp_path / "frame_42.jpg"
-    assert image_path.read_bytes() == b"jpg bytes"
-    assert f"vlm_debug_image {image_path}" in capsys.readouterr().err
+    first_image_path = tmp_path / "vlm_observation_000001.jpg"
+    second_image_path = tmp_path / "vlm_observation_000002.jpg"
+    assert first_image_path.read_bytes() == b"jpg bytes"
+    assert second_image_path.read_bytes() == b"next jpg bytes"
+    stderr = capsys.readouterr().err
+    assert f"vlm_debug_image {first_image_path}" in stderr
+    assert f"vlm_debug_image {second_image_path}" in stderr
 
 
 def _observation(
@@ -56,15 +70,6 @@ def _observation(
     image_mime_type: str | None = "image/jpeg",
 ) -> FeedbackObservation:
     return FeedbackObservation(
-        frame=42,
-        started=True,
-        latest_frame=40,
-        lag_frames=2,
-        buffer_frames=5,
-        stale_steps=0,
-        consecutive_stale_steps=0,
-        robot_anchor_pos_w=(0.0, 0.0, 0.0),
-        robot_anchor_quat_w=(1.0, 0.0, 0.0, 0.0),
         image_bytes=image_bytes,
         image_mime_type=image_mime_type,
     )

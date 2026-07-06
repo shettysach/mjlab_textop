@@ -90,7 +90,7 @@ def test_make_torso_observation_camera_uses_requested_dimensions() -> None:
     assert camera.elevation == -5.0
 
 
-def test_http_observation_publisher_posts_state_and_image(monkeypatch) -> None:
+def test_http_observation_publisher_posts_image_only(monkeypatch) -> None:
     posted = {}
 
     def fake_urlopen(request, timeout):
@@ -118,7 +118,6 @@ def test_http_observation_publisher_posts_state_and_image(monkeypatch) -> None:
     assert posted["timeout"] == 2.0
     assert posted["content_type"] == "application/json"
     assert posted["payload"] == {
-        "state": {"frame": 1},
         "image": {
             "mime_type": "image/jpeg",
             "data": "anBlZyBieXRlcw==",
@@ -136,7 +135,6 @@ def test_make_http_observation_payload_includes_image() -> None:
         state={"frame": 1},
         image=ObservationImage(data=b"jpeg bytes", mime_type="image/jpeg"),
     ) == {
-        "state": {"frame": 1},
         "image": {
             "mime_type": "image/jpeg",
             "data": "anBlZyBieXRlcw==",

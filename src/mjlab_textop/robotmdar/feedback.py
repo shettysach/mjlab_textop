@@ -11,15 +11,6 @@ from typing import Any
 
 @dataclass(frozen=True)
 class FeedbackObservation:
-    frame: int
-    started: bool
-    latest_frame: int | None
-    lag_frames: int
-    buffer_frames: int
-    stale_steps: int
-    consecutive_stale_steps: int
-    robot_anchor_pos_w: tuple[float, float, float]
-    robot_anchor_quat_w: tuple[float, float, float, float]
     image_bytes: bytes | None = None
     image_mime_type: str | None = None
 
@@ -111,23 +102,9 @@ def parse_feedback_observation(
     if not isinstance(message, dict):
         raise ValueError("Feedback observation must be a JSON object")
 
-    state = message.get("state", message)
-    if not isinstance(state, dict):
-        raise ValueError("Feedback observation state must be a JSON object")
     image = _parse_image(message.get("image"))
 
     return FeedbackObservation(
-        frame=int(state["frame"]),
-        started=bool(state["started"]),
-        latest_frame=(
-            None if state.get("latest_frame") is None else int(state["latest_frame"])
-        ),
-        lag_frames=int(state["lag_frames"]),
-        buffer_frames=int(state["buffer_frames"]),
-        stale_steps=int(state["stale_steps"]),
-        consecutive_stale_steps=int(state["consecutive_stale_steps"]),
-        robot_anchor_pos_w=_fixed_float_tuple(state["robot_anchor_pos_w"], 3),  # ty:ignore[invalid-argument-type]
-        robot_anchor_quat_w=_fixed_float_tuple(state["robot_anchor_quat_w"], 4),  # ty:ignore[invalid-argument-type]
         image_bytes=None if image is None else image["data"],
         image_mime_type=None if image is None else image["mime_type"],
     )
@@ -141,9 +118,3 @@ def _parse_image(value: Any) -> dict[str, Any] | None:
     mime_type = str(value["mime_type"])
     data = b64decode(str(value["data"]), validate=True)
     return {"mime_type": mime_type, "data": data}
-
-
-def _fixed_float_tuple(value: Any, width: int) -> tuple[float, ...]:
-    if not isinstance(value, (list, tuple)) or len(value) != width:
-        raise ValueError(f"Expected sequence with {width} values, got {value!r}")
-    return tuple(float(item) for item in value)

@@ -297,9 +297,18 @@ def _save_vlm_debug_image(observation: Any, debug_dir: Path) -> None:
         return
 
     debug_dir.mkdir(parents=True, exist_ok=True)
-    image_path = debug_dir / f"frame_{observation.frame}.jpg"
+    image_path = _next_vlm_debug_image_path(debug_dir)
     image_path.write_bytes(observation.image_bytes)
     _log_debug_message(f"vlm_debug_image {image_path}")
+
+
+def _next_vlm_debug_image_path(debug_dir: Path) -> Path:
+    index = 1
+    while True:
+        image_path = debug_dir / f"vlm_observation_{index:06d}.jpg"
+        if not image_path.exists():
+            return image_path
+        index += 1
 
 
 def _log_debug_message(message: str) -> None:

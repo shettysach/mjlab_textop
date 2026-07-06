@@ -186,7 +186,8 @@ last selected prompt between queries. The default VLM prompts are read from
 [`prompt/SYSTEM.md`](prompt/SYSTEM.md) and [`prompt/USER.md`](prompt/USER.md).
 Override them with `--vlm-system-prompt` and `--vlm-user-prompt` file paths
 if needed. Add `--vlm-history` to send previous VLM-selected prompts back to
-the VLM on later requests:
+the VLM on later requests, and `--vlm-reasoning` to print any reasoning field
+returned with a VLM response:
 
 ```bash
 uv run python -m mjlab_textop.robotmdar.produce \

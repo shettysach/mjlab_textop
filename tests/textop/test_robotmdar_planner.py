@@ -14,6 +14,7 @@ from mjlab_textop.robotmdar.planner import (
     ManualPromptPlanner,
     OpenAIChatPromptSelector,
     VlmPromptPlanner,
+    VlmPromptSelection,
 )
 
 
@@ -52,7 +53,7 @@ class _FailingSelector:
         self.calls = 0
         self.finished = threading.Event()
 
-    def choose_prompt(self, **kwargs) -> str:
+    def choose_prompt_with_debug(self, **kwargs) -> VlmPromptSelection:
         del kwargs
         self.calls += 1
         self.finished.set()
@@ -60,16 +61,21 @@ class _FailingSelector:
 
 
 class _FixedSelector:
-    def __init__(self, prompt: str) -> None:
+    def __init__(self, prompt: str, reasoning: str | None = None) -> None:
         self.prompt = prompt
+        self.reasoning = reasoning
         self.calls = 0
         self.finished = threading.Event()
 
-    def choose_prompt(self, **kwargs) -> str:
+    def choose_prompt_with_debug(self, **kwargs) -> VlmPromptSelection:
         del kwargs
         self.calls += 1
         self.finished.set()
-        return self.prompt
+        return VlmPromptSelection(
+            prompt=self.prompt,
+            reasoning=self.reasoning,
+            response={},
+        )
 
 
 class _BlockingSelector:
@@ -80,13 +86,13 @@ class _BlockingSelector:
         self.release = threading.Event()
         self.finished = threading.Event()
 
-    def choose_prompt(self, **kwargs) -> str:
+    def choose_prompt_with_debug(self, **kwargs) -> VlmPromptSelection:
         del kwargs
         self.calls += 1
         self.started.set()
         self.release.wait(timeout=1)
         self.finished.set()
-        return self.prompt
+        return VlmPromptSelection(prompt=self.prompt, reasoning=None, response={})
 
 
 def _wait_for(condition) -> None:
@@ -100,20 +106,10 @@ def _wait_for(condition) -> None:
 
 def _observation(
     *,
-    consecutive_stale_steps: int = 0,
     image_bytes: bytes | None = None,
     image_mime_type: str | None = None,
 ) -> FeedbackObservation:
     return FeedbackObservation(
-        frame=10,
-        started=True,
-        latest_frame=18,
-        lag_frames=8,
-        buffer_frames=32,
-        stale_steps=0,
-        consecutive_stale_steps=consecutive_stale_steps,
-        robot_anchor_pos_w=(1.0, 2.0, 3.0),
-        robot_anchor_quat_w=(1.0, 0.0, 0.0, 0.0),
         image_bytes=image_bytes,
         image_mime_type=image_mime_type,
     )
@@ -123,27 +119,9 @@ def _default_vlm_user_prompt() -> str:
     return produce._read_prompt_path(produce.DEFAULT_VLM_USER_PROMPT_FILE)
 
 
-def _parse_robot_state_content(content: dict) -> dict:
-    assert content["type"] == "text"
-    text = content["text"]
-    assert text.startswith("Robot state:\n")
-    return json.loads(text.removeprefix("Robot state:\n"))
-
-
 def test_parse_feedback_observation() -> None:
     observation = parse_feedback_observation(
         {
-            "state": {
-                "frame": 10,
-                "started": True,
-                "latest_frame": 18,
-                "lag_frames": 8,
-                "buffer_frames": 32,
-                "stale_steps": 0,
-                "consecutive_stale_steps": 0,
-                "robot_anchor_pos_w": [1.0, 2.0, 3.0],
-                "robot_anchor_quat_w": [1.0, 0.0, 0.0, 0.0],
-            },
             "image": {
                 "mime_type": "image/jpeg",
                 "data": "anBlZyBieXRlcw==",
@@ -151,9 +129,6 @@ def test_parse_feedback_observation() -> None:
         }
     )
 
-    assert observation.robot_anchor_pos_w == (1.0, 2.0, 3.0)
-    assert observation.robot_anchor_quat_w == (1.0, 0.0, 0.0, 0.0)
-    assert observation.latest_frame == 18
     assert observation.image_bytes == b"jpeg bytes"
     assert observation.image_mime_type == "image/jpeg"
 
@@ -287,6 +262,35 @@ def test_vlm_planner_recovers_after_empty_selector_result() -> None:
     planner.request_stop()
 
 
+def test_producer_log_prints_vlm_reasoning_once_when_enabled(monkeypatch) -> None:
+    messages = []
+    planner = VlmPromptPlanner(
+        feedback=_FakeObservationProvider(_observation()),
+        selector=_FixedSelector(
+            "wave",
+            reasoning="The robot is stable, so waving is feasible.",
+        ),
+        initial_prompt="stand",
+        query_every_blocks=1,
+    )
+
+    monkeypatch.setattr(produce, "_log_producer_message", messages.append)
+
+    assert planner.choose_prompt(block_count=0) == "stand"
+    assert planner.selector.finished.wait(timeout=1)
+    assert planner.choose_prompt(block_count=1) == "wave"
+
+    args = Namespace(vlm_reasoning=True)
+    produce._log_vlm_reasoning_if_available(planner=planner, args=args)
+    produce._log_vlm_reasoning_if_available(planner=planner, args=args)
+
+    assert messages == [
+        "vlm_reasoning The robot is stable, so waving is feasible.",
+    ]
+
+    planner.request_stop()
+
+
 def test_producer_log_includes_vlm_prompt_source(monkeypatch) -> None:
     messages = []
     planner = VlmPromptPlanner(
@@ -380,18 +384,7 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     content = posted["payload"]["messages"][1]["content"]
     assert content[0]["type"] == "text"
     assert content[0]["text"] == _default_vlm_user_prompt()
-    assert _parse_robot_state_content(content[1]) == {
-        "buffer_frames": 32,
-        "consecutive_stale_steps": 0,
-        "frame": 10,
-        "lag_frames": 8,
-        "latest_frame": 18,
-        "robot_anchor_pos_w": [1.0, 2.0, 3.0],
-        "robot_anchor_quat_w": [1.0, 0.0, 0.0, 0.0],
-        "stale_steps": 0,
-        "started": True,
-    }
-    assert len(content) == 2
+    assert len(content) == 1
 
 
 def test_http_vlm_prompt_selector_posts_image_from_observation_bytes(
@@ -435,18 +428,7 @@ def test_http_vlm_prompt_selector_posts_image_from_observation_bytes(
     assert prompt == "punch"
     assert content[0]["type"] == "text"
     assert content[0]["text"] == _default_vlm_user_prompt()
-    assert _parse_robot_state_content(content[1]) == {
-        "buffer_frames": 32,
-        "consecutive_stale_steps": 0,
-        "frame": 10,
-        "lag_frames": 8,
-        "latest_frame": 18,
-        "robot_anchor_pos_w": [1.0, 2.0, 3.0],
-        "robot_anchor_quat_w": [1.0, 0.0, 0.0, 0.0],
-        "stale_steps": 0,
-        "started": True,
-    }
-    assert content[2] == {
+    assert content[1] == {
         "type": "image_url",
         "image_url": {"url": "data:image/jpeg;base64,anBlZyBieXRlcw=="},
     }

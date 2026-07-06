@@ -111,6 +111,7 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
 def _configure_textop_deploy_timing(cfg) -> None:
     cfg.sim.mujoco.timestep = TEXTOP_DEPLOY_SIM_TIMESTEP
     cfg.decimation = TEXTOP_DEPLOY_DECIMATION
+    return
 
 
 def configure_textop_onnx_actor_observations(cfg) -> None:

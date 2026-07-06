@@ -44,8 +44,9 @@ class VlmPromptPlanner:
         self.current_prompt_source = "initial"
         self.query_every_blocks = query_every_blocks
         self.last_error: str | None = None
+        self._pending_reasoning: str | None = None
         self._stop = False
-        self._future: Future[str] | None = None
+        self._future: Future[VlmPromptSelection] | None = None
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._last_query_block: int | None = None
 
@@ -88,19 +89,25 @@ class VlmPromptPlanner:
         ):
             self._last_query_block = block_count
             self._future = self._executor.submit(
-                self.selector.choose_prompt,
+                self.selector.choose_prompt_with_debug,
                 observation=observation,
             )
         return self.current_prompt
+
+    def consume_pending_reasoning(self) -> str | None:
+        reasoning = self._pending_reasoning
+        self._pending_reasoning = None
+        return reasoning
 
     def _collect_finished_request(self) -> None:
         if self._future is None or not self._future.done():
             return
 
         try:
-            next_prompt = self._future.result()
-            self.current_prompt = next_prompt
+            selection = self._future.result()
+            self.current_prompt = selection.prompt
             self.current_prompt_source = "vlm"
+            self._pending_reasoning = selection.reasoning
             self.last_error = None
         except Exception as exc:
             self.last_error = f"{type(exc).__name__}: {exc}"
@@ -198,8 +205,6 @@ def _make_chat_completions_payload(
     max_tokens: int,
 ) -> dict[str, Any]:
     content: list[dict[str, Any]] = [{"type": "text", "text": user_prompt}]
-    if observation is not None:
-        content.append({"type": "text", "text": _observation_state_text(observation)})
     if (
         observation is not None
         and observation.image_bytes is not None
@@ -235,21 +240,6 @@ def _make_chat_completions_payload(
         "max_tokens": max_tokens,
         "temperature": 0,
     }
-
-
-def _observation_state_text(observation: FeedbackObservation) -> str:
-    state = {
-        "frame": observation.frame,
-        "started": observation.started,
-        "latest_frame": observation.latest_frame,
-        "lag_frames": observation.lag_frames,
-        "buffer_frames": observation.buffer_frames,
-        "stale_steps": observation.stale_steps,
-        "consecutive_stale_steps": observation.consecutive_stale_steps,
-        "robot_anchor_pos_w": list(observation.robot_anchor_pos_w),
-        "robot_anchor_quat_w": list(observation.robot_anchor_quat_w),
-    }
-    return f"Robot state:\n{json.dumps(state, indent=2, sort_keys=True)}"
 
 
 def _image_data_url(data: bytes, mime_type: str) -> str:

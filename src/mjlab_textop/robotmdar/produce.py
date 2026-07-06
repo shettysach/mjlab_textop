@@ -160,6 +160,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Send previous VLM-selected prompts back on later VLM requests.",
     )
+    parser.add_argument(
+        "--vlm-reasoning",
+        action="store_true",
+        help="Print VLM reasoning when the server returns it.",
+    )
     parser.add_argument("--query-every-blocks", type=int, default=20)
     parser.add_argument("--log-every-blocks", type=int, default=20)
     args = parser.parse_args()
@@ -215,6 +220,7 @@ def _run_producer_stream(
     while not planner.should_stop:
         block_start_time = time.monotonic()
         current_prompt = planner.choose_prompt(block_count=block_count)
+        _log_vlm_reasoning_if_available(planner=planner, args=args)
         future_motion, motion_dict, abs_pose = _generate_motion_block(
             runtime=runtime,
             clip_model=clip_model,
@@ -317,6 +323,20 @@ def _log_block_timing(
             f"{planner.log_suffix}"
         )
     return sleep_seconds
+
+
+def _log_vlm_reasoning_if_available(
+    *,
+    planner: ManualPromptPlanner | VlmPromptPlanner,
+    args: argparse.Namespace,
+) -> None:
+    if not getattr(args, "vlm_reasoning", False):
+        return
+    if not isinstance(planner, VlmPromptPlanner):
+        return
+    reasoning = planner.consume_pending_reasoning()
+    if reasoning is not None:
+        _log_producer_message(f"vlm_reasoning {reasoning}")
 
 
 def _prompt_source(
