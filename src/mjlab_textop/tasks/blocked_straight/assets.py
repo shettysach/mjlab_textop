@@ -24,7 +24,6 @@ def make_blocked_straight_spec_fn(
     wall_height: float = 1.5,
     wall_thickness: float = 0.2,
     wall_rgba: tuple[float, float, float, float] = (0.5, 0.5, 0.5, 1.0),
-    obstacle_rgba: tuple[float, float, float, float] = (0.8, 0.1, 0.1, 1.0),
     corridor_start_x: float = 0.0,
     corridor_back_extension: float = 2.0,
 ) -> Callable[["MjSpec"], None]:
@@ -79,14 +78,14 @@ def make_blocked_straight_spec_fn(
         )
         _add_wall(
             spec,
-            name="blocked_straight_center_block",
+            name="blocked_straight_center_wall",
             pos=(obstacle_pos_xy[0], obstacle_pos_xy[1], wall_z),
             size=(
                 obstacle_size_xy[0] * 0.5,
                 obstacle_size_xy[1] * 0.5,
                 half_wall_height,
             ),
-            rgba=obstacle_rgba,
+            rgba=wall_rgba,
         )
 
     return add_blocked_straight

@@ -60,7 +60,7 @@ def test_blocked_straight_play_task_uses_onnx_runner(tmp_path) -> None:
     )
 
 
-def test_blocked_straight_spec_fn_adds_centered_wide_block() -> None:
+def test_blocked_straight_spec_fn_adds_centered_wide_wall() -> None:
     register_tasks()
     cfg = load_env_cfg(BLOCKED_STRAIGHT_TASK_NAME, play=True)
     spec = mujoco.MjSpec()  # ty: ignore[unresolved-attribute]
@@ -73,14 +73,15 @@ def test_blocked_straight_spec_fn_adds_centered_wide_block() -> None:
     )
     assert tuple(goal_body.pos) == (24.0, 0.0, 0.005)
 
-    obstacle = next(
-        body for body in spec.bodies if body.name == "blocked_straight_center_block"
+    center_wall = next(
+        body for body in spec.bodies if body.name == "blocked_straight_center_wall"
     )
-    assert tuple(obstacle.pos) == (12.0, 0.0, 0.75)
-    obstacle_geom = obstacle.geoms[0]
-    assert tuple(obstacle_geom.size) == (0.75, 4.0, 0.75)
-    assert obstacle_geom.contype == 1
-    assert obstacle_geom.conaffinity == 1
+    assert tuple(center_wall.pos) == (12.0, 0.0, 0.75)
+    center_wall_geom = center_wall.geoms[0]
+    assert tuple(center_wall_geom.size) == (0.75, 4.0, 0.75)
+    assert tuple(center_wall_geom.rgba) == (0.5, 0.5, 0.5, 1.0)
+    assert center_wall_geom.contype == 1
+    assert center_wall_geom.conaffinity == 1
 
     walls = {
         body.name: body
@@ -92,6 +93,7 @@ def test_blocked_straight_spec_fn_adds_centered_wide_block() -> None:
         "blocked_straight_right_wall",
         "blocked_straight_end_wall",
         "blocked_straight_back_wall",
+        "blocked_straight_center_wall",
     }
     assert tuple(walls["blocked_straight_left_wall"].pos) == (15.5, 9.0, 0.75)
     assert tuple(walls["blocked_straight_right_wall"].pos) == (15.5, -9.0, 0.75)
