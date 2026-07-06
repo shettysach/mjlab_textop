@@ -123,6 +123,13 @@ def _default_vlm_user_prompt() -> str:
     return produce._read_prompt_path(produce.DEFAULT_VLM_USER_PROMPT_FILE)
 
 
+def _parse_robot_state_content(content: dict) -> dict:
+    assert content["type"] == "text"
+    text = content["text"]
+    assert text.startswith("Robot state:\n")
+    return json.loads(text.removeprefix("Robot state:\n"))
+
+
 def test_parse_feedback_observation() -> None:
     observation = parse_feedback_observation(
         {
@@ -373,7 +380,18 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     content = posted["payload"]["messages"][1]["content"]
     assert content[0]["type"] == "text"
     assert content[0]["text"] == _default_vlm_user_prompt()
-    assert len(content) == 1
+    assert _parse_robot_state_content(content[1]) == {
+        "buffer_frames": 32,
+        "consecutive_stale_steps": 0,
+        "frame": 10,
+        "lag_frames": 8,
+        "latest_frame": 18,
+        "robot_anchor_pos_w": [1.0, 2.0, 3.0],
+        "robot_anchor_quat_w": [1.0, 0.0, 0.0, 0.0],
+        "stale_steps": 0,
+        "started": True,
+    }
+    assert len(content) == 2
 
 
 def test_http_vlm_prompt_selector_posts_image_from_observation_bytes(
@@ -417,7 +435,18 @@ def test_http_vlm_prompt_selector_posts_image_from_observation_bytes(
     assert prompt == "punch"
     assert content[0]["type"] == "text"
     assert content[0]["text"] == _default_vlm_user_prompt()
-    assert content[1] == {
+    assert _parse_robot_state_content(content[1]) == {
+        "buffer_frames": 32,
+        "consecutive_stale_steps": 0,
+        "frame": 10,
+        "lag_frames": 8,
+        "latest_frame": 18,
+        "robot_anchor_pos_w": [1.0, 2.0, 3.0],
+        "robot_anchor_quat_w": [1.0, 0.0, 0.0, 0.0],
+        "stale_steps": 0,
+        "started": True,
+    }
+    assert content[2] == {
         "type": "image_url",
         "image_url": {"url": "data:image/jpeg;base64,anBlZyBieXRlcw=="},
     }

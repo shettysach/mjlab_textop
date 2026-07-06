@@ -153,10 +153,7 @@ class OpenAIChatPromptSelector:
     ) -> VlmPromptSelection:
         response = self._post_json(
             _make_chat_completions_payload(
-                image_bytes=None if observation is None else observation.image_bytes,
-                image_mime_type=(
-                    None if observation is None else observation.image_mime_type
-                ),
+                observation=observation,
                 model=self.model,
                 system_prompt=self.system_prompt,
                 user_prompt=self.user_prompt,
@@ -184,19 +181,29 @@ class OpenAIChatPromptSelector:
 
 def _make_chat_completions_payload(
     *,
-    image_bytes: bytes | None,
-    image_mime_type: str | None,
+    observation: FeedbackObservation | None,
     model: str,
     system_prompt: str | None,
     user_prompt: str,
     max_tokens: int,
 ) -> dict[str, Any]:
     content: list[dict[str, Any]] = [{"type": "text", "text": user_prompt}]
-    if image_bytes is not None and image_mime_type is not None:
+    if observation is not None:
+        content.append({"type": "text", "text": _observation_state_text(observation)})
+    if (
+        observation is not None
+        and observation.image_bytes is not None
+        and observation.image_mime_type is not None
+    ):
         content.append(
             {
                 "type": "image_url",
-                "image_url": {"url": _image_data_url(image_bytes, image_mime_type)},
+                "image_url": {
+                    "url": _image_data_url(
+                        observation.image_bytes,
+                        observation.image_mime_type,
+                    )
+                },
             }
         )
     messages: list[dict[str, Any]] = (
@@ -211,6 +218,21 @@ def _make_chat_completions_payload(
         "max_tokens": max_tokens,
         "temperature": 0,
     }
+
+
+def _observation_state_text(observation: FeedbackObservation) -> str:
+    state = {
+        "frame": observation.frame,
+        "started": observation.started,
+        "latest_frame": observation.latest_frame,
+        "lag_frames": observation.lag_frames,
+        "buffer_frames": observation.buffer_frames,
+        "stale_steps": observation.stale_steps,
+        "consecutive_stale_steps": observation.consecutive_stale_steps,
+        "robot_anchor_pos_w": list(observation.robot_anchor_pos_w),
+        "robot_anchor_quat_w": list(observation.robot_anchor_quat_w),
+    }
+    return f"Robot state:\n{json.dumps(state, indent=2, sort_keys=True)}"
 
 
 def _image_data_url(data: bytes, mime_type: str) -> str:
