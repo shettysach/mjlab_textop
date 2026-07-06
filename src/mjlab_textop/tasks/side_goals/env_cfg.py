@@ -23,9 +23,9 @@ from mjlab_textop.tasks.straight import mdp
 
 @dataclass(frozen=True)
 class SideGoalsTaskCfg:
-    blue_goal_pos_w: tuple[float, float, float] = (0.0, 6.0, 0.0)
-    green_goal_pos_w: tuple[float, float, float] = (0.0, -6.0, 0.0)
-    goal_size: float = 2.0
+    blue_goal_pos_w: tuple[float, float, float] = (0.0, 4.5, 0.0)
+    green_goal_pos_w: tuple[float, float, float] = (0.0, -4.5, 0.0)
+    goal_size: float = 9.0
     arena_size: float = 18.0
     success_radius: float = 0.25
     stop_trigger_radius: float = 0.55
