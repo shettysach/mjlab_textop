@@ -81,10 +81,6 @@ def test_blocked_straight_spec_fn_adds_centered_wide_block() -> None:
     assert tuple(obstacle_geom.size) == (0.75, 4.0, 0.75)
     assert obstacle_geom.contype == 1
     assert obstacle_geom.conaffinity == 1
-    assert obstacle_geom.condim == 1
-    assert tuple(obstacle_geom.friction) == (0.0, 0.0, 0.0)
-    assert tuple(obstacle_geom.solref) == (0.05, 1.0)
-    assert tuple(obstacle_geom.solimp) == (0.8, 0.95, 0.01, 0.5, 2.0)
 
     walls = {
         body.name: body

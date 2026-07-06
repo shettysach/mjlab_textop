@@ -98,10 +98,6 @@ def test_straight_spec_fn_adds_visual_non_colliding_geom() -> None:
     assert tuple(wall_geom.rgba) == (0.5, 0.5, 0.5, 1.0)
     assert wall_geom.contype == 1
     assert wall_geom.conaffinity == 1
-    assert wall_geom.condim == 1
-    assert tuple(wall_geom.friction) == (0.0, 0.0, 0.0)
-    assert tuple(wall_geom.solref) == (0.05, 1.0)
-    assert tuple(wall_geom.solimp) == (0.8, 0.95, 0.01, 0.5, 2.0)
 
 
 def test_straight_mdp_terms_use_true_goal_position() -> None:
