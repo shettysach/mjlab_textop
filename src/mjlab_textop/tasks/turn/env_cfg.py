@@ -13,7 +13,6 @@ from mjlab_textop.core.mdp.online_commands import TextOpOnlineSourceMode
 from mjlab_textop.core.online.live import SocketTextOpSourceCfg
 from mjlab_textop.core.online.source import TextOpOnlineSource
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
-from mjlab_textop.tasks.collisions import use_g1_feet_only_collision
 from mjlab_textop.tasks.online_textop.env_cfg import (
     make_online_textop_g1_flat_tracking_env_cfg,
     make_online_textop_onnx_g1_flat_tracking_env_cfg,
@@ -101,7 +100,6 @@ def _configure_turn_task_cfg(
     *,
     task_cfg: TurnTaskCfg,
 ):
-    use_g1_feet_only_collision(cfg)
     cfg.scene.num_envs = 1
     cfg.scene.spec_fn = make_turn_task_spec_fn(
         goal_pos_w=task_cfg.goal_pos_w,

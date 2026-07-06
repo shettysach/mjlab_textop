@@ -20,6 +20,15 @@ def make_straight_spec_fn(
     wall_height: float = 1.5,
     wall_thickness: float = 0.2,
     wall_rgba: tuple[float, float, float, float] = (0.5, 0.5, 0.5, 1.0),
+    wall_friction: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    wall_solref: tuple[float, float] = (0.05, 1.0),
+    wall_solimp: tuple[float, float, float, float, float] = (
+        0.8,
+        0.95,
+        0.01,
+        0.5,
+        2.0,
+    ),
     corridor_start_x: float = 0.0,
     corridor_back_extension: float = 2.0,
 ) -> Callable[["MjSpec"], None]:
@@ -50,6 +59,9 @@ def make_straight_spec_fn(
             pos=(corridor_center_x, goal_pos_w[1] + half_size, wall_z),
             size=(corridor_half_length, half_wall_thickness, half_wall_height),
             rgba=wall_rgba,
+            friction=wall_friction,
+            solref=wall_solref,
+            solimp=wall_solimp,
         )
         _add_wall(
             spec,
@@ -57,6 +69,9 @@ def make_straight_spec_fn(
             pos=(corridor_center_x, goal_pos_w[1] - half_size, wall_z),
             size=(corridor_half_length, half_wall_thickness, half_wall_height),
             rgba=wall_rgba,
+            friction=wall_friction,
+            solref=wall_solref,
+            solimp=wall_solimp,
         )
         _add_wall(
             spec,
@@ -64,6 +79,9 @@ def make_straight_spec_fn(
             pos=(corridor_end_x, goal_pos_w[1], wall_z),
             size=(half_wall_thickness, half_size, half_wall_height),
             rgba=wall_rgba,
+            friction=wall_friction,
+            solref=wall_solref,
+            solimp=wall_solimp,
         )
         _add_wall(
             spec,
@@ -71,6 +89,9 @@ def make_straight_spec_fn(
             pos=(corridor_back_x, goal_pos_w[1], wall_z),
             size=(half_wall_thickness, half_size, half_wall_height),
             rgba=wall_rgba,
+            friction=wall_friction,
+            solref=wall_solref,
+            solimp=wall_solimp,
         )
 
     return add_straight
@@ -83,6 +104,9 @@ def _add_wall(
     pos: tuple[float, float, float],
     size: tuple[float, float, float],
     rgba: tuple[float, float, float, float],
+    friction: tuple[float, float, float],
+    solref: tuple[float, float],
+    solimp: tuple[float, float, float, float, float],
 ) -> None:
     body = spec.worldbody.add_body(name=name)
     body.pos = pos
@@ -93,4 +117,8 @@ def _add_wall(
         rgba=rgba,
         contype=1,
         conaffinity=1,
+        condim=1,
+        friction=friction,
+        solref=solref,
+        solimp=solimp,
     )

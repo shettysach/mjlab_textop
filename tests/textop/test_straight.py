@@ -4,7 +4,6 @@ from types import SimpleNamespace
 
 import mujoco
 import torch
-from mjlab.asset_zoo.robots.unitree_g1.g1_constants import FEET_ONLY_COLLISION
 from mjlab.tasks.registry import list_tasks, load_env_cfg, load_runner_cls
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
@@ -36,7 +35,6 @@ def test_straight_env_cfg_has_fixed_goal_eval_terms() -> None:
     assert cfg.episode_length_s == 20.0
     assert cfg.rewards == {}
     assert cfg.scene.spec_fn is not None
-    assert cfg.scene.entities["robot"].collisions == (FEET_ONLY_COLLISION,)
     assert "straight_success" in cfg.terminations
     assert "straight_goal_distance" in cfg.metrics
     assert (
@@ -100,6 +98,10 @@ def test_straight_spec_fn_adds_visual_non_colliding_geom() -> None:
     assert tuple(wall_geom.rgba) == (0.5, 0.5, 0.5, 1.0)
     assert wall_geom.contype == 1
     assert wall_geom.conaffinity == 1
+    assert wall_geom.condim == 1
+    assert tuple(wall_geom.friction) == (0.0, 0.0, 0.0)
+    assert tuple(wall_geom.solref) == (0.05, 1.0)
+    assert tuple(wall_geom.solimp) == (0.8, 0.95, 0.01, 0.5, 2.0)
 
 
 def test_straight_mdp_terms_use_true_goal_position() -> None:
