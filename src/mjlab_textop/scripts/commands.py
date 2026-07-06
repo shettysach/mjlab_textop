@@ -62,6 +62,8 @@ class PlayLiveCommand:
     future_steps: int = TEXTOP_FUTURE_STEPS
     fps: float = 50.0
     max_queue_blocks: int = 32
+    sim_timestep: float = 0.005
+    decimation: int = 4
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     )
@@ -99,6 +101,8 @@ def play_live_textop_motion(
         source_mode="live",
         future_steps=cfg.future_steps,
         num_envs=cfg.num_envs,
+        sim_timestep=cfg.sim_timestep,
+        decimation=cfg.decimation,
         anchor_alignment=cfg.anchor_alignment,
         reset_robot_to_reference=cfg.reset_robot_to_reference,
         reference_debug_vis=cfg.reference_debug_vis,

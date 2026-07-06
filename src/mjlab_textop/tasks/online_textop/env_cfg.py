@@ -35,6 +35,8 @@ def make_online_textop_g1_flat_tracking_env_cfg(
     source: TextOpOnlineSource | None = None,
     live_source_cfg: SocketTextOpSourceCfg | None = None,
     source_mode: TextOpOnlineSourceMode = "live",
+    sim_timestep: float | None = None,
+    decimation: int | None = None,
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     ),
@@ -57,6 +59,7 @@ def make_online_textop_g1_flat_tracking_env_cfg(
         observation=observation,
     )
     cfg.commands["motion"].anchor_body_name = "pelvis"  # ty:ignore[unresolved-attribute]
+    _configure_online_textop_timing(cfg, sim_timestep=sim_timestep, decimation=decimation)
     configure_textop_actor_observations(cfg)
     configure_textop_critic_observations(cfg)
     configure_online_textop_tracking_terms(cfg)
@@ -71,6 +74,8 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
     source: TextOpOnlineSource | None = None,
     live_source_cfg: SocketTextOpSourceCfg | None = None,
     source_mode: TextOpOnlineSourceMode = "live",
+    sim_timestep: float | None = None,
+    decimation: int | None = None,
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     ),
@@ -93,12 +98,25 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
         observation=observation,
     )
     cfg.commands["motion"].anchor_body_name = "pelvis"  # ty:ignore[unresolved-attribute]
+    _configure_online_textop_timing(cfg, sim_timestep=sim_timestep, decimation=decimation)
     configure_textop_onnx_actor_observations(cfg)
     configure_online_textop_tracking_terms(cfg)
 
     cfg.events.pop("push_robot", None)
 
     return cfg
+
+
+def _configure_online_textop_timing(
+    cfg,
+    *,
+    sim_timestep: float | None,
+    decimation: int | None,
+) -> None:
+    if sim_timestep is not None:
+        cfg.sim.mujoco.timestep = sim_timestep
+    if decimation is not None:
+        cfg.decimation = decimation
 
 
 def configure_textop_onnx_actor_observations(cfg) -> None:

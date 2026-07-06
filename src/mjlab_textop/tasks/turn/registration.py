@@ -42,6 +42,8 @@ def register_turn_task(
     source_mode: TextOpOnlineSourceMode,
     future_steps: int = TEXTOP_FUTURE_STEPS,
     num_envs: int = 1,
+    sim_timestep: float | None = None,
+    decimation: int | None = None,
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     ),
@@ -63,6 +65,8 @@ def register_turn_task(
         source=source,
         live_source_cfg=live_source_cfg,
         source_mode=source_mode,
+        sim_timestep=sim_timestep,
+        decimation=decimation,
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
         reference_debug_vis=reference_debug_vis,

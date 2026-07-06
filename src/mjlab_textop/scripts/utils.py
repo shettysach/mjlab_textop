@@ -69,6 +69,8 @@ class TaskRegistrar(Protocol):
         source_mode: TextOpOnlineSourceMode,
         future_steps: int,
         num_envs: int,
+        sim_timestep: float | None = None,
+        decimation: int | None = None,
         anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
             "align_to_robot_start"
         ),

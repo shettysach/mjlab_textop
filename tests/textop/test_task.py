@@ -151,6 +151,21 @@ def test_online_textop_live_task_uses_live_source_mode() -> None:
     assert env_cfg.commands["motion"].observation.publish_interval == 7
 
 
+def test_online_textop_onnx_env_cfg_accepts_timing_override() -> None:
+    from mjlab_textop.tasks.online_textop.env_cfg import (
+        make_online_textop_onnx_g1_flat_tracking_env_cfg,
+    )
+
+    env_cfg = make_online_textop_onnx_g1_flat_tracking_env_cfg(
+        play=True,
+        sim_timestep=0.002,
+        decimation=10,
+    )
+
+    assert env_cfg.sim.mujoco.timestep == 0.002
+    assert env_cfg.decimation == 10
+
+
 def test_online_textop_task_removes_full_body_tracking_terms() -> None:
     ensure_textop_task_registered()
     env_cfg = load_env_cfg(ONLINE_TEXTOP_TASK_NAME)
