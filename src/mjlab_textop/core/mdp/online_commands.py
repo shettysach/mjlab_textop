@@ -1,23 +1,23 @@
 from __future__ import annotations
 
-import copy
 from dataclasses import dataclass
-from typing import Any, Literal, cast
+from typing import Literal, cast
 
-import numpy as np
 import torch
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
-from mjlab.utils.lab_api.math import euler_xyz_from_quat
-from mjlab.viewer import OffscreenRenderer, ViewerConfig
 from mjlab.viewer.debug_visualizer import DebugVisualizer
 
 from mjlab_textop.core.feedback.observation import (
-    ObservationImage,
     OnlineObservationState,
     OnlineTextOpObservationCfg,
-    encode_render_image_jpeg,
-    make_online_textop_observation,
+)
+from mjlab_textop.core.feedback.online_reporter import OnlineObservationReporter
+from mjlab_textop.core.mdp.online_reference_debug import OnlineReferenceGhost
+from mjlab_textop.core.mdp.online_types import (
+    ONLINE_METRIC_NAMES,
+    TextOpFutureWindow,
+    TextOpOnlineSourceMode,
 )
 from mjlab_textop.core.online.buffer import (
     TextOpRollingMotionBuffer,
@@ -32,31 +32,6 @@ from mjlab_textop.core.online.source import (
     TextOpOnlineSource,
 )
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS, TEXTOP_G1_JOINT_COUNT
-
-TextOpOnlineSourceMode = Literal["replay", "live"]
-ONLINE_METRIC_NAMES = (
-    "online_buffer_frames",
-    "online_stale_steps",
-    "online_consecutive_stale_steps",
-    "online_current_frame",
-    "online_latest_frame",
-    "online_lag_frames",
-    "online_started",
-    "online_queue_depth",
-    "online_blocks_received",
-    "online_blocks_dropped",
-    "online_bad_messages",
-)
-_REFERENCE_GHOST_COLOR = np.array((0.5, 0.7, 0.5, 0.5), dtype=np.float32)
-
-
-@dataclass(frozen=True)
-class TextOpFutureWindow:
-    joint_pos: torch.Tensor
-    joint_vel: torch.Tensor
-    anchor_pos_w: torch.Tensor
-    anchor_quat_w: torch.Tensor
-    stale_steps: int
 
 
 @dataclass(kw_only=True)
@@ -133,7 +108,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._anchor_pos_offset_w = torch.zeros(3, device=self.device)
         self._future_cache_frame: int | None = None
         self._future_cache: TextOpFutureWindow | None = None
-        self._ghost_model: Any | None = None
+        self._reference_ghost = OnlineReferenceGhost(env, self.robot)
         self._init_metrics()
 
     @property
@@ -440,55 +415,13 @@ class OnlineTextOpMotionCommand(CommandTerm):
         if not self._started:
             return
 
-        env_indices = visualizer.get_env_indices(self.num_envs)
-        if not env_indices:
-            return
-
-        ghost_model = self._get_ghost_model()
-        for env_id in env_indices:
-            visualizer.add_ghost_mesh(
-                self._reference_qpos(int(env_id)),
-                model=ghost_model,
-                alpha=float(_REFERENCE_GHOST_COLOR[3]),
-                label=f"online_reference_{env_id}",
-            )
-
-    def _get_ghost_model(self) -> Any:
-        if self._ghost_model is None:
-            ghost_model = copy.deepcopy(self._env.sim.mj_model)
-            for geom_id in range(ghost_model.ngeom):
-                if (
-                    ghost_model.geom_contype[geom_id] != 0
-                    or ghost_model.geom_conaffinity[geom_id] != 0
-                ):
-                    ghost_model.geom_rgba[geom_id, 3] = 0.0
-                else:
-                    ghost_model.geom_rgba[geom_id] = _REFERENCE_GHOST_COLOR
-            self._ghost_model = ghost_model
-        return self._ghost_model
-
-    def _reference_qpos(self, env_id: int) -> np.ndarray:
-        indexing = self.robot.indexing
-        free_joint_q_adr = indexing.free_joint_q_adr.cpu().numpy()
-        joint_q_adr = indexing.joint_q_adr.cpu().numpy()
-        joint_pos = self.joint_pos[env_id]
-
-        if len(free_joint_q_adr) < 7:
-            raise ValueError(
-                "Online reference ghost requires a floating-base robot with "
-                f"at least 7 root qpos addresses, got {len(free_joint_q_adr)}"
-            )
-        if len(joint_q_adr) != joint_pos.numel():
-            raise ValueError(
-                "Online reference joint count does not match robot qpos indexing: "
-                f"{joint_pos.numel()} reference joints vs {len(joint_q_adr)} qpos addresses"
-            )
-
-        qpos = np.zeros(self._env.sim.mj_model.nq, dtype=np.float64)
-        qpos[free_joint_q_adr[:3]] = self.anchor_pos_w[env_id].cpu().numpy()
-        qpos[free_joint_q_adr[3:7]] = self.anchor_quat_w[env_id].cpu().numpy()
-        qpos[joint_q_adr] = joint_pos.cpu().numpy()
-        return qpos
+        self._reference_ghost.draw(
+            visualizer,
+            num_envs=self.num_envs,
+            joint_pos=self.joint_pos,
+            anchor_pos_w=self.anchor_pos_w,
+            anchor_quat_w=self.anchor_quat_w,
+        )
 
     def _validate_source_fps(self, env: ManagerBasedRlEnv) -> None:
         fps = getattr(self.source, "fps", None)
@@ -509,85 +442,6 @@ class OnlineTextOpMotionCommand(CommandTerm):
             source.start()
             return source
         return QueueTextOpOnlineSource()
-
-
-class OnlineObservationReporter:
-    def __init__(
-        self,
-        cfg: OnlineTextOpObservationCfg,
-        env: ManagerBasedRlEnv,
-    ) -> None:
-        self.cfg = cfg
-        self.env = env
-        self.publisher = cfg.publisher
-        self._last_publish_frame: int | None = None
-        self._image_renderer: OffscreenRenderer | None = None
-
-    def maybe_publish(self, state: OnlineObservationState) -> None:
-        publisher = self.publisher
-        current_frame = state.frame
-        if publisher is None or not state.started:
-            return
-        if (
-            self._last_publish_frame is not None
-            and current_frame - self._last_publish_frame < self.cfg.publish_interval
-        ):
-            return
-
-        image = self._render_observation_image()
-        payload = make_online_textop_observation(state)
-        publisher.publish(payload, image=image)
-        self._last_publish_frame = current_frame
-
-    def _render_observation_image(self) -> ObservationImage:
-        data = encode_render_image_jpeg(self._render_image())
-        return ObservationImage(
-            data=data,
-            mime_type="image/jpeg",
-        )
-
-    def _render_image(self):
-        renderer = self._image_renderer
-        env = self.env
-        if renderer is None:
-            renderer = OffscreenRenderer(
-                model=env.sim.mj_model,
-                cfg=self.cfg.camera,
-                scene=env.scene,
-                sim_model=env.sim.model,
-                expanded_fields=env.sim.expanded_fields,
-            )
-            renderer.initialize()
-            self._image_renderer = renderer
-
-        debug_callback = (
-            env.update_visualizers if hasattr(env, "update_visualizers") else None
-        )
-        self._sync_camera_orientation(renderer)
-        renderer.update(env.sim.data, debug_vis_callback=debug_callback)
-        return renderer.render()
-
-    def _sync_camera_orientation(self, renderer: OffscreenRenderer) -> None:
-        yaw_degrees = _body_yaw_degrees(self.env, self.cfg.camera)
-        if yaw_degrees is None:
-            return
-        renderer._cam.azimuth = self.cfg.camera.azimuth + yaw_degrees
-
-
-def _body_yaw_degrees(
-    env: ManagerBasedRlEnv,
-    camera_cfg: ViewerConfig,
-) -> float | None:
-    if camera_cfg.origin_type != camera_cfg.OriginType.ASSET_BODY:
-        return None
-    if camera_cfg.entity_name is None or camera_cfg.body_name is None:
-        raise ValueError("ASSET_BODY observation camera requires entity_name/body_name")
-
-    robot = env.scene[camera_cfg.entity_name]
-    body_index = robot.body_names.index(camera_cfg.body_name)
-    quat = robot.data.body_link_quat_w[int(camera_cfg.env_idx), body_index]
-    _, _, yaw = euler_xyz_from_quat(quat.reshape(1, 4))
-    return float(torch.rad2deg(yaw).item())
 
 
 def use_online_textop_motion_command(

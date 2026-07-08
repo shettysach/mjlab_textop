@@ -1,5 +1,3 @@
-# ty:ignore[unresolved-import]
-
 from __future__ import annotations
 
 import argparse

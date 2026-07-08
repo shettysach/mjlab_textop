@@ -629,7 +629,7 @@ def test_online_observation_reporter_uses_observation_camera(monkeypatch) -> Non
             return "rendered"
 
     monkeypatch.setattr(
-        "mjlab_textop.core.mdp.online_commands.OffscreenRenderer",
+        "mjlab_textop.core.feedback.online_reporter.OffscreenRenderer",
         FakeOffscreenRenderer,
     )
     env_viewer_camera = make_torso_observation_camera(width=999, height=999)
