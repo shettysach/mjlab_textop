@@ -468,11 +468,10 @@ def test_http_vlm_prompt_selector_can_send_prompt_history(monkeypatch) -> None:
         "user",
     ]
     assert [message["role"] for message in posted[1]["messages"]] == [
-        "system",
         "assistant",
         "user",
     ]
-    assert posted[1]["messages"][1] == {
+    assert posted[1]["messages"][0] == {
         "role": "assistant",
         "content": [{"type": "text", "text": "walk"}],
     }

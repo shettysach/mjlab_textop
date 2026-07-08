@@ -148,6 +148,7 @@ class OpenAIChatPromptSelector:
         self.max_tokens = max_tokens
         self.include_history = include_history
         self.prompt_history: list[str] = []
+        self._first_req = True
 
     def choose_prompt(
         self,
@@ -161,14 +162,14 @@ class OpenAIChatPromptSelector:
         *,
         observation: FeedbackObservation | None,
     ) -> VlmPromptSelection:
+        system_prompt = self.system_prompt if self._first_req else None
+        self._first_req = False
         response = self._post_json(
             _make_chat_completions_payload(
                 observation=observation,
-                prompt_history=(
-                    self.prompt_history if self.include_history else []
-                ),
+                prompt_history=(self.prompt_history if self.include_history else []),
                 model=self.model,
-                system_prompt=self.system_prompt,
+                system_prompt=system_prompt,
                 user_prompt=self.user_prompt,
                 max_tokens=self.max_tokens,
             )
