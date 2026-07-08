@@ -5,84 +5,27 @@ from __future__ import annotations
 import argparse
 import socket
 import sys
-import time
-from collections.abc import Callable
-from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
-from typing import Any
 
-from mjlab_textop.core.online.live import textop_block_to_ndjson_message
-from mjlab_textop.core.robotmdar import (
-    robotmdar_motion_dict_to_block,
-    slice_motion_dict_tail,
-)
 from mjlab_textop.robotmdar.feedback import HttpObservationReceiver
 from mjlab_textop.robotmdar.planner.manual import ManualPromptPlanner
 from mjlab_textop.robotmdar.planner.vlm import (
     OpenAIChatPromptSelector,
     VlmPromptPlanner,
 )
-
-PROMPT_DIR = Path(__file__).resolve().parents[3] / "prompt"
-DEFAULT_VLM_SYSTEM_PROMPT_FILE = PROMPT_DIR / "SYSTEM.md"
-DEFAULT_VLM_USER_PROMPT_FILE = PROMPT_DIR / "USER.md"
-
-
-@dataclass(frozen=True)
-class RobotMdarRuntime:
-    torch: Any
-    OmegaConf: Any
-    instantiate: Callable[..., Any]
-    seed: Any
-    ClassifierFreeWrapper: type
-    generate_next_motion: Callable[..., Any]
-    load_and_freeze_clip: Callable[..., Any]
-    encode_text: Callable[..., Any]
-    get_zero_abs_pose: Callable[..., Any]
-    get_zero_feature: Callable[..., Any]
+from mjlab_textop.robotmdar.runtime import (
+    DEFAULT_VLM_SYSTEM_PROMPT_FILE,
+    DEFAULT_VLM_USER_PROMPT_FILE,
+    StreamConfig,
+    log_stream_timing,
+    make_robotmdar_generator,
+    read_prompt_path,
+    stream_robotmdar_blocks,
+)
 
 
 def run_producer(args: argparse.Namespace) -> None:
-    runtime = _load_robotmdar_runtime()
-
-    _register_hydra_resolvers(runtime.OmegaConf)
-    cfg = runtime.OmegaConf.load(Path(args.ckpt).parent / ".hydra" / "config.yaml")
-    cfg.device = args.device
-    cfg.ckpt.dar = args.ckpt
-    cfg.train.manager.device = args.device
-    cfg.train.manager.save_dir = str(Path.cwd() / "logs" / "robotmdar_producer")
-    cfg.train.manager.platform._target_ = "robotmdar.train.train_platforms.NoPlatform"
-    cfg.data.datadir = args.datadir
-    cfg.skeleton.asset.assetRoot = args.skeleton_asset_root
-    cfg.data.val.split = "none"
-    cfg.data.val.batch_size = 1
-    cfg.use_full_sample = True
-    cfg.guidance_scale = args.guidance_scale
-
-    runtime.seed.set(cfg.seed)
-    clip_model = runtime.load_and_freeze_clip("ViT-B/32", device=args.device)
-    val_data = runtime.instantiate(cfg.data.val)
-    vae = runtime.instantiate(cfg.vae)
-    denoiser = runtime.instantiate(cfg.denoiser)
-    schedule_sampler = runtime.instantiate(cfg.diffusion.schedule_sampler)
-    diffusion = schedule_sampler.diffusion
-    vae.eval()
-    denoiser.eval()
-
-    manager = runtime.instantiate(cfg.train.manager)
-    manager.hold_model(vae, denoiser, None, val_data)
-    cfg_denoiser = runtime.ClassifierFreeWrapper(denoiser)
-
-    future_len = int(cfg.data.future_len)
-    history_len = int(cfg.data.history_len)
-    history_motion = val_data.normalize(
-        runtime.get_zero_feature()
-        .to(args.device)
-        .reshape(1, 1, -1)
-        .repeat(1, history_len, 1)
-    )
-    abs_pose = runtime.get_zero_abs_pose((1,), device=args.device)
+    generator = make_robotmdar_generator(args, log_dir_name="robotmdar_producer")
     planner = make_prompt_planner(args)
     planner.start()
     if isinstance(planner, VlmPromptPlanner):
@@ -99,20 +42,21 @@ def run_producer(args: argparse.Namespace) -> None:
             conn, addr = server.accept()
             _log_producer_message(f"MJLab consumer connected from {addr}")
             with conn:
-                _run_producer_stream(
+                stream_robotmdar_blocks(
                     conn=conn,
-                    args=args,
-                    runtime=runtime,
-                    clip_model=clip_model,
-                    val_data=val_data,
-                    vae=vae,
-                    cfg_denoiser=cfg_denoiser,
-                    diffusion=diffusion,
-                    history_motion=history_motion,
-                    history_len=history_len,
-                    future_len=future_len,
-                    abs_pose=abs_pose,
-                    planner=planner,
+                    generator=generator,
+                    prompt_controller=planner,
+                    cfg=StreamConfig(
+                        fps=args.fps,
+                        guidance_scale=args.guidance_scale,
+                        log_every_blocks=args.log_every_blocks,
+                    ),
+                    log_message=_log_producer_message,
+                    prompt_source=_prompt_source,
+                    after_prompt=lambda controller: _log_vlm_reasoning_if_available(
+                        planner=controller,
+                        args=args,
+                    ),
                 )
     except KeyboardInterrupt:
         _log_producer_message("Stopping RobotMDAR producer.")
@@ -197,102 +141,6 @@ def _log_producer_message(message: str) -> None:
     print(message, file=sys.stderr, flush=True)
 
 
-def _run_producer_stream(
-    *,
-    conn: socket.socket,
-    args: argparse.Namespace,
-    runtime: RobotMdarRuntime,
-    clip_model: Any,
-    val_data: Any,
-    vae: Any,
-    cfg_denoiser: Any,
-    diffusion: Any,
-    history_motion: Any,
-    history_len: int,
-    future_len: int,
-    abs_pose: Any,
-    planner: ManualPromptPlanner | VlmPromptPlanner,
-) -> None:
-    frame_index = 0
-    next_send_time = time.monotonic()
-    block_count = 0
-
-    while not planner.should_stop:
-        block_start_time = time.monotonic()
-        current_prompt = planner.choose_prompt(block_count=block_count)
-        _log_vlm_reasoning_if_available(planner=planner, args=args)
-        future_motion, motion_dict, abs_pose = _generate_motion_block(
-            runtime=runtime,
-            clip_model=clip_model,
-            vae=vae,
-            cfg_denoiser=cfg_denoiser,
-            diffusion=diffusion,
-            val_data=val_data,
-            history_motion=history_motion,
-            abs_pose=abs_pose,
-            prompt=current_prompt,
-            future_len=future_len,
-            guidance_scale=args.guidance_scale,
-        )
-        history_motion = future_motion[:, -history_len:, :]
-        block = robotmdar_motion_dict_to_block(
-            slice_motion_dict_tail(motion_dict, future_len),
-            index=frame_index,
-        )
-        conn.sendall(
-            textop_block_to_ndjson_message(block, fps=args.fps).encode("utf-8")
-        )
-
-        block_frames = block.joint_pos.shape[0]
-        frame_index += block_frames
-        block_count += 1
-
-        sleep_seconds = _log_block_timing(
-            planner=planner,
-            args=args,
-            block_count=block_count,
-            frame_index=frame_index,
-            block_frames=block_frames,
-            block_start_time=block_start_time,
-            next_send_time=next_send_time,
-            prompt=current_prompt,
-        )
-        next_send_time += block_frames / args.fps
-        time.sleep(max(0.0, sleep_seconds))
-
-
-def _generate_motion_block(
-    *,
-    runtime: RobotMdarRuntime,
-    clip_model: Any,
-    vae: Any,
-    cfg_denoiser: Any,
-    diffusion: Any,
-    val_data: Any,
-    history_motion: Any,
-    abs_pose: Any,
-    prompt: str,
-    future_len: int,
-    guidance_scale: float,
-) -> tuple[Any, Any, Any]:
-    with runtime.torch.no_grad():
-        text_embedding = runtime.encode_text(clip_model, [prompt]).float()
-        return runtime.generate_next_motion(
-            vae=vae,
-            denoiser=cfg_denoiser,
-            diffusion=diffusion,
-            val_data=val_data,
-            text_embedding=text_embedding,
-            history_motion=history_motion,
-            abs_pose=abs_pose,
-            future_len=future_len,
-            use_full_sample=True,
-            guidance_scale=guidance_scale,
-            ret_fk=True,
-            ret_fk_full=False,
-        )
-
-
 def _log_block_timing(
     *,
     planner: ManualPromptPlanner | VlmPromptPlanner,
@@ -304,25 +152,22 @@ def _log_block_timing(
     next_send_time: float,
     prompt: str,
 ) -> float:
-    block_duration = block_frames / args.fps
-    sleep_seconds = next_send_time + block_duration - time.monotonic()
-    if (
-        args.log_every_blocks > 0
-        and block_count % args.log_every_blocks == 0
-        and not planner.input_active
-    ):
-        generation_ms = (time.monotonic() - block_start_time) * 1000.0
-        lag_ms = max(0.0, -sleep_seconds * 1000.0)
-        _log_producer_message(
-            "stream "
-            f"block={block_count} frame={frame_index} "
-            f"prompt={prompt!r} "
-            f"prompt_source={_prompt_source(planner)} "
-            f"gen_ms={generation_ms:.1f} "
-            f"lag_ms={lag_ms:.1f}"
-            f"{planner.log_suffix}"
-        )
-    return sleep_seconds
+    return log_stream_timing(
+        prompt_controller=planner,
+        cfg=StreamConfig(
+            fps=args.fps,
+            guidance_scale=getattr(args, "guidance_scale", 0.0),
+            log_every_blocks=args.log_every_blocks,
+        ),
+        log_message=_log_producer_message,
+        prompt_source=_prompt_source,
+        block_count=block_count,
+        frame_index=frame_index,
+        block_frames=block_frames,
+        block_start_time=block_start_time,
+        next_send_time=next_send_time,
+        prompt=prompt,
+    )
 
 
 def _log_vlm_reasoning_if_available(
@@ -347,49 +192,6 @@ def _prompt_source(
     return "manual"
 
 
-def _load_robotmdar_runtime() -> RobotMdarRuntime:
-    try:
-        import torch
-        from hydra.utils import instantiate
-        from omegaconf import OmegaConf
-        from robotmdar.dtype import seed
-        from robotmdar.dtype.motion import get_zero_abs_pose, get_zero_feature
-        from robotmdar.eval.generate_dar import (
-            ClassifierFreeWrapper,
-            generate_next_motion,
-        )
-        from robotmdar.model.clip import encode_text, load_and_freeze_clip
-    except ImportError as exc:
-        raise ImportError(
-            "RobotMDAR producer must be run in the TextOp/RobotMDAR environment."
-        ) from exc
-    return RobotMdarRuntime(
-        torch=torch,
-        instantiate=instantiate,
-        OmegaConf=OmegaConf,
-        seed=seed,
-        get_zero_abs_pose=get_zero_abs_pose,
-        get_zero_feature=get_zero_feature,
-        ClassifierFreeWrapper=ClassifierFreeWrapper,
-        generate_next_motion=generate_next_motion,
-        encode_text=encode_text,
-        load_and_freeze_clip=load_and_freeze_clip,
-    )
-
-
-def _register_hydra_resolvers(OmegaConf) -> None:
-    if not OmegaConf.has_resolver("hydra"):
-        OmegaConf.register_new_resolver(
-            "hydra",
-            lambda key: str(Path.cwd()) if key == "runtime.cwd" else "",
-        )
-    if not OmegaConf.has_resolver("now"):
-        OmegaConf.register_new_resolver(
-            "now",
-            lambda fmt: datetime.now().strftime(fmt),
-        )
-
-
 def make_prompt_planner(
     args: argparse.Namespace,
 ) -> ManualPromptPlanner | VlmPromptPlanner:
@@ -402,8 +204,8 @@ def make_prompt_planner(
         selector = OpenAIChatPromptSelector(
             base_url=args.vlm_base_url,
             model=args.vlm_model,
-            system_prompt=_read_prompt_path(args.vlm_system_prompt),
-            user_prompt=_read_prompt_path(args.vlm_user_prompt),
+            system_prompt=read_prompt_path(args.vlm_system_prompt),
+            user_prompt=read_prompt_path(args.vlm_user_prompt),
             timeout_sec=args.vlm_timeout_sec,
             max_tokens=args.vlm_max_tokens,
             include_history=args.vlm_history,
@@ -415,10 +217,6 @@ def make_prompt_planner(
             query_every_blocks=args.query_every_blocks,
         )
     return ManualPromptPlanner(args.prompt)
-
-
-def _read_prompt_path(path: str | Path) -> str:
-    return Path(path).expanduser().read_text(encoding="utf-8")
 
 
 if __name__ == "__main__":

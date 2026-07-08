@@ -116,7 +116,7 @@ def _observation(
 
 
 def _default_vlm_user_prompt() -> str:
-    return produce._read_prompt_path(produce.DEFAULT_VLM_USER_PROMPT_FILE)
+    return produce.read_prompt_path(produce.DEFAULT_VLM_USER_PROMPT_FILE)
 
 
 def test_parse_feedback_observation() -> None:

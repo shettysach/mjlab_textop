@@ -4,69 +4,25 @@ import argparse
 import socket
 import sys
 import threading
-import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from mjlab_textop.core.online.live import textop_block_to_ndjson_message
-from mjlab_textop.core.robotmdar import (
-    robotmdar_motion_dict_to_block,
-    slice_motion_dict_tail,
-)
 from mjlab_textop.robotmdar.feedback import HttpObservationReceiver
 from mjlab_textop.robotmdar.planner.manual import PromptState
 from mjlab_textop.robotmdar.planner.vlm import OpenAIChatPromptSelector
-from mjlab_textop.robotmdar.produce import (
+from mjlab_textop.robotmdar.runtime import (
     DEFAULT_VLM_SYSTEM_PROMPT_FILE,
     DEFAULT_VLM_USER_PROMPT_FILE,
-    _generate_motion_block,
-    _load_robotmdar_runtime,
-    _read_prompt_path,
-    _register_hydra_resolvers,
+    StreamConfig,
+    make_robotmdar_generator,
+    read_prompt_path,
+    stream_robotmdar_blocks,
 )
 
 
 def run_debug(args: argparse.Namespace) -> None:
-    runtime = _load_robotmdar_runtime()
-
-    _register_hydra_resolvers(runtime.OmegaConf)
-    cfg = runtime.OmegaConf.load(Path(args.ckpt).parent / ".hydra" / "config.yaml")
-    cfg.device = args.device
-    cfg.ckpt.dar = args.ckpt
-    cfg.train.manager.device = args.device
-    cfg.train.manager.save_dir = str(Path.cwd() / "logs" / "robotmdar_debug")
-    cfg.train.manager.platform._target_ = "robotmdar.train.train_platforms.NoPlatform"
-    cfg.data.datadir = args.datadir
-    cfg.skeleton.asset.assetRoot = args.skeleton_asset_root
-    cfg.data.val.split = "none"
-    cfg.data.val.batch_size = 1
-    cfg.use_full_sample = True
-    cfg.guidance_scale = args.guidance_scale
-
-    runtime.seed.set(cfg.seed)
-    clip_model = runtime.load_and_freeze_clip("ViT-B/32", device=args.device)
-    val_data = runtime.instantiate(cfg.data.val)
-    vae = runtime.instantiate(cfg.vae)
-    denoiser = runtime.instantiate(cfg.denoiser)
-    schedule_sampler = runtime.instantiate(cfg.diffusion.schedule_sampler)
-    diffusion = schedule_sampler.diffusion
-    vae.eval()
-    denoiser.eval()
-
-    manager = runtime.instantiate(cfg.train.manager)
-    manager.hold_model(vae, denoiser, None, val_data)
-    cfg_denoiser = runtime.ClassifierFreeWrapper(denoiser)
-
-    future_len = int(cfg.data.future_len)
-    history_len = int(cfg.data.history_len)
-    history_motion = val_data.normalize(
-        runtime.get_zero_feature()
-        .to(args.device)
-        .reshape(1, 1, -1)
-        .repeat(1, history_len, 1)
-    )
-    abs_pose = runtime.get_zero_abs_pose((1,), device=args.device)
-
+    generator = make_robotmdar_generator(args, log_dir_name="robotmdar_debug")
     receiver = HttpObservationReceiver(
         host=args.observation_listen_host,
         port=args.observation_listen_port,
@@ -75,8 +31,8 @@ def run_debug(args: argparse.Namespace) -> None:
     selector = OpenAIChatPromptSelector(
         base_url=args.vlm_base_url,
         model=args.vlm_model,
-        system_prompt=_read_prompt_path(args.vlm_system_prompt),
-        user_prompt=_read_prompt_path(args.vlm_user_prompt),
+        system_prompt=read_prompt_path(args.vlm_system_prompt),
+        user_prompt=read_prompt_path(args.vlm_user_prompt),
         timeout_sec=args.vlm_timeout_sec,
         max_tokens=args.vlm_max_tokens,
         include_history=args.vlm_history,
@@ -101,20 +57,17 @@ def run_debug(args: argparse.Namespace) -> None:
             conn, addr = server.accept()
             _log_debug_message(f"MJLab consumer connected from {addr}")
             with conn:
-                _run_debug_stream(
+                stream_robotmdar_blocks(
                     conn=conn,
-                    args=args,
-                    runtime=runtime,
-                    clip_model=clip_model,
-                    val_data=val_data,
-                    vae=vae,
-                    cfg_denoiser=cfg_denoiser,
-                    diffusion=diffusion,
-                    history_motion=history_motion,
-                    history_len=history_len,
-                    future_len=future_len,
-                    abs_pose=abs_pose,
-                    prompt=prompt,
+                    generator=generator,
+                    prompt_controller=PromptStateController(prompt),
+                    cfg=StreamConfig(
+                        fps=args.fps,
+                        guidance_scale=args.guidance_scale,
+                        log_every_blocks=args.log_every_blocks,
+                    ),
+                    log_message=_log_debug_message,
+                    prompt_source=lambda _controller: "manual",
                 )
     except KeyboardInterrupt:
         _log_debug_message("Stopping RobotMDAR debug producer.")
@@ -176,73 +129,25 @@ def main() -> None:
     run_debug(parse_args())
 
 
-def _run_debug_stream(
-    *,
-    conn: socket.socket,
-    args: argparse.Namespace,
-    runtime: Any,
-    clip_model: Any,
-    val_data: Any,
-    vae: Any,
-    cfg_denoiser: Any,
-    diffusion: Any,
-    history_motion: Any,
-    history_len: int,
-    future_len: int,
-    abs_pose: Any,
-    prompt: PromptState,
-) -> None:
-    frame_index = 0
-    next_send_time = time.monotonic()
-    block_count = 0
+@dataclass
+class PromptStateController:
+    prompt: PromptState
 
-    while not prompt.stop:
-        block_start_time = time.monotonic()
-        current_prompt = prompt.text
-        future_motion, motion_dict, abs_pose = _generate_motion_block(
-            runtime=runtime,
-            clip_model=clip_model,
-            vae=vae,
-            cfg_denoiser=cfg_denoiser,
-            diffusion=diffusion,
-            val_data=val_data,
-            history_motion=history_motion,
-            abs_pose=abs_pose,
-            prompt=current_prompt,
-            future_len=future_len,
-            guidance_scale=args.guidance_scale,
-        )
-        history_motion = future_motion[:, -history_len:, :]
-        block = robotmdar_motion_dict_to_block(
-            slice_motion_dict_tail(motion_dict, future_len),
-            index=frame_index,
-        )
-        conn.sendall(
-            textop_block_to_ndjson_message(block, fps=args.fps).encode("utf-8")
-        )
+    @property
+    def should_stop(self) -> bool:
+        return self.prompt.stop
 
-        block_frames = block.joint_pos.shape[0]
-        frame_index += block_frames
-        block_count += 1
+    @property
+    def input_active(self) -> bool:
+        return self.prompt.input_active
 
-        block_duration = block_frames / args.fps
-        sleep_seconds = next_send_time + block_duration - time.monotonic()
-        if (
-            args.log_every_blocks > 0
-            and block_count % args.log_every_blocks == 0
-            and not prompt.input_active
-        ):
-            generation_ms = (time.monotonic() - block_start_time) * 1000.0
-            lag_ms = max(0.0, -sleep_seconds * 1000.0)
-            _log_debug_message(
-                "stream "
-                f"block={block_count} frame={frame_index} "
-                f"prompt={current_prompt!r} "
-                f"gen_ms={generation_ms:.1f} "
-                f"lag_ms={lag_ms:.1f}"
-            )
-        next_send_time += block_duration
-        time.sleep(max(0.0, sleep_seconds))
+    @property
+    def log_suffix(self) -> str:
+        return ""
+
+    def choose_prompt(self, *, block_count: int) -> str:
+        del block_count
+        return self.prompt.text
 
 
 def _prompt_loop(
