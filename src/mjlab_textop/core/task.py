@@ -1,17 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
-
-
-@dataclass(frozen=True)
-class StaticTaskSpec:
-    task_id: str
-    make_env_cfg: Callable[[], Any]
-    make_play_env_cfg: Callable[[], Any]
-    runner_cls: type | None = None
 
 
 @dataclass(frozen=True)
@@ -20,26 +12,6 @@ class DynamicOnlineTaskSpec:
     checkpoint_env_cfg: Callable[..., Any]
     onnx_env_cfg: Callable[..., Any]
     onnx_task_name: str | None = None
-
-
-def register_static_task_spec(spec: StaticTaskSpec) -> None:
-    from mjlab.tasks.registry import list_tasks, register_mjlab_task
-
-    if spec.task_id in list_tasks():
-        return
-
-    register_mjlab_task(
-        task_id=spec.task_id,
-        env_cfg=spec.make_env_cfg(),
-        play_env_cfg=spec.make_play_env_cfg(),
-        rl_cfg=None,
-        runner_cls=spec.runner_cls,
-    )
-
-
-def register_static_task_specs(specs: Sequence[StaticTaskSpec]) -> None:
-    for spec in specs:
-        register_static_task_spec(spec)
 
 
 def register_dynamic_online_task(
@@ -57,14 +29,15 @@ def register_dynamic_online_task(
     observation: Any = None,
 ) -> str:
     from mjlab.tasks.registry import register_mjlab_task
+    from mjlab.tasks.tracking.config.g1.rl_cfg import (
+        unitree_g1_tracking_ppo_runner_cfg,
+    )
 
     from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
 
     is_onnx = runner_cls is OnnxPolicyRunner
     task_prefix = (
-        spec.onnx_task_name
-        if is_onnx and spec.onnx_task_name
-        else spec.base_task_name
+        spec.onnx_task_name if is_onnx and spec.onnx_task_name else spec.base_task_name
     )
     name_parts = [task_prefix]
     if spec.onnx_task_name is None:
@@ -90,7 +63,7 @@ def register_dynamic_online_task(
         task_id=task_name,
         env_cfg=env_cfg,
         play_env_cfg=env_cfg,
-        rl_cfg=None,
+        rl_cfg=unitree_g1_tracking_ppo_runner_cfg(),
         runner_cls=runner_cls,
     )
     return task_name

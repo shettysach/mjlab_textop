@@ -14,6 +14,7 @@ from mjlab_textop.robotmdar.planner.vlm import (
 from mjlab_textop.robotmdar.runtime import (
     DEFAULT_VLM_SYSTEM_PROMPT_FILE,
     DEFAULT_VLM_USER_PROMPT_FILE,
+    PromptController,
     StreamConfig,
     log_stream_timing,
     make_robotmdar_generator,
@@ -141,7 +142,7 @@ def _log_producer_message(message: str) -> None:
 
 def _log_block_timing(
     *,
-    planner: ManualPromptPlanner | VlmPromptPlanner,
+    planner: PromptController,
     args: argparse.Namespace,
     block_count: int,
     frame_index: int,
@@ -170,7 +171,7 @@ def _log_block_timing(
 
 def _log_vlm_reasoning_if_available(
     *,
-    planner: ManualPromptPlanner | VlmPromptPlanner,
+    planner: PromptController,
     args: argparse.Namespace,
 ) -> None:
     if not getattr(args, "vlm_reasoning", False):
@@ -183,7 +184,7 @@ def _log_vlm_reasoning_if_available(
 
 
 def _prompt_source(
-    planner: ManualPromptPlanner | VlmPromptPlanner,
+    planner: PromptController,
 ) -> str:
     if isinstance(planner, VlmPromptPlanner):
         return planner.current_prompt_source

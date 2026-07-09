@@ -87,10 +87,6 @@ def test_resolve_policy_rejects_multiple_policies(tmp_path) -> None:
 def test_play_live_without_images_uses_mjlab_run_play(monkeypatch, tmp_path) -> None:
     calls = {}
 
-    monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.register_tasks",
-        lambda: None,
-    )
     monkeypatch.setitem(
         commands_module.LIVE_TASK_REGISTRY,
         "default",
@@ -129,10 +125,6 @@ def test_play_live_with_images_does_not_enable_video_recording(
 ) -> None:
     calls = {}
 
-    monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.register_tasks",
-        lambda: None,
-    )
     monkeypatch.setitem(
         commands_module.LIVE_TASK_REGISTRY,
         "default",
@@ -177,10 +169,6 @@ def test_play_live_uses_custom_observation_camera_geometry(
 ) -> None:
     calls = {}
 
-    monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.register_tasks",
-        lambda: None,
-    )
     monkeypatch.setitem(
         commands_module.LIVE_TASK_REGISTRY,
         "default",
@@ -217,10 +205,6 @@ def test_straight_live_uses_straight_task_registration(
 ) -> None:
     calls = {}
 
-    monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.register_tasks",
-        lambda: None,
-    )
     monkeypatch.setitem(
         commands_module.LIVE_TASK_REGISTRY,
         "straight",
@@ -258,10 +242,6 @@ def test_blocked_straight_live_uses_blocked_straight_task_registration(
 ) -> None:
     calls = {}
 
-    monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.register_tasks",
-        lambda: None,
-    )
     monkeypatch.setitem(
         commands_module.LIVE_TASK_REGISTRY,
         "blocked-straight",
@@ -299,10 +279,6 @@ def test_side_goals_live_uses_side_goals_task_registration(
 ) -> None:
     calls = {}
 
-    monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.register_tasks",
-        lambda: None,
-    )
     monkeypatch.setitem(
         commands_module.LIVE_TASK_REGISTRY,
         "side-goals",

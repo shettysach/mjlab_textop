@@ -1,31 +1,21 @@
 from __future__ import annotations
 
 import mujoco
-from mjlab.tasks.registry import list_tasks, load_env_cfg, load_runner_cls
-from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
+from mjlab.tasks.registry import load_env_cfg, load_runner_cls
 
 from mjlab_textop.core.mdp.observations import future_joint_window_textop_order
 from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
-from mjlab_textop.tasks import register_tasks
 from mjlab_textop.tasks.blocked_straight.env_cfg import (
     BLOCKED_STRAIGHT_TASK_CFG,
+    make_blocked_straight_g1_env_cfg,
 )
 from mjlab_textop.tasks.blocked_straight.registration import (
-    BLOCKED_STRAIGHT_TASK_NAME,
     register_blocked_straight_task,
 )
 
 
-def test_blocked_straight_task_registers() -> None:
-    register_tasks()
-
-    assert BLOCKED_STRAIGHT_TASK_NAME in list_tasks()
-    assert load_runner_cls(BLOCKED_STRAIGHT_TASK_NAME) is MotionTrackingOnPolicyRunner
-
-
 def test_blocked_straight_env_cfg_has_fixed_goal_eval_terms() -> None:
-    register_tasks()
-    cfg = load_env_cfg(BLOCKED_STRAIGHT_TASK_NAME, play=True)
+    cfg = make_blocked_straight_g1_env_cfg(play=True)
 
     assert cfg.scene.num_envs == 1
     assert cfg.episode_length_s == 20.0
@@ -61,8 +51,7 @@ def test_blocked_straight_play_task_uses_onnx_runner(tmp_path) -> None:
 
 
 def test_blocked_straight_spec_fn_adds_centered_wide_wall() -> None:
-    register_tasks()
-    cfg = load_env_cfg(BLOCKED_STRAIGHT_TASK_NAME, play=True)
+    cfg = make_blocked_straight_g1_env_cfg(play=True)
     spec = mujoco.MjSpec()  # ty: ignore[unresolved-attribute]
 
     assert cfg.scene.spec_fn is not None

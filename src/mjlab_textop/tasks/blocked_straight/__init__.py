@@ -8,14 +8,14 @@ from mjlab_textop.tasks.blocked_straight.env_cfg import (
 )
 from mjlab_textop.tasks.blocked_straight.registration import (
     BLOCKED_STRAIGHT_TASK_NAME,
-    STATIC_TASK_SPECS,
+    register_blocked_straight_task,
 )
 
 __all__ = [
     "BLOCKED_STRAIGHT_TASK_NAME",
     "BLOCKED_STRAIGHT_TASK_CFG",
-    "STATIC_TASK_SPECS",
     "BlockedStraightTaskCfg",
     "make_blocked_straight_g1_env_cfg",
     "make_blocked_straight_onnx_g1_env_cfg",
+    "register_blocked_straight_task",
 ]

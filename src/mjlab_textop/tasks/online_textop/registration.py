@@ -12,7 +12,6 @@ from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
 from mjlab_textop.core.task import (
     DynamicOnlineTaskSpec,
-    StaticTaskSpec,
     register_dynamic_online_task,
 )
 from mjlab_textop.tasks.online_textop.env_cfg import (
@@ -22,29 +21,6 @@ from mjlab_textop.tasks.online_textop.env_cfg import (
 
 ONLINE_TEXTOP_TASK_NAME = "Mjlab-OnlineTextOp-Flat-Unitree-G1"
 ONLINE_TEXTOP_ONNX_TASK_NAME = "Mjlab-OnlineTextOpOnnx-Flat-Unitree-G1"
-
-STATIC_TASK_SPECS = [
-    StaticTaskSpec(
-        task_id=ONLINE_TEXTOP_TASK_NAME,
-        # Online TextOp currently runs as a single-env play task; train and play
-        # configs intentionally share the same factory until batching exists.
-        make_env_cfg=lambda: make_online_textop_g1_flat_tracking_env_cfg(play=True),
-        make_play_env_cfg=lambda: make_online_textop_g1_flat_tracking_env_cfg(
-            play=True
-        ),
-        runner_cls=MotionTrackingOnPolicyRunner,
-    ),
-    StaticTaskSpec(
-        task_id=ONLINE_TEXTOP_ONNX_TASK_NAME,
-        make_env_cfg=lambda: make_online_textop_onnx_g1_flat_tracking_env_cfg(
-            play=True
-        ),
-        make_play_env_cfg=lambda: make_online_textop_onnx_g1_flat_tracking_env_cfg(
-            play=True
-        ),
-        runner_cls=OnnxPolicyRunner,
-    ),
-]
 
 DYNAMIC_TASK_SPEC = DynamicOnlineTaskSpec(
     base_task_name=ONLINE_TEXTOP_TASK_NAME,

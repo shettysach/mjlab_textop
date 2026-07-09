@@ -1,29 +1,21 @@
 from __future__ import annotations
 
 import mujoco
-from mjlab.tasks.registry import list_tasks, load_env_cfg, load_runner_cls
-from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
+from mjlab.tasks.registry import load_env_cfg, load_runner_cls
 
 from mjlab_textop.core.mdp.observations import future_joint_window_textop_order
 from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
-from mjlab_textop.tasks import register_tasks
-from mjlab_textop.tasks.side_goals.env_cfg import SIDE_GOALS_TASK_CFG
+from mjlab_textop.tasks.side_goals.env_cfg import (
+    SIDE_GOALS_TASK_CFG,
+    make_side_goals_g1_env_cfg,
+)
 from mjlab_textop.tasks.side_goals.registration import (
-    SIDE_GOALS_TASK_NAME,
     register_side_goals_task,
 )
 
 
-def test_side_goals_task_registers() -> None:
-    register_tasks()
-
-    assert SIDE_GOALS_TASK_NAME in list_tasks()
-    assert load_runner_cls(SIDE_GOALS_TASK_NAME) is MotionTrackingOnPolicyRunner
-
-
 def test_side_goals_env_cfg_has_fixed_green_goal_eval_terms() -> None:
-    register_tasks()
-    cfg = load_env_cfg(SIDE_GOALS_TASK_NAME, play=True)
+    cfg = make_side_goals_g1_env_cfg(play=True)
 
     assert cfg.scene.num_envs == 1
     assert cfg.episode_length_s == 20.0
@@ -64,8 +56,7 @@ def test_side_goals_play_task_uses_onnx_runner(tmp_path) -> None:
 
 
 def test_side_goals_spec_fn_adds_two_goals_and_four_walls() -> None:
-    register_tasks()
-    cfg = load_env_cfg(SIDE_GOALS_TASK_NAME, play=True)
+    cfg = make_side_goals_g1_env_cfg(play=True)
     spec = mujoco.MjSpec()  # ty: ignore[unresolved-attribute]
 
     assert cfg.scene.spec_fn is not None

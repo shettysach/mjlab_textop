@@ -19,7 +19,6 @@ from mjlab_textop.scripts.utils import (
     ResolvedPolicy,
     TaskRegistrar,
 )
-from mjlab_textop.tasks import register_tasks
 from mjlab_textop.tasks.blocked_straight.registration import (
     register_blocked_straight_task,
 )
@@ -87,7 +86,6 @@ def play_live_textop_motion(
     *,
     policy: ResolvedPolicy,
 ) -> None:
-    register_tasks()
     task_name = LIVE_TASK_REGISTRY[cfg.task](
         runner_cls=policy.runner_cls,
         live_source_cfg=SocketTextOpSourceCfg(
@@ -162,7 +160,6 @@ def play_online_textop_motion(
     motion_file: Path,
     policy: ResolvedPolicy,
 ) -> None:
-    register_tasks()
     source = make_mjlab_npz_replay_source(motion_file, block_size=cfg.block_size)
     task_name = register_online_textop_task(
         runner_cls=policy.runner_cls,

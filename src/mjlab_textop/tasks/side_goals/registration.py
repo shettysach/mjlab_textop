@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import Literal
 
-from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
-
 from mjlab_textop.core.feedback.observation import OnlineTextOpObservationCfg
 from mjlab_textop.core.mdp.online_commands import TextOpOnlineSourceMode
 from mjlab_textop.core.online.live import SocketTextOpSourceCfg
@@ -11,7 +9,6 @@ from mjlab_textop.core.online.source import TextOpOnlineSource
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
 from mjlab_textop.core.task import (
     DynamicOnlineTaskSpec,
-    StaticTaskSpec,
     register_dynamic_online_task,
 )
 from mjlab_textop.tasks.side_goals.env_cfg import (
@@ -20,15 +17,6 @@ from mjlab_textop.tasks.side_goals.env_cfg import (
 )
 
 SIDE_GOALS_TASK_NAME = "Mjlab-VLA-SideGoals-G1"
-
-STATIC_TASK_SPECS = [
-    StaticTaskSpec(
-        task_id=SIDE_GOALS_TASK_NAME,
-        make_env_cfg=lambda: make_side_goals_g1_env_cfg(play=True),
-        make_play_env_cfg=lambda: make_side_goals_g1_env_cfg(play=True),
-        runner_cls=MotionTrackingOnPolicyRunner,
-    ),
-]
 
 DYNAMIC_TASK_SPEC = DynamicOnlineTaskSpec(
     base_task_name=SIDE_GOALS_TASK_NAME,

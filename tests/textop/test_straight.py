@@ -4,32 +4,22 @@ from types import SimpleNamespace
 
 import mujoco
 import torch
-from mjlab.tasks.registry import list_tasks, load_env_cfg, load_runner_cls
-from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
+from mjlab.tasks.registry import load_env_cfg, load_runner_cls
 
 from mjlab_textop.core.mdp.observations import future_joint_window_textop_order
 from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
-from mjlab_textop.tasks import register_tasks
 from mjlab_textop.tasks.straight import mdp
 from mjlab_textop.tasks.straight.env_cfg import (
     STRAIGHT_TASK_CFG,
+    make_straight_g1_env_cfg,
 )
 from mjlab_textop.tasks.straight.registration import (
-    STRAIGHT_TASK_NAME,
     register_straight_task,
 )
 
 
-def test_straight_task_registers() -> None:
-    register_tasks()
-
-    assert STRAIGHT_TASK_NAME in list_tasks()
-    assert load_runner_cls(STRAIGHT_TASK_NAME) is MotionTrackingOnPolicyRunner
-
-
 def test_straight_env_cfg_has_fixed_goal_eval_terms() -> None:
-    register_tasks()
-    cfg = load_env_cfg(STRAIGHT_TASK_NAME, play=True)
+    cfg = make_straight_g1_env_cfg(play=True)
 
     assert cfg.scene.num_envs == 1
     assert cfg.episode_length_s == 20.0
@@ -65,8 +55,7 @@ def test_straight_play_task_uses_onnx_runner(tmp_path) -> None:
 
 
 def test_straight_spec_fn_adds_visual_non_colliding_geom() -> None:
-    register_tasks()
-    cfg = load_env_cfg(STRAIGHT_TASK_NAME, play=True)
+    cfg = make_straight_g1_env_cfg(play=True)
     spec = mujoco.MjSpec()  # ty: ignore[unresolved-attribute]
 
     assert cfg.scene.spec_fn is not None

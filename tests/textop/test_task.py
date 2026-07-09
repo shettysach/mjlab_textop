@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
-from mjlab.tasks.registry import list_tasks, load_env_cfg, load_runner_cls
-from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
+from mjlab.tasks.registry import load_env_cfg, load_runner_cls
 
 from mjlab_textop.core.feedback.observation import OnlineTextOpObservationCfg
 from mjlab_textop.core.mdp.offline_commands import TextOpMotionCommandCfg
@@ -10,31 +9,21 @@ from mjlab_textop.core.mdp.online_commands import OnlineTextOpMotionCommandCfg
 from mjlab_textop.core.online.source import QueueTextOpOnlineSource, TextOpMotionBlock
 from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
-from mjlab_textop.tasks import ensure_textop_task_registered
+from mjlab_textop.tasks.online_textop.env_cfg import (
+    make_online_textop_g1_flat_tracking_env_cfg,
+    make_online_textop_onnx_g1_flat_tracking_env_cfg,
+)
 from mjlab_textop.tasks.online_textop.registration import (
-    ONLINE_TEXTOP_ONNX_TASK_NAME,
-    ONLINE_TEXTOP_TASK_NAME,
     register_online_textop_onnx_task,
     register_online_textop_task,
 )
-from mjlab_textop.tasks.textop_tracking.registration import TEXTOP_TASK_NAME
+from mjlab_textop.tasks.textop_tracking.env_cfg import (
+    make_textop_g1_flat_tracking_env_cfg,
+)
 
 
-def test_textop_task_registers_once() -> None:
-    ensure_textop_task_registered()
-    ensure_textop_task_registered()
-
-    assert TEXTOP_TASK_NAME in list_tasks()
-    assert ONLINE_TEXTOP_TASK_NAME in list_tasks()
-    assert ONLINE_TEXTOP_ONNX_TASK_NAME in list_tasks()
-    assert load_runner_cls(TEXTOP_TASK_NAME) is MotionTrackingOnPolicyRunner
-    assert load_runner_cls(ONLINE_TEXTOP_TASK_NAME) is MotionTrackingOnPolicyRunner
-    assert load_runner_cls(ONLINE_TEXTOP_ONNX_TASK_NAME) is OnnxPolicyRunner
-
-
-def test_textop_task_uses_textop_motion_command() -> None:
-    ensure_textop_task_registered()
-    env_cfg = load_env_cfg(TEXTOP_TASK_NAME)
+def test_textop_env_cfg_uses_textop_motion_command() -> None:
+    env_cfg = make_textop_g1_flat_tracking_env_cfg(play=False)
     motion_cmd = env_cfg.commands["motion"]
 
     assert isinstance(motion_cmd, TextOpMotionCommandCfg)
@@ -42,9 +31,8 @@ def test_textop_task_uses_textop_motion_command() -> None:
     assert motion_cmd.anchor_body_name == "torso_link"
 
 
-def test_online_textop_task_uses_online_motion_command() -> None:
-    ensure_textop_task_registered()
-    env_cfg = load_env_cfg(ONLINE_TEXTOP_TASK_NAME)
+def test_online_textop_env_cfg_uses_online_motion_command() -> None:
+    env_cfg = make_online_textop_g1_flat_tracking_env_cfg(play=True)
     motion_cmd = env_cfg.commands["motion"]
 
     assert isinstance(motion_cmd, OnlineTextOpMotionCommandCfg)
@@ -53,9 +41,8 @@ def test_online_textop_task_uses_online_motion_command() -> None:
     assert motion_cmd.source_mode == "live"
 
 
-def test_online_textop_onnx_task_uses_online_motion_command() -> None:
-    ensure_textop_task_registered()
-    env_cfg = load_env_cfg(ONLINE_TEXTOP_ONNX_TASK_NAME)
+def test_online_textop_onnx_env_cfg_uses_online_motion_command() -> None:
+    env_cfg = make_online_textop_onnx_g1_flat_tracking_env_cfg(play=True)
     motion_cmd = env_cfg.commands["motion"]
 
     assert isinstance(motion_cmd, OnlineTextOpMotionCommandCfg)
@@ -163,8 +150,7 @@ def test_online_textop_onnx_env_cfg_uses_textop_deploy_timing() -> None:
 
 
 def test_online_textop_task_removes_full_body_tracking_terms() -> None:
-    ensure_textop_task_registered()
-    env_cfg = load_env_cfg(ONLINE_TEXTOP_TASK_NAME)
+    env_cfg = make_online_textop_g1_flat_tracking_env_cfg(play=True)
 
     assert "body_pos" not in env_cfg.observations["critic"].terms
     assert "body_ori" not in env_cfg.observations["critic"].terms
@@ -178,8 +164,7 @@ def test_online_textop_task_removes_full_body_tracking_terms() -> None:
 
 
 def test_textop_actor_observation_order() -> None:
-    ensure_textop_task_registered()
-    env_cfg = load_env_cfg(TEXTOP_TASK_NAME)
+    env_cfg = make_textop_g1_flat_tracking_env_cfg(play=False)
 
     assert list(env_cfg.observations["actor"].terms) == [
         "future_joint_window",
@@ -195,8 +180,7 @@ def test_textop_actor_observation_order() -> None:
 
 
 def test_textop_onnx_actor_observation_order_and_no_corruption() -> None:
-    ensure_textop_task_registered()
-    env_cfg = load_env_cfg(ONLINE_TEXTOP_ONNX_TASK_NAME)
+    env_cfg = make_online_textop_onnx_g1_flat_tracking_env_cfg(play=True)
 
     assert list(env_cfg.observations["actor"].terms) == [
         "future_joint_window",
@@ -213,8 +197,7 @@ def test_textop_onnx_actor_observation_order_and_no_corruption() -> None:
 
 
 def test_textop_critic_observation_order_keeps_privileged_terms() -> None:
-    ensure_textop_task_registered()
-    env_cfg = load_env_cfg(TEXTOP_TASK_NAME)
+    env_cfg = make_textop_g1_flat_tracking_env_cfg(play=False)
 
     assert list(env_cfg.observations["critic"].terms) == [
         "future_joint_window",
@@ -231,8 +214,7 @@ def test_textop_critic_observation_order_keeps_privileged_terms() -> None:
 
 
 def test_textop_play_env_uses_start_sampling_and_no_actor_corruption() -> None:
-    ensure_textop_task_registered()
-    env_cfg = load_env_cfg(TEXTOP_TASK_NAME, play=True)
+    env_cfg = make_textop_g1_flat_tracking_env_cfg(play=True)
 
     assert env_cfg.commands["motion"].sampling_mode == "start"
     assert env_cfg.observations["actor"].enable_corruption is False
