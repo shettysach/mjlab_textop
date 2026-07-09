@@ -342,9 +342,9 @@ class OnlineTextOpMotionCommand(CommandTerm):
         joint_pos, joint_vel, anchor_pos_w, anchor_quat_w, stale_steps = (
             self.buffer.get_future(self.current_frame, self.cfg.future_steps)
         )
-        raw_anchor_pos_w = anchor_pos_w[None, :, :] + self._anchor_pos_offset_w[
-            None, None, :
-        ]
+        raw_anchor_pos_w = (
+            anchor_pos_w[None, :, :] + self._anchor_pos_offset_w[None, None, :]
+        )
         anchor_pos_w = self._make_robot_relative_anchor_pos_w(raw_anchor_pos_w)[0]
         window = TextOpFutureWindow(
             joint_pos=joint_pos,
@@ -389,8 +389,10 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self,
         raw_anchor_pos_w: torch.Tensor,
     ) -> torch.Tensor:
-        raw_delta_w = raw_anchor_pos_w - raw_anchor_pos_w[:, 0:1, :]
-        return self.robot_anchor_pos_w[:, None, :] + raw_delta_w
+        anchor_pos_w = raw_anchor_pos_w.clone()  # NOTE: Eliminate clone?
+        raw_delta_xy_w = raw_anchor_pos_w[:, :, :2] - raw_anchor_pos_w[:, 0:1, :2]
+        anchor_pos_w[:, :, :2] = self.robot_anchor_pos_w[:, None, :2] + raw_delta_xy_w
+        return anchor_pos_w
 
     def _align_reference_anchor(self) -> None:
         if self.cfg.anchor_alignment == "direct_world":
@@ -413,9 +415,9 @@ class OnlineTextOpMotionCommand(CommandTerm):
         joint_pos = torch.clip(joint_pos, soft_limits[:, :, 0], soft_limits[:, :, 1])
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
 
-        raw_anchor_pos_w = anchor_pos_w[None, :, :] + self._anchor_pos_offset_w[
-            None, None, :
-        ]
+        raw_anchor_pos_w = (
+            anchor_pos_w[None, :, :] + self._anchor_pos_offset_w[None, None, :]
+        )
         root_pos = self._make_robot_relative_anchor_pos_w(raw_anchor_pos_w)[
             :, 0
         ].repeat(len(env_ids), 1)
@@ -484,7 +486,6 @@ def use_online_textop_motion_command(
         source = QueueTextOpOnlineSource()
 
     env_cfg.commands[command_name] = OnlineTextOpMotionCommandCfg(
-        debug_vis=debug_vis,
         entity_name=entity_name,
         anchor_body_name=anchor_body_name,
         future_steps=future_steps,
@@ -494,4 +495,5 @@ def use_online_textop_motion_command(
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
         observation=observation,
+        debug_vis=debug_vis,
     )
