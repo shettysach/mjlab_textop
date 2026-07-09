@@ -126,7 +126,7 @@ class OpenAIChatPromptSelector:
         *,
         base_url: str,
         model: str,
-        system_prompt: str | None = None,
+        system_prompt: str,
         user_prompt: str,
         timeout_sec: float = 30.0,
         max_tokens: int = 32,
@@ -148,28 +148,25 @@ class OpenAIChatPromptSelector:
         self.max_tokens = max_tokens
         self.include_history = include_history
         self.prompt_history: list[str] = []
-        self._first_req = True
 
     def choose_prompt(
         self,
         *,
-        observation: FeedbackObservation | None,
+        observation: FeedbackObservation,
     ) -> str:
         return self.choose_prompt_with_debug(observation=observation).prompt
 
     def choose_prompt_with_debug(
         self,
         *,
-        observation: FeedbackObservation | None,
+        observation: FeedbackObservation,
     ) -> VlmPromptSelection:
-        system_prompt = self.system_prompt if self._first_req else None
-        self._first_req = False
         response = self._post_json(
             _make_chat_completions_payload(
                 observation=observation,
                 prompt_history=(self.prompt_history if self.include_history else []),
                 model=self.model,
-                system_prompt=system_prompt,
+                system_prompt=self.system_prompt,
                 user_prompt=self.user_prompt,
                 max_tokens=self.max_tokens,
             )
@@ -198,19 +195,15 @@ class OpenAIChatPromptSelector:
 
 def _make_chat_completions_payload(
     *,
-    observation: FeedbackObservation | None,
+    observation: FeedbackObservation,
     prompt_history: list[str],
     model: str,
-    system_prompt: str | None,
+    system_prompt: str,
     user_prompt: str,
     max_tokens: int,
 ) -> dict[str, Any]:
     content: list[dict[str, Any]] = [{"type": "text", "text": user_prompt}]
-    if (
-        observation is not None
-        and observation.image_bytes is not None
-        and observation.image_mime_type is not None
-    ):
+    if observation.image_bytes is not None and observation.image_mime_type is not None:
         content.append(
             {
                 "type": "image_url",
@@ -222,11 +215,9 @@ def _make_chat_completions_payload(
                 },
             }
         )
-    messages: list[dict[str, Any]] = (
-        [{"role": "system", "content": [{"type": "text", "text": system_prompt}]}]
-        if system_prompt is not None
-        else []
-    )
+    messages: list[dict[str, Any]] = [
+        {"role": "system", "content": [{"type": "text", "text": system_prompt}]}
+    ]
     messages.extend(
         {
             "role": "assistant",
