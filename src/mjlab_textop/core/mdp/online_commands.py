@@ -6,7 +6,6 @@ from typing import cast
 import torch
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
-from mjlab.utils.lab_api.math import quat_apply, quat_inv, quat_mul, yaw_quat
 from mjlab.viewer.debug_visualizer import DebugVisualizer
 
 from mjlab_textop.core.feedback.observation import (
@@ -105,8 +104,6 @@ class OnlineTextOpMotionCommand(CommandTerm):
         )
         self._reference_start_anchor_pos_w: torch.Tensor | None = None
         self._robot_start_anchor_pos_w: torch.Tensor | None = None
-        self._reference_start_heading_inv_w: torch.Tensor | None = None
-        self._reference_to_robot_heading_w: torch.Tensor | None = None
         self._future_cache_frame: int | None = None
         self._future_cache: TextOpFutureWindow | None = None
         self._reference_ghost = OnlineReferenceGhost(env, self.robot)
@@ -253,8 +250,6 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._last_stale_frame = None
         self._reference_start_anchor_pos_w = None
         self._robot_start_anchor_pos_w = None
-        self._reference_start_heading_inv_w = None
-        self._reference_to_robot_heading_w = None
         self._clear_future_cache()
 
     def _update_command(self) -> None:
@@ -395,39 +390,23 @@ class OnlineTextOpMotionCommand(CommandTerm):
         anchor_pos_w: torch.Tensor,
         anchor_quat_w: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        pos_diff_w = anchor_pos_w[None, :, :] - self._reference_start_anchor_pos_w[
-            :, None, :
-        ]
-        reference_start_heading_inv_w = self._reference_start_heading_inv_w[
-            :, None, :
-        ].expand(-1, anchor_pos_w.shape[0], -1)
-        reference_to_robot_heading_w = self._reference_to_robot_heading_w[
-            :, None, :
-        ].expand(-1, anchor_quat_w.shape[0], -1)
-        aligned_pos_w = self._robot_start_anchor_pos_w[:, None, :] + quat_apply(
-            reference_start_heading_inv_w,
-            pos_diff_w,
+        aligned_pos_w = anchor_pos_w[None, :, :].clone()
+        local_delta_xy_w = anchor_pos_w[None, :, :2] - anchor_pos_w[None, 0:1, :2]
+        aligned_pos_w[:, :, :2] = self.robot_anchor_pos_w[:, None, :2] + local_delta_xy_w
+        aligned_pos_w[:, :, 2] = (
+            self._robot_start_anchor_pos_w[:, None, 2]
+            + anchor_pos_w[None, :, 2]
+            - self._reference_start_anchor_pos_w[:, None, 2]
         )
-        aligned_quat_w = quat_mul(
-            reference_to_robot_heading_w,
-            anchor_quat_w[None, :, :],
-        )
-        return aligned_pos_w[0], aligned_quat_w[0]
+        return aligned_pos_w[0], anchor_quat_w
 
     def _align_reference_anchor(self) -> None:
-        _, _, anchor_pos_w, anchor_quat_w, _ = self.buffer.get_future(
+        _, _, anchor_pos_w, _, _ = self.buffer.get_future(
             self.current_frame,
             1,
         )
-        reference_start_heading_w = yaw_quat(anchor_quat_w)
-        robot_start_heading_w = yaw_quat(self.robot_anchor_quat_w)
         self._reference_start_anchor_pos_w = anchor_pos_w
         self._robot_start_anchor_pos_w = self.robot_anchor_pos_w.clone()
-        self._reference_start_heading_inv_w = quat_inv(reference_start_heading_w)
-        self._reference_to_robot_heading_w = quat_mul(
-            robot_start_heading_w,
-            self._reference_start_heading_inv_w,
-        )
         self._clear_future_cache()
 
     def _reset_robot_to_reference(self, env_ids: torch.Tensor) -> None:
