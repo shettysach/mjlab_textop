@@ -342,10 +342,14 @@ class OnlineTextOpMotionCommand(CommandTerm):
         joint_pos, joint_vel, anchor_pos_w, anchor_quat_w, stale_steps = (
             self.buffer.get_future(self.current_frame, self.cfg.future_steps)
         )
+        raw_anchor_pos_w = anchor_pos_w[None, :, :] + self._anchor_pos_offset_w[
+            None, None, :
+        ]
+        anchor_pos_w = self._make_robot_relative_anchor_pos_w(raw_anchor_pos_w)[0]
         window = TextOpFutureWindow(
             joint_pos=joint_pos,
             joint_vel=joint_vel,
-            anchor_pos_w=anchor_pos_w + self._anchor_pos_offset_w[None, :],
+            anchor_pos_w=anchor_pos_w,
             anchor_quat_w=anchor_quat_w,
             stale_steps=stale_steps,
         )
@@ -381,6 +385,13 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._future_cache_frame = None
         self._future_cache = None
 
+    def _make_robot_relative_anchor_pos_w(
+        self,
+        raw_anchor_pos_w: torch.Tensor,
+    ) -> torch.Tensor:
+        raw_delta_w = raw_anchor_pos_w - raw_anchor_pos_w[:, 0:1, :]
+        return self.robot_anchor_pos_w[:, None, :] + raw_delta_w
+
     def _align_reference_anchor(self) -> None:
         if self.cfg.anchor_alignment == "direct_world":
             self._anchor_pos_offset_w.zero_()
@@ -402,7 +413,12 @@ class OnlineTextOpMotionCommand(CommandTerm):
         joint_pos = torch.clip(joint_pos, soft_limits[:, :, 0], soft_limits[:, :, 1])
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
 
-        root_pos = (anchor_pos_w[0] + self._anchor_pos_offset_w).repeat(len(env_ids), 1)
+        raw_anchor_pos_w = anchor_pos_w[None, :, :] + self._anchor_pos_offset_w[
+            None, None, :
+        ]
+        root_pos = self._make_robot_relative_anchor_pos_w(raw_anchor_pos_w)[
+            :, 0
+        ].repeat(len(env_ids), 1)
         root_quat = anchor_quat_w[0].repeat(len(env_ids), 1)
         root_vel = torch.zeros(
             len(env_ids), 6, device=self.device, dtype=root_pos.dtype
@@ -419,7 +435,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
             visualizer,
             num_envs=self.num_envs,
             joint_pos=self.joint_pos,
-            anchor_pos_w=self.anchor_pos_w,
+            anchor_pos_w=self.future_anchor_pos_w[:, 0],
             anchor_quat_w=self.anchor_quat_w,
         )
 
