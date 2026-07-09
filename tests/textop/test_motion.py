@@ -10,13 +10,13 @@ from mjlab_textop.core.motion import (
     reindex_textop_g1_joints_to_mjlab,
 )
 from mjlab_textop.core.schema import (
+    ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
     MJLAB_G1_JOINT_NAMES,
-    TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
 )
 
 
 def test_textop_to_mjlab_joint_index_matches_audited_textop_deploy_order():
-    assert TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX == (
+    assert ISAACLAB_TO_MJLAB_G1_JOINT_INDEX == (
         0,
         3,
         6,
@@ -55,7 +55,7 @@ def test_reindex_textop_g1_joints_to_mjlab():
     mjlab_values = reindex_textop_g1_joints_to_mjlab(textop_values)
 
     np.testing.assert_allclose(
-        mjlab_values, textop_values[list(TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)]
+        mjlab_values, textop_values[list(ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)]
     )
 
 

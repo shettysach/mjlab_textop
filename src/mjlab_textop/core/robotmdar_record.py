@@ -13,8 +13,8 @@ from mjlab_textop.core.motion import (
     validate_g1_joint_frames,
 )
 from mjlab_textop.core.online.source import (
-    TextOpMotionBlock,
-    validate_textop_motion_block,
+    MotionBlock,
+    validate_motion_block,
 )
 
 ROBOTMDAR_RAW_RECORD_REQUIRED_KEYS: tuple[str, ...] = (
@@ -46,7 +46,7 @@ class RobotMdarRawRecord:
 
 def save_robotmdar_raw_record(
     path: str | Path,
-    blocks: Sequence[TextOpMotionBlock],
+    blocks: Sequence[MotionBlock],
     *,
     fps: float,
     prompt: str,
@@ -62,7 +62,7 @@ def save_robotmdar_raw_record(
 
     frames: dict[int, tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = {}
     for block in blocks:
-        block = validate_textop_motion_block(block)
+        block = validate_motion_block(block)
 
         for offset in range(block.joint_pos.shape[0]):
             frame_index = block.index + offset

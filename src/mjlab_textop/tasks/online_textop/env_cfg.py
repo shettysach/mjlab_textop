@@ -4,7 +4,7 @@ from mjlab.envs.mdp.observations import projected_gravity
 from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
 from mjlab.tasks.tracking.config.g1.env_cfgs import unitree_g1_flat_tracking_env_cfg
 
-from mjlab_textop.core.feedback.observation import OnlineTextOpObservationCfg
+from mjlab_textop.core.feedback.observation import OnlineObservationCfg
 from mjlab_textop.core.mdp.observations import (
     future_anchor_ori_b,
     future_anchor_pos_b,
@@ -14,12 +14,12 @@ from mjlab_textop.core.mdp.observations import (
     last_action_textop_order,
 )
 from mjlab_textop.core.mdp.online_commands import (
-    TextOpOnlineSourceMode,
+    OnlineSourceMode,
     use_online_textop_motion_command,
 )
-from mjlab_textop.core.online.live import SocketTextOpSourceCfg
-from mjlab_textop.core.online.source import TextOpOnlineSource
-from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
+from mjlab_textop.core.online.live import SocketSourceCfg
+from mjlab_textop.core.online.source import OnlineSource
+from mjlab_textop.core.schema import FUTURE_STEPS
 from mjlab_textop.tasks.textop_tracking.env_cfg import (
     configure_textop_actor_observations,
     configure_textop_critic_observations,
@@ -32,13 +32,13 @@ TEXTOP_DEPLOY_DECIMATION = 10
 def make_online_textop_g1_flat_tracking_env_cfg(
     *,
     play: bool = True,
-    future_steps: int = TEXTOP_FUTURE_STEPS,
-    source: TextOpOnlineSource | None = None,
-    live_source_cfg: SocketTextOpSourceCfg | None = None,
-    source_mode: TextOpOnlineSourceMode = "live",
+    future_steps: int = FUTURE_STEPS,
+    source: OnlineSource | None = None,
+    live_source_cfg: SocketSourceCfg | None = None,
+    source_mode: OnlineSourceMode = "live",
     reset_robot_to_reference: bool = True,
     reference_debug_vis: bool | None = None,
-    observation: OnlineTextOpObservationCfg | None = None,
+    observation: OnlineObservationCfg | None = None,
 ):
     cfg = unitree_g1_flat_tracking_env_cfg(play=play)
 
@@ -67,13 +67,13 @@ def make_online_textop_g1_flat_tracking_env_cfg(
 def make_online_textop_onnx_g1_flat_tracking_env_cfg(
     *,
     play: bool = True,
-    future_steps: int = TEXTOP_FUTURE_STEPS,
-    source: TextOpOnlineSource | None = None,
-    live_source_cfg: SocketTextOpSourceCfg | None = None,
-    source_mode: TextOpOnlineSourceMode = "live",
+    future_steps: int = FUTURE_STEPS,
+    source: OnlineSource | None = None,
+    live_source_cfg: SocketSourceCfg | None = None,
+    source_mode: OnlineSourceMode = "live",
     reset_robot_to_reference: bool = True,
     reference_debug_vis: bool | None = None,
-    observation: OnlineTextOpObservationCfg | None = None,
+    observation: OnlineObservationCfg | None = None,
 ):
     cfg = unitree_g1_flat_tracking_env_cfg(play=play)
 

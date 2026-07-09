@@ -6,12 +6,12 @@ from mjlab_textop.core.motion import (
     reindex_textop_g1_joints_to_mjlab,
 )
 from mjlab_textop.core.online.source import (
-    TextOpMotionBlock,
-    validate_textop_motion_block,
+    MotionBlock,
+    validate_motion_block,
 )
 
 
-class TextOpRollingMotionBuffer:
+class RollingMotionBuffer:
     def __init__(
         self,
         *,
@@ -49,8 +49,8 @@ class TextOpRollingMotionBuffer:
         self._anchor_quat_w.clear()
         self._latest_index = None
 
-    def append_block(self, block: TextOpMotionBlock) -> None:
-        block = validate_textop_motion_block(block)
+    def append_block(self, block: MotionBlock) -> None:
+        block = validate_motion_block(block)
 
         joint_pos = reindex_textop_g1_joints_to_mjlab(block.joint_pos)
         joint_vel = reindex_textop_g1_joints_to_mjlab(block.joint_vel)

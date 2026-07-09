@@ -14,7 +14,7 @@ from mjlab_textop.core.motion import (
 
 
 @dataclass(frozen=True)
-class TextOpMotionBlock:
+class MotionBlock:
     """Block of online TextOp reference motion frames.
 
     Joint arrays are in TextOp/IsaacLab order. The rolling buffer converts them
@@ -28,7 +28,7 @@ class TextOpMotionBlock:
     anchor_quat_w: np.ndarray
 
 
-def validate_textop_motion_block(block: TextOpMotionBlock) -> TextOpMotionBlock:
+def validate_motion_block(block: MotionBlock) -> MotionBlock:
     joint_pos = validate_g1_joint_frames("joint_pos", block.joint_pos)
     joint_vel = validate_g1_joint_frames("joint_vel", block.joint_vel)
     anchor_pos_w = validate_frame_vector_array("anchor_pos_w", block.anchor_pos_w, 3)
@@ -37,7 +37,7 @@ def validate_textop_motion_block(block: TextOpMotionBlock) -> TextOpMotionBlock:
     )
 
     if block.index < 0:
-        raise ValueError(f"TextOp block index must be non-negative, got {block.index}")
+        raise ValueError(f"Block index must be non-negative, got {block.index}")
     for name, value in (
         ("joint_vel", joint_vel),
         ("anchor_pos_w", anchor_pos_w),
@@ -49,7 +49,7 @@ def validate_textop_motion_block(block: TextOpMotionBlock) -> TextOpMotionBlock:
                 f"joint_pos frame count {joint_pos.shape[0]}"
             )
 
-    return TextOpMotionBlock(
+    return MotionBlock(
         index=block.index,
         joint_pos=joint_pos,
         joint_vel=joint_vel,
@@ -58,32 +58,32 @@ def validate_textop_motion_block(block: TextOpMotionBlock) -> TextOpMotionBlock:
     )
 
 
-class TextOpOnlineSource(Protocol):
-    def poll(self) -> TextOpMotionBlock | None:
+class OnlineSource(Protocol):
+    def poll(self) -> MotionBlock | None:
         """Return the next available block, or None when no block is ready."""
 
 
 @runtime_checkable
-class ResettableTextOpOnlineSource(TextOpOnlineSource, Protocol):
+class ResettableOnlineSource(OnlineSource, Protocol):
     def reset(self) -> None:
         """Reset a finite source to its initial frame."""
 
 
-class QueueTextOpOnlineSource:
+class QueueOnlineSource:
     def __init__(
         self,
-        blocks: list[TextOpMotionBlock] | None = None,
+        blocks: list[MotionBlock] | None = None,
         *,
         fps: float | None = None,
     ) -> None:
         self._initial_blocks = tuple(blocks or [])
-        self._blocks: deque[TextOpMotionBlock] = deque(self._initial_blocks)
+        self._blocks: deque[MotionBlock] = deque(self._initial_blocks)
         self.fps = fps
 
-    def append(self, block: TextOpMotionBlock) -> None:
+    def append(self, block: MotionBlock) -> None:
         self._blocks.append(block)
 
-    def poll(self) -> TextOpMotionBlock | None:
+    def poll(self) -> MotionBlock | None:
         if not self._blocks:
             return None
         return self._blocks.popleft()

@@ -7,11 +7,11 @@ from mjlab.managers.metrics_manager import MetricsTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.managers.termination_manager import TerminationTermCfg
 
-from mjlab_textop.core.feedback.observation import OnlineTextOpObservationCfg
-from mjlab_textop.core.mdp.online_commands import TextOpOnlineSourceMode
-from mjlab_textop.core.online.live import SocketTextOpSourceCfg
-from mjlab_textop.core.online.source import TextOpOnlineSource
-from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
+from mjlab_textop.core.feedback.observation import OnlineObservationCfg
+from mjlab_textop.core.mdp.online_commands import OnlineSourceMode
+from mjlab_textop.core.online.live import SocketSourceCfg
+from mjlab_textop.core.online.source import OnlineSource
+from mjlab_textop.core.schema import FUTURE_STEPS
 from mjlab_textop.tasks.online_textop.env_cfg import (
     make_online_textop_g1_flat_tracking_env_cfg,
     make_online_textop_onnx_g1_flat_tracking_env_cfg,
@@ -37,13 +37,13 @@ STRAIGHT_TASK_CFG = StraightTaskCfg()
 def make_straight_g1_env_cfg(
     *,
     play: bool = True,
-    future_steps: int = TEXTOP_FUTURE_STEPS,
-    source: TextOpOnlineSource | None = None,
-    live_source_cfg: SocketTextOpSourceCfg | None = None,
-    source_mode: TextOpOnlineSourceMode = "live",
+    future_steps: int = FUTURE_STEPS,
+    source: OnlineSource | None = None,
+    live_source_cfg: SocketSourceCfg | None = None,
+    source_mode: OnlineSourceMode = "live",
     reset_robot_to_reference: bool = True,
     reference_debug_vis: bool | None = None,
-    observation: OnlineTextOpObservationCfg | None = None,
+    observation: OnlineObservationCfg | None = None,
     task_cfg: StraightTaskCfg = STRAIGHT_TASK_CFG,
 ):
     cfg = make_online_textop_g1_flat_tracking_env_cfg(
@@ -62,13 +62,13 @@ def make_straight_g1_env_cfg(
 def make_straight_onnx_g1_env_cfg(
     *,
     play: bool = True,
-    future_steps: int = TEXTOP_FUTURE_STEPS,
-    source: TextOpOnlineSource | None = None,
-    live_source_cfg: SocketTextOpSourceCfg | None = None,
-    source_mode: TextOpOnlineSourceMode = "live",
+    future_steps: int = FUTURE_STEPS,
+    source: OnlineSource | None = None,
+    live_source_cfg: SocketSourceCfg | None = None,
+    source_mode: OnlineSourceMode = "live",
     reset_robot_to_reference: bool = True,
     reference_debug_vis: bool | None = None,
-    observation: OnlineTextOpObservationCfg | None = None,
+    observation: OnlineObservationCfg | None = None,
     task_cfg: StraightTaskCfg = STRAIGHT_TASK_CFG,
 ):
     cfg = make_online_textop_onnx_g1_flat_tracking_env_cfg(

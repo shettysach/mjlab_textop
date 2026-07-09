@@ -9,8 +9,8 @@ from mjlab_textop.core.feedback.observation import (
     OBSERVATION_JPEG_QUALITY,
     HttpObservationPublisher,
     ObservationImage,
+    OnlineObservationCfg,
     OnlineObservationState,
-    OnlineTextOpObservationCfg,
     encode_render_image_jpeg,
     make_http_observation_payload,
     make_online_textop_observation,
@@ -59,7 +59,7 @@ def test_make_online_textop_observation_payload() -> None:
 
 
 def test_online_observation_cfg_defaults_to_torso_camera() -> None:
-    cfg = OnlineTextOpObservationCfg()
+    cfg = OnlineObservationCfg()
 
     assert cfg.camera.origin_type == cfg.camera.OriginType.ASSET_BODY
     assert cfg.camera.entity_name == "robot"

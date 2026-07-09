@@ -7,31 +7,31 @@ from mjlab_textop.core.motion import (
     reindex_mjlab_g1_joints_to_textop,
 )
 from mjlab_textop.core.online.source import (
-    QueueTextOpOnlineSource,
-    TextOpMotionBlock,
+    MotionBlock,
+    QueueOnlineSource,
 )
-from mjlab_textop.core.schema import TEXTOP_ROOT_BODY_INDEX
+from mjlab_textop.core.schema import ROOT_BODY_INDEX
 
 
 def make_mjlab_npz_replay_source(
     path: str | Path,
     *,
     block_size: int = 8,
-) -> QueueTextOpOnlineSource:
+) -> QueueOnlineSource:
     if block_size <= 0:
         raise ValueError(f"block_size must be positive, got {block_size}")
 
     motion = load_mjlab_motion(path)
     joint_pos_textop = reindex_mjlab_g1_joints_to_textop(motion.joint_pos)
     joint_vel_textop = reindex_mjlab_g1_joints_to_textop(motion.joint_vel)
-    anchor_pos_w = motion.body_pos_w[:, TEXTOP_ROOT_BODY_INDEX]
-    anchor_quat_w = motion.body_quat_w[:, TEXTOP_ROOT_BODY_INDEX]
+    anchor_pos_w = motion.body_pos_w[:, ROOT_BODY_INDEX]
+    anchor_quat_w = motion.body_quat_w[:, ROOT_BODY_INDEX]
 
     blocks = []
     for start in range(0, motion.num_frames, block_size):
         stop = min(start + block_size, motion.num_frames)
         blocks.append(
-            TextOpMotionBlock(
+            MotionBlock(
                 index=start,
                 joint_pos=joint_pos_textop[start:stop],
                 joint_vel=joint_vel_textop[start:stop],
@@ -39,4 +39,4 @@ def make_mjlab_npz_replay_source(
                 anchor_quat_w=anchor_quat_w[start:stop],
             )
         )
-    return QueueTextOpOnlineSource(blocks, fps=motion.fps)
+    return QueueOnlineSource(blocks, fps=motion.fps)

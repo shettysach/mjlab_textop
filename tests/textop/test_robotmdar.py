@@ -9,7 +9,7 @@ from mjlab_textop.core.motion import (
     reindex_textop_g1_joints_to_mjlab,
 )
 from mjlab_textop.core.normalize import normalize
-from mjlab_textop.core.online.source import TextOpMotionBlock
+from mjlab_textop.core.online.source import MotionBlock
 from mjlab_textop.core.robotmdar import (
     ROBOTMDAR_G1_DOF_INDEX,
     ROBOTMDAR_G1_DOF_LINK_NAMES,
@@ -143,7 +143,7 @@ def test_robotmdar_record_saves_raw_reference_terms(tmp_path) -> None:
     save_robotmdar_raw_record(
         output_file,
         [
-            TextOpMotionBlock(
+            MotionBlock(
                 index=0,
                 joint_pos=textop_joint_pos,
                 joint_vel=textop_joint_vel,
@@ -189,7 +189,7 @@ def test_robotmdar_record_preserves_textop_joint_order(tmp_path) -> None:
     save_robotmdar_raw_record(
         output_file,
         [
-            TextOpMotionBlock(
+            MotionBlock(
                 index=0,
                 joint_pos=textop_joint_pos,
                 joint_vel=textop_joint_pos + 100.0,
@@ -218,7 +218,7 @@ def test_normalize_does_not_double_reindex_joints(
     save_robotmdar_raw_record(
         raw_file,
         [
-            TextOpMotionBlock(
+            MotionBlock(
                 index=0,
                 joint_pos=textop_joint_pos,
                 joint_vel=textop_joint_vel,
@@ -249,7 +249,7 @@ def test_train_ready_robotmdar_npz_has_required_keys(tmp_path, monkeypatch) -> N
     save_robotmdar_raw_record(
         raw_file,
         [
-            TextOpMotionBlock(
+            MotionBlock(
                 index=0,
                 joint_pos=np.zeros((2, 29), dtype=np.float32),
                 joint_vel=np.zeros((2, 29), dtype=np.float32),

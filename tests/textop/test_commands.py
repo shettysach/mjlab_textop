@@ -8,8 +8,8 @@ from mjlab.tasks.tracking.mdp.commands import MotionCommand, MotionCommandCfg
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
 from mjlab_textop.core.mdp.offline_commands import (
-    TextOpMotionCommand,
-    TextOpMotionCommandCfg,
+    OfflineMotionCommand,
+    OfflineMotionCommandCfg,
     make_future_time_steps,
     textop_motion_command_cfg_from,
     use_textop_motion_command,
@@ -317,7 +317,7 @@ def _fake_register_task(calls: dict, kwargs: dict) -> str:
 
 def test_textop_motion_command_cfg_rejects_invalid_future_steps() -> None:
     with pytest.raises(ValueError, match="future_steps must be positive"):
-        TextOpMotionCommandCfg(
+        OfflineMotionCommandCfg(
             resampling_time_range=(1.0e9, 1.0e9),
             motion_file="/tmp/motion.npz",
             anchor_body_name="pelvis",
@@ -328,10 +328,10 @@ def test_textop_motion_command_cfg_rejects_invalid_future_steps() -> None:
 
 
 def test_online_textop_motion_command_cfg_rejects_invalid_future_steps() -> None:
-    from mjlab_textop.core.mdp.online_commands import OnlineTextOpMotionCommandCfg
+    from mjlab_textop.core.mdp.online_commands import OnlineMotionCommandCfg
 
     with pytest.raises(ValueError, match="future_steps must be positive"):
-        OnlineTextOpMotionCommandCfg(
+        OnlineMotionCommandCfg(
             resampling_time_range=(1.0e9, 1.0e9),
             entity_name="robot",
             anchor_body_name="pelvis",
@@ -340,8 +340,8 @@ def test_online_textop_motion_command_cfg_rejects_invalid_future_steps() -> None
 
 
 def test_textop_motion_command_cfg_is_motion_command_cfg() -> None:
-    assert issubclass(TextOpMotionCommandCfg, MotionCommandCfg)
-    assert issubclass(TextOpMotionCommand, MotionCommand)
+    assert issubclass(OfflineMotionCommandCfg, MotionCommandCfg)
+    assert issubclass(OfflineMotionCommand, MotionCommand)
 
 
 def test_textop_motion_command_cfg_from_copies_motion_cfg_fields() -> None:
@@ -357,7 +357,7 @@ def test_textop_motion_command_cfg_from_copies_motion_cfg_fields() -> None:
 
     textop_cfg = textop_motion_command_cfg_from(cfg, future_steps=7)
 
-    assert isinstance(textop_cfg, TextOpMotionCommandCfg)
+    assert isinstance(textop_cfg, OfflineMotionCommandCfg)
     assert textop_cfg.motion_file == cfg.motion_file
     assert textop_cfg.anchor_body_name == cfg.anchor_body_name
     assert textop_cfg.body_names == cfg.body_names
@@ -382,7 +382,7 @@ def test_use_textop_motion_command_replaces_motion_cfg() -> None:
 
     use_textop_motion_command(env_cfg, future_steps=3)
 
-    assert isinstance(env_cfg.commands["motion"], TextOpMotionCommandCfg)
+    assert isinstance(env_cfg.commands["motion"], OfflineMotionCommandCfg)
     assert env_cfg.commands["motion"].future_steps == 3
 
 
@@ -394,8 +394,8 @@ def test_use_textop_motion_command_rejects_non_motion_cfg() -> None:
 
 
 def test_textop_motion_command_future_reference_properties() -> None:
-    command = object.__new__(TextOpMotionCommand)
-    command.cfg = TextOpMotionCommandCfg(
+    command = object.__new__(OfflineMotionCommand)
+    command.cfg = OfflineMotionCommandCfg(
         resampling_time_range=(1.0e9, 1.0e9),
         motion_file="/tmp/motion.npz",
         anchor_body_name="pelvis",

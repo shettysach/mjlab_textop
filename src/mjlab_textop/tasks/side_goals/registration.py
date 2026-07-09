@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from mjlab_textop.core.feedback.observation import OnlineTextOpObservationCfg
-from mjlab_textop.core.mdp.online_commands import TextOpOnlineSourceMode
-from mjlab_textop.core.online.live import SocketTextOpSourceCfg
-from mjlab_textop.core.online.source import TextOpOnlineSource
-from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
+from mjlab_textop.core.feedback.observation import OnlineObservationCfg
+from mjlab_textop.core.mdp.online_commands import OnlineSourceMode
+from mjlab_textop.core.online.live import SocketSourceCfg
+from mjlab_textop.core.online.source import OnlineSource
+from mjlab_textop.core.schema import FUTURE_STEPS
 from mjlab_textop.core.task import (
     DynamicOnlineTaskSpec,
     register_dynamic_online_task,
@@ -26,14 +26,14 @@ DYNAMIC_TASK_SPEC = DynamicOnlineTaskSpec(
 def register_side_goals_task(
     *,
     runner_cls: type,
-    source: TextOpOnlineSource | None = None,
-    live_source_cfg: SocketTextOpSourceCfg | None = None,
-    source_mode: TextOpOnlineSourceMode,
-    future_steps: int = TEXTOP_FUTURE_STEPS,
+    source: OnlineSource | None = None,
+    live_source_cfg: SocketSourceCfg | None = None,
+    source_mode: OnlineSourceMode,
+    future_steps: int = FUTURE_STEPS,
     num_envs: int = 1,
     reset_robot_to_reference: bool = True,
     reference_debug_vis: bool | None = None,
-    observation: OnlineTextOpObservationCfg | None = None,
+    observation: OnlineObservationCfg | None = None,
 ) -> str:
     return register_dynamic_online_task(
         DYNAMIC_TASK_SPEC,

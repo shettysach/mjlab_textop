@@ -7,8 +7,8 @@ import numpy as np
 from mjlab_textop.core.motion import (
     reindex_mjlab_g1_joints_to_textop,
 )
-from mjlab_textop.core.online.source import TextOpMotionBlock
-from mjlab_textop.core.schema import MJLAB_G1_JOINT_NAMES, TEXTOP_G1_JOINT_COUNT
+from mjlab_textop.core.online.source import MotionBlock
+from mjlab_textop.core.schema import G1_JOINT_COUNT, MJLAB_G1_JOINT_NAMES
 
 # RobotMDAR predicts 23 G1 DoFs.
 # MJLab G1 has 29 joints; RobotMDAR does not output wrist joints.
@@ -58,7 +58,7 @@ def expand_robotmdar_dof_to_mjlab_g1(value: np.ndarray) -> np.ndarray:
             f"got {value.shape}"
         )
 
-    out = np.zeros((value.shape[0], TEXTOP_G1_JOINT_COUNT), dtype=np.float32)
+    out = np.zeros((value.shape[0], G1_JOINT_COUNT), dtype=np.float32)
     out[:, ROBOTMDAR_G1_DOF_INDEX] = value
     return out
 
@@ -67,7 +67,7 @@ def robotmdar_motion_dict_to_block(
     motion_dict: dict[str, Any],
     *,
     index: int,
-) -> TextOpMotionBlock:
+) -> MotionBlock:
     joint_pos_mjlab = expand_robotmdar_dof_to_mjlab_g1(
         motion_dict["dof_pos"][0].detach().cpu().numpy()
     )
@@ -76,7 +76,7 @@ def robotmdar_motion_dict_to_block(
     )
     root_rot_xyzw = motion_dict["root_rot"][0].detach().cpu().numpy()
 
-    return TextOpMotionBlock(
+    return MotionBlock(
         index=index,
         joint_pos=reindex_mjlab_g1_joints_to_textop(joint_pos_mjlab),
         joint_vel=reindex_mjlab_g1_joints_to_textop(joint_vel_mjlab),

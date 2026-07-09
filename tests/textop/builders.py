@@ -5,14 +5,14 @@ from types import SimpleNamespace
 import numpy as np
 import torch
 
-from mjlab_textop.core.online.buffer import TextOpMotionBlock
+from mjlab_textop.core.online.source import MotionBlock
 
 
 def motion_block(
     index: int = 0,
     frames: int = 8,
     offset: float = 0.0,
-) -> TextOpMotionBlock:
+) -> MotionBlock:
     joint_pos = np.arange(frames * 29, dtype=np.float32).reshape(frames, 29) + offset
     joint_vel = joint_pos + 1000.0
     anchor_pos_w = np.stack(
@@ -26,7 +26,7 @@ def motion_block(
     anchor_quat_w = np.tile(
         np.array([2.0, 0.0, 0.0, 0.0], dtype=np.float32), (frames, 1)
     )
-    return TextOpMotionBlock(
+    return MotionBlock(
         index=index,
         joint_pos=joint_pos,
         joint_vel=joint_vel,

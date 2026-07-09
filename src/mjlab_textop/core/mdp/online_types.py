@@ -5,7 +5,7 @@ from typing import Literal
 
 import torch
 
-TextOpOnlineSourceMode = Literal["replay", "live"]
+OnlineSourceMode = Literal["replay", "live"]
 
 ONLINE_METRIC_NAMES = (
     "online_buffer_frames",
@@ -23,7 +23,7 @@ ONLINE_METRIC_NAMES = (
 
 
 @dataclass(frozen=True)
-class TextOpFutureWindow:
+class FutureWindow:
     joint_pos: torch.Tensor
     joint_vel: torch.Tensor
     anchor_pos_w: torch.Tensor

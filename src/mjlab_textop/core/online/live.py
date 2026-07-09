@@ -10,13 +10,13 @@ from typing import Any
 import numpy as np
 
 from mjlab_textop.core.online.source import (
-    TextOpMotionBlock,
-    validate_textop_motion_block,
+    MotionBlock,
+    validate_motion_block,
 )
 
 
 @dataclass(frozen=True)
-class SocketTextOpSourceCfg:
+class SocketSourceCfg:
     host: str = "127.0.0.1"
     port: int = 8765
     fps: float = 50.0
@@ -35,7 +35,7 @@ class TextOpLiveDiagnostics:
 
 
 def textop_block_to_ndjson_message(
-    block: TextOpMotionBlock,
+    block: MotionBlock,
     *,
     fps: float = 50.0,
 ) -> str:
@@ -54,7 +54,7 @@ def parse_textop_block_message(
     message: str | bytes | dict[str, Any],
     *,
     default_fps: float = 50.0,
-) -> tuple[TextOpMotionBlock, float]:
+) -> tuple[MotionBlock, float]:
     data = _load_message(message)
     missing = [
         key
@@ -68,10 +68,10 @@ def parse_textop_block_message(
         if key not in data
     ]
     if missing:
-        raise ValueError(f"TextOp live block missing required fields: {missing}")
+        raise ValueError(f"Live block missing required fields: {missing}")
 
-    block = validate_textop_motion_block(
-        TextOpMotionBlock(
+    block = validate_motion_block(
+        MotionBlock(
             index=int(data["index"]),
             joint_pos=np.asarray(data["joint_pos"]),
             joint_vel=np.asarray(data["joint_vel"]),
@@ -82,9 +82,9 @@ def parse_textop_block_message(
     return block, float(data.get("fps", default_fps))
 
 
-class SocketTextOpOnlineSource:
-    def __init__(self, cfg: SocketTextOpSourceCfg | None = None) -> None:
-        cfg = cfg or SocketTextOpSourceCfg()
+class SocketOnlineSource:
+    def __init__(self, cfg: SocketSourceCfg | None = None) -> None:
+        cfg = cfg or SocketSourceCfg()
         if cfg.max_queue_blocks <= 0:
             raise ValueError(
                 f"max_queue_blocks must be positive, got {cfg.max_queue_blocks}"
@@ -92,7 +92,7 @@ class SocketTextOpOnlineSource:
         self.cfg = cfg
         self.fps = cfg.fps
         self.diagnostics = TextOpLiveDiagnostics()
-        self._queue: deque[TextOpMotionBlock] = deque()
+        self._queue: deque[MotionBlock] = deque()
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -119,7 +119,7 @@ class SocketTextOpOnlineSource:
         if self._thread is not None:
             self._thread.join(timeout=1.0)
 
-    def poll(self) -> TextOpMotionBlock | None:
+    def poll(self) -> MotionBlock | None:
         with self._lock:
             if not self._queue:
                 self._sync_queue_depth_locked()
@@ -158,7 +158,7 @@ class SocketTextOpOnlineSource:
                 self.diagnostics.bad_messages += 1
                 self.diagnostics.last_error = str(exc)
 
-    def _append_block(self, block: TextOpMotionBlock) -> None:
+    def _append_block(self, block: MotionBlock) -> None:
         with self._lock:
             if len(self._queue) >= self.cfg.max_queue_blocks:
                 self._queue.popleft()

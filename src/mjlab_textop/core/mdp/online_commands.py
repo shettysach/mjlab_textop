@@ -9,47 +9,47 @@ from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
 from mjlab.viewer.debug_visualizer import DebugVisualizer
 
 from mjlab_textop.core.feedback.observation import (
+    OnlineObservationCfg,
     OnlineObservationState,
-    OnlineTextOpObservationCfg,
 )
 from mjlab_textop.core.feedback.online_reporter import OnlineObservationReporter
 from mjlab_textop.core.mdp.online_reference_debug import OnlineReferenceGhost
 from mjlab_textop.core.mdp.online_types import (
     ONLINE_METRIC_NAMES,
-    TextOpFutureWindow,
-    TextOpOnlineSourceMode,
+    FutureWindow,
+    OnlineSourceMode,
 )
 from mjlab_textop.core.online.buffer import (
-    TextOpRollingMotionBuffer,
+    RollingMotionBuffer,
 )
 from mjlab_textop.core.online.live import (
-    SocketTextOpOnlineSource,
-    SocketTextOpSourceCfg,
+    SocketOnlineSource,
+    SocketSourceCfg,
 )
 from mjlab_textop.core.online.source import (
-    QueueTextOpOnlineSource,
-    ResettableTextOpOnlineSource,
-    TextOpOnlineSource,
+    OnlineSource,
+    QueueOnlineSource,
+    ResettableOnlineSource,
 )
-from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS, TEXTOP_G1_JOINT_COUNT
+from mjlab_textop.core.schema import FUTURE_STEPS, G1_JOINT_COUNT
 
 
 @dataclass(kw_only=True)
-class OnlineTextOpMotionCommandCfg(CommandTermCfg):
+class OnlineMotionCommandCfg(CommandTermCfg):
     resampling_time_range: tuple[float, float] = (1.0e9, 1.0e9)
     entity_name: str = "robot"
     anchor_body_name: str = "pelvis"
-    future_steps: int = TEXTOP_FUTURE_STEPS
-    source: TextOpOnlineSource | None = None
-    live_source_cfg: SocketTextOpSourceCfg | None = None
-    source_mode: TextOpOnlineSourceMode = "live"
+    future_steps: int = FUTURE_STEPS
+    source: OnlineSource | None = None
+    live_source_cfg: SocketSourceCfg | None = None
+    source_mode: OnlineSourceMode = "live"
     start_frame: int = 0
     startup_timeout_steps: int = 250
     max_poll_blocks: int = 16
     max_buffer_frames: int | None = 512
     clear_buffer_on_reset: bool = True
     reset_robot_to_reference: bool = True
-    observation: OnlineTextOpObservationCfg | None = None
+    observation: OnlineObservationCfg | None = None
 
     def __post_init__(self) -> None:
         if self.future_steps <= 0:
@@ -57,18 +57,18 @@ class OnlineTextOpMotionCommandCfg(CommandTermCfg):
         if self.source_mode not in ("replay", "live"):
             raise ValueError(f"Unknown source_mode: {self.source_mode}")
         if self.source_mode == "replay" and not isinstance(
-            self.source, ResettableTextOpOnlineSource
+            self.source, ResettableOnlineSource
         ):
             raise TypeError("Replay online source must implement reset()")
 
-    def build(self, env: ManagerBasedRlEnv) -> OnlineTextOpMotionCommand:
-        return OnlineTextOpMotionCommand(self, env)
+    def build(self, env: ManagerBasedRlEnv) -> OnlineMotionCommand:
+        return OnlineMotionCommand(self, env)
 
 
-class OnlineTextOpMotionCommand(CommandTerm):
-    cfg: OnlineTextOpMotionCommandCfg
+class OnlineMotionCommand(CommandTerm):
+    cfg: OnlineMotionCommandCfg
 
-    def __init__(self, cfg: OnlineTextOpMotionCommandCfg, env: ManagerBasedRlEnv):
+    def __init__(self, cfg: OnlineMotionCommandCfg, env: ManagerBasedRlEnv):
         super().__init__(cfg, env)
         self.source = self._make_source()
         if self.num_envs != 1:
@@ -86,7 +86,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
         max_buffer_frames = (
             None if self.cfg.source_mode == "replay" else self.cfg.max_buffer_frames
         )
-        self.buffer = TextOpRollingMotionBuffer(
+        self.buffer = RollingMotionBuffer(
             device=self.device,
             max_frames=max_buffer_frames,
         )
@@ -109,7 +109,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
             self.num_envs, 3, device=self.device
         )
         self._future_cache_frame: int | None = None
-        self._future_cache: TextOpFutureWindow | None = None
+        self._future_cache: FutureWindow | None = None
         self._reference_ghost = OnlineReferenceGhost(env, self.robot)
         self._init_metrics()
 
@@ -222,7 +222,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
         if self.cfg.source_mode == "replay":
             if self.cfg.clear_buffer_on_reset:
                 self.buffer.clear()
-            source = cast(ResettableTextOpOnlineSource, self.source)
+            source = cast(ResettableOnlineSource, self.source)
             source.reset()
             self._poll_source()
 
@@ -334,7 +334,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
             self._align_reference_anchor()
         return False
 
-    def _future_window(self) -> TextOpFutureWindow:
+    def _future_window(self) -> FutureWindow:
         if not self._started:
             return self._startup_future_window()
         if (
@@ -347,7 +347,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
             self.buffer.get_future(self.current_frame, self.cfg.future_steps)
         )
         anchor_pos_w = self._aligned_reference_pos(anchor_pos_w)
-        window = TextOpFutureWindow(
+        window = FutureWindow(
             joint_pos=joint_pos,
             joint_vel=joint_vel,
             anchor_pos_w=anchor_pos_w,
@@ -367,14 +367,14 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._future_cache = window
         return window
 
-    def _startup_future_window(self) -> TextOpFutureWindow:
+    def _startup_future_window(self) -> FutureWindow:
         dtype = self.robot_anchor_pos_w.dtype
-        joint_shape = (self.cfg.future_steps, TEXTOP_G1_JOINT_COUNT)
+        joint_shape = (self.cfg.future_steps, G1_JOINT_COUNT)
         joint_pos = torch.zeros(joint_shape, device=self.device, dtype=dtype)
         joint_vel = torch.zeros(joint_shape, device=self.device, dtype=dtype)
         anchor_pos_w = self.robot_anchor_pos_w[0].expand(self.cfg.future_steps, -1)
         anchor_quat_w = self.robot_anchor_quat_w[0].expand(self.cfg.future_steps, -1)
-        return TextOpFutureWindow(
+        return FutureWindow(
             joint_pos=joint_pos,
             joint_vel=joint_vel,
             anchor_pos_w=anchor_pos_w,
@@ -456,27 +456,27 @@ class OnlineTextOpMotionCommand(CommandTerm):
                 f"{float(fps):g} != {expected_fps:g}"
             )
 
-    def _make_source(self) -> TextOpOnlineSource:
+    def _make_source(self) -> OnlineSource:
         if self.cfg.source is not None:
             return self.cfg.source
         if self.cfg.source_mode == "live" and self.cfg.live_source_cfg is not None:
-            source = SocketTextOpOnlineSource(self.cfg.live_source_cfg)
+            source = SocketOnlineSource(self.cfg.live_source_cfg)
             source.start()
             return source
-        return QueueTextOpOnlineSource()
+        return QueueOnlineSource()
 
 
 def use_online_textop_motion_command(
     env_cfg,
     *,
     command_name: str = "motion",
-    future_steps: int = TEXTOP_FUTURE_STEPS,
-    source: TextOpOnlineSource | None = None,
-    live_source_cfg: SocketTextOpSourceCfg | None = None,
-    source_mode: TextOpOnlineSourceMode = "live",
+    future_steps: int = FUTURE_STEPS,
+    source: OnlineSource | None = None,
+    live_source_cfg: SocketSourceCfg | None = None,
+    source_mode: OnlineSourceMode = "live",
     reset_robot_to_reference: bool = True,
     debug_vis: bool | None = None,
-    observation: OnlineTextOpObservationCfg | None = None,
+    observation: OnlineObservationCfg | None = None,
 ) -> None:
     motion_cfg = env_cfg.commands[command_name]
     entity_name = getattr(motion_cfg, "entity_name", "robot")
@@ -484,9 +484,9 @@ def use_online_textop_motion_command(
     if debug_vis is None:
         debug_vis = bool(getattr(motion_cfg, "debug_vis", False))
     if source is None and source_mode == "replay":
-        source = QueueTextOpOnlineSource()
+        source = QueueOnlineSource()
 
-    env_cfg.commands[command_name] = OnlineTextOpMotionCommandCfg(
+    env_cfg.commands[command_name] = OnlineMotionCommandCfg(
         entity_name=entity_name,
         anchor_body_name=anchor_body_name,
         future_steps=future_steps,

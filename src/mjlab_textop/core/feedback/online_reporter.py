@@ -7,8 +7,8 @@ from mjlab.viewer import OffscreenRenderer, ViewerConfig
 
 from mjlab_textop.core.feedback.observation import (
     ObservationImage,
+    OnlineObservationCfg,
     OnlineObservationState,
-    OnlineTextOpObservationCfg,
     encode_render_image_jpeg,
     make_online_textop_observation,
 )
@@ -17,7 +17,7 @@ from mjlab_textop.core.feedback.observation import (
 class OnlineObservationReporter:
     def __init__(
         self,
-        cfg: OnlineTextOpObservationCfg,
+        cfg: OnlineObservationCfg,
         env: ManagerBasedRlEnv,
     ) -> None:
         self.cfg = cfg

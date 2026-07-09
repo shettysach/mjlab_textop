@@ -6,13 +6,13 @@ from pathlib import Path
 import numpy as np
 
 from mjlab_textop.core.schema import (
-    TEXTOP_G1_JOINT_COUNT,
-    TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
-    TEXTOP_ROOT_BODY_INDEX,
+    G1_JOINT_COUNT,
+    ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
+    ROOT_BODY_INDEX,
 )
 
 MJLAB_TO_TEXTOP_G1_JOINT_INDEX: tuple[int, ...] = tuple(
-    int(i) for i in np.argsort(TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)
+    int(i) for i in np.argsort(ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)
 )
 
 MJLAB_REQUIRED_INPUT_KEYS: tuple[str, ...] = (
@@ -38,18 +38,18 @@ class MjlabMotion:
 
     @property
     def root_pos_w(self) -> np.ndarray:
-        return self.body_pos_w[:, TEXTOP_ROOT_BODY_INDEX]
+        return self.body_pos_w[:, ROOT_BODY_INDEX]
 
     @property
     def root_quat_w(self) -> np.ndarray:
-        return self.body_quat_w[:, TEXTOP_ROOT_BODY_INDEX]
+        return self.body_quat_w[:, ROOT_BODY_INDEX]
 
 
 def reindex_textop_g1_joints_to_mjlab(values: np.ndarray) -> np.ndarray:
     """Convert G1 joint arrays from TextOp IsaacLab order to MJLab/MuJoCo order."""
 
     values = validate_g1_joint_last_dim("values", values)
-    return values[..., TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX]
+    return values[..., ISAACLAB_TO_MJLAB_G1_JOINT_INDEX]
 
 
 def reindex_mjlab_g1_joints_to_textop(values: np.ndarray) -> np.ndarray:
@@ -120,9 +120,9 @@ def _validate_body_arrays(body_pos_w: np.ndarray, body_quat_w: np.ndarray) -> No
             f"body_pos_w/body_quat_w frame-body shapes differ: "
             f"{body_pos_w.shape[:2]} vs {body_quat_w.shape[:2]}"
         )
-    if body_pos_w.shape[1] <= TEXTOP_ROOT_BODY_INDEX:
+    if body_pos_w.shape[1] <= ROOT_BODY_INDEX:
         raise ValueError(
-            f"body arrays must include root body index {TEXTOP_ROOT_BODY_INDEX}, "
+            f"body arrays must include root body index {ROOT_BODY_INDEX}, "
             f"got {body_pos_w.shape[1]} bodies"
         )
     if body_pos_w.shape[0] == 0:
@@ -133,10 +133,10 @@ def _validate_body_arrays(body_pos_w: np.ndarray, body_quat_w: np.ndarray) -> No
 
 def validate_g1_joint_last_dim(name: str, value: np.ndarray) -> np.ndarray:
     array = np.asarray(value, dtype=np.float32)
-    if array.shape[-1] != TEXTOP_G1_JOINT_COUNT:
+    if array.shape[-1] != G1_JOINT_COUNT:
         raise ValueError(
             "Expected last joint dimension to be "
-            f"{TEXTOP_G1_JOINT_COUNT}, got {array.shape[-1]}"
+            f"{G1_JOINT_COUNT}, got {array.shape[-1]}"
         )
     if not np.all(np.isfinite(array)):
         raise ValueError(f"{name} contains non-finite values")
@@ -149,9 +149,9 @@ def validate_g1_joint_frames(name: str, value: np.ndarray) -> np.ndarray:
         raise ValueError(f"{name} must be shaped [T, J], got {array.shape}")
     if array.shape[0] == 0:
         raise ValueError(f"{name} must contain at least one frame")
-    if array.shape[-1] != TEXTOP_G1_JOINT_COUNT:
+    if array.shape[-1] != G1_JOINT_COUNT:
         raise ValueError(
-            f"{name} must have {TEXTOP_G1_JOINT_COUNT} joints, got {array.shape[-1]}"
+            f"{name} must have {G1_JOINT_COUNT} joints, got {array.shape[-1]}"
         )
     if not np.all(np.isfinite(array)):
         raise ValueError(f"{name} contains non-finite values")

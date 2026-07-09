@@ -10,32 +10,32 @@ from builders import fake_env, motion_block, write_mjlab_motion_npz
 
 from mjlab_textop.core.feedback.observation import (
     ObservationImage,
-    OnlineTextOpObservationCfg,
+    OnlineObservationCfg,
     make_torso_observation_camera,
 )
 from mjlab_textop.core.mdp.online_commands import (
+    OnlineMotionCommand,
+    OnlineMotionCommandCfg,
     OnlineObservationReporter,
-    OnlineTextOpMotionCommand,
-    OnlineTextOpMotionCommandCfg,
     use_online_textop_motion_command,
 )
 from mjlab_textop.core.online.buffer import (
-    TextOpMotionBlock,
-    TextOpRollingMotionBuffer,
+    MotionBlock,
+    RollingMotionBuffer,
 )
-from mjlab_textop.core.online.live import SocketTextOpSourceCfg
+from mjlab_textop.core.online.live import SocketSourceCfg
 from mjlab_textop.core.online.replay import (
-    QueueTextOpOnlineSource,
+    QueueOnlineSource,
     make_mjlab_npz_replay_source,
 )
-from mjlab_textop.core.schema import TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
+from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
 
 
 class _LiveTextOpOnlineSource:
-    def __init__(self, blocks: list[TextOpMotionBlock]) -> None:
+    def __init__(self, blocks: list[MotionBlock]) -> None:
         self.blocks = list(blocks)
 
-    def poll(self) -> TextOpMotionBlock | None:
+    def poll(self) -> MotionBlock | None:
         if not self.blocks:
             return None
         return self.blocks.pop(0)
@@ -86,7 +86,7 @@ class _RecordingDebugVisualizer:
 
 def test_rolling_buffer_reindexes_and_slices_first_five_frames() -> None:
     block = motion_block(frames=8)
-    buffer = TextOpRollingMotionBuffer()
+    buffer = RollingMotionBuffer()
 
     buffer.append_block(block)
     joint_pos, joint_vel, anchor_pos_w, anchor_quat_w, stale_steps = buffer.get_future(
@@ -95,11 +95,11 @@ def test_rolling_buffer_reindexes_and_slices_first_five_frames() -> None:
 
     assert stale_steps == 0
     assert joint_pos.shape == (5, 29)
-    expected = block.joint_pos[:5, list(TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)]
+    expected = block.joint_pos[:5, list(ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)]
     np.testing.assert_allclose(joint_pos.cpu().numpy(), expected)
     np.testing.assert_allclose(
         joint_vel.cpu().numpy(),
-        block.joint_vel[:5, list(TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)],
+        block.joint_vel[:5, list(ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)],
     )
     np.testing.assert_allclose(anchor_pos_w.cpu().numpy(), block.anchor_pos_w[:5])
     np.testing.assert_allclose(
@@ -109,7 +109,7 @@ def test_rolling_buffer_reindexes_and_slices_first_five_frames() -> None:
 
 
 def test_rolling_buffer_overwrites_overlapping_block_frames() -> None:
-    buffer = TextOpRollingMotionBuffer()
+    buffer = RollingMotionBuffer()
     buffer.append_block(motion_block(index=0, frames=8, offset=0.0))
     buffer.append_block(motion_block(index=4, frames=3, offset=5000.0))
 
@@ -123,12 +123,12 @@ def test_rolling_buffer_overwrites_overlapping_block_frames() -> None:
         ],
         axis=0,
     )
-    expected = expected_source[:, list(TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)]
+    expected = expected_source[:, list(ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)]
     np.testing.assert_allclose(joint_pos.cpu().numpy(), expected)
 
 
 def test_rolling_buffer_requires_contiguous_start_window() -> None:
-    buffer = TextOpRollingMotionBuffer()
+    buffer = RollingMotionBuffer()
     buffer.append_block(motion_block(index=1, frames=4))
 
     assert buffer.can_start(0, 5) is False
@@ -136,7 +136,7 @@ def test_rolling_buffer_requires_contiguous_start_window() -> None:
 
 
 def test_rolling_buffer_finds_earliest_contiguous_start_window() -> None:
-    buffer = TextOpRollingMotionBuffer()
+    buffer = RollingMotionBuffer()
     buffer.append_block(motion_block(index=100, frames=3))
 
     assert buffer.earliest_start_frame(5) is None
@@ -147,7 +147,7 @@ def test_rolling_buffer_finds_earliest_contiguous_start_window() -> None:
 
 
 def test_rolling_buffer_finds_latest_contiguous_start_window() -> None:
-    buffer = TextOpRollingMotionBuffer()
+    buffer = RollingMotionBuffer()
     buffer.append_block(motion_block(index=100, frames=8))
     buffer.append_block(motion_block(index=200, frames=3))
 
@@ -159,7 +159,7 @@ def test_rolling_buffer_finds_latest_contiguous_start_window() -> None:
 
 
 def test_rolling_buffer_repeats_latest_available_frame_on_underrun() -> None:
-    buffer = TextOpRollingMotionBuffer()
+    buffer = RollingMotionBuffer()
     block = motion_block(index=0, frames=5)
     buffer.append_block(block)
 
@@ -176,12 +176,12 @@ def test_rolling_buffer_repeats_latest_available_frame_on_underrun() -> None:
         ],
         axis=0,
     )
-    expected = expected_source[:, list(TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)]
+    expected = expected_source[:, list(ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)]
     np.testing.assert_allclose(joint_pos.cpu().numpy(), expected)
 
 
 def test_rolling_buffer_rejects_request_before_earliest_frame() -> None:
-    buffer = TextOpRollingMotionBuffer()
+    buffer = RollingMotionBuffer()
     buffer.append_block(motion_block(index=10, frames=5))
 
     with pytest.raises(RuntimeError, match="at or before 0"):
@@ -189,7 +189,7 @@ def test_rolling_buffer_rejects_request_before_earliest_frame() -> None:
 
 
 def test_rolling_buffer_evicts_old_frames() -> None:
-    buffer = TextOpRollingMotionBuffer(max_frames=5)
+    buffer = RollingMotionBuffer(max_frames=5)
     buffer.append_block(motion_block(index=0, frames=8))
 
     assert buffer.frame_count == 5
@@ -199,7 +199,7 @@ def test_rolling_buffer_evicts_old_frames() -> None:
 
 def test_rolling_buffer_rejects_wrong_joint_count() -> None:
     block = motion_block(frames=1)
-    bad = TextOpMotionBlock(
+    bad = MotionBlock(
         index=0,
         joint_pos=np.zeros((1, 28), dtype=np.float32),
         joint_vel=block.joint_vel,
@@ -208,7 +208,7 @@ def test_rolling_buffer_rejects_wrong_joint_count() -> None:
     )
 
     with pytest.raises(ValueError, match="29 joints"):
-        TextOpRollingMotionBuffer().append_block(bad)
+        RollingMotionBuffer().append_block(bad)
 
 
 def test_mjlab_npz_replay_source_chunks_and_round_trips_joint_order(tmp_path) -> None:
@@ -217,7 +217,7 @@ def test_mjlab_npz_replay_source_chunks_and_round_trips_joint_order(tmp_path) ->
 
     source = make_mjlab_npz_replay_source(path, block_size=8)
     assert source.fps == 50.0
-    buffer = TextOpRollingMotionBuffer()
+    buffer = RollingMotionBuffer()
     while (block := source.poll()) is not None:
         buffer.append_block(block)
 
@@ -228,9 +228,9 @@ def test_mjlab_npz_replay_source_chunks_and_round_trips_joint_order(tmp_path) ->
 
 
 def test_online_command_polls_source_and_exposes_five_step_window() -> None:
-    source = QueueTextOpOnlineSource([motion_block(frames=8)])
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(source=source, future_steps=5),
+    source = QueueOnlineSource([motion_block(frames=8)])
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(source=source, future_steps=5),
         fake_env(),
     )
 
@@ -251,8 +251,8 @@ def test_online_command_polls_source_and_exposes_five_step_window() -> None:
 
 
 def test_online_command_debug_vis_skips_before_start() -> None:
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(source=QueueTextOpOnlineSource(), future_steps=5),
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(source=QueueOnlineSource(), future_steps=5),
         fake_env(),
     )
     visualizer = _RecordingDebugVisualizer()
@@ -264,9 +264,9 @@ def test_online_command_debug_vis_skips_before_start() -> None:
 
 def test_online_command_debug_vis_draws_reference_ghost_qpos() -> None:
     block = motion_block(frames=8)
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(
-            source=QueueTextOpOnlineSource([block]),
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(
+            source=QueueOnlineSource([block]),
             future_steps=5,
         ),
         fake_env(),
@@ -288,9 +288,9 @@ def test_online_command_debug_vis_draws_reference_ghost_qpos() -> None:
 
 
 def test_online_command_reuses_future_window_for_current_frame() -> None:
-    source = QueueTextOpOnlineSource([motion_block(frames=8)])
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(source=source, future_steps=5),
+    source = QueueOnlineSource([motion_block(frames=8)])
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(source=source, future_steps=5),
         fake_env(),
     )
     command._update_command()
@@ -314,9 +314,9 @@ def test_online_command_reuses_future_window_for_current_frame() -> None:
 
 
 def test_online_command_exposes_startup_window_before_source_poll() -> None:
-    source = QueueTextOpOnlineSource([motion_block(frames=8)])
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(source=source, future_steps=5),
+    source = QueueOnlineSource([motion_block(frames=8)])
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(source=source, future_steps=5),
         fake_env(robot_anchor_pos=(10.0, 20.0, 30.0)),
     )
 
@@ -333,9 +333,9 @@ def test_online_command_exposes_startup_window_before_source_poll() -> None:
 
 
 def test_online_command_aligns_anchor_position_to_robot_start() -> None:
-    source = QueueTextOpOnlineSource([motion_block(frames=8, offset=100.0)])
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(source=source, future_steps=5),
+    source = QueueOnlineSource([motion_block(frames=8, offset=100.0)])
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(source=source, future_steps=5),
         fake_env(robot_anchor_pos=(10.0, 20.0, 30.0)),
     )
 
@@ -349,9 +349,9 @@ def test_online_command_aligns_anchor_position_to_robot_start() -> None:
 def test_online_command_alignment_preserves_reference_z_delta() -> None:
     block = motion_block(frames=8, offset=100.0)
     block.anchor_pos_w[:, 2] = np.arange(8, dtype=np.float32) + 2.0
-    source = QueueTextOpOnlineSource([block])
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(source=source, future_steps=5),
+    source = QueueOnlineSource([block])
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(source=source, future_steps=5),
         fake_env(robot_anchor_pos=(10.0, 20.0, 30.0)),
     )
 
@@ -381,9 +381,9 @@ def test_online_command_alignment_uses_moving_xy_anchor() -> None:
         [np.sqrt(0.5), 0.0, 0.0, np.sqrt(0.5)],
         dtype=np.float32,
     )
-    source = QueueTextOpOnlineSource([block])
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(source=source, future_steps=5),
+    source = QueueOnlineSource([block])
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(source=source, future_steps=5),
         fake_env(robot_anchor_pos=(10.0, 20.0, 30.0)),
     )
 
@@ -410,19 +410,19 @@ def test_online_command_alignment_uses_moving_xy_anchor() -> None:
 
 
 def test_online_command_rejects_vectorized_envs() -> None:
-    source = QueueTextOpOnlineSource([motion_block(frames=8)])
+    source = QueueOnlineSource([motion_block(frames=8)])
 
     with pytest.raises(ValueError, match="one environment"):
-        OnlineTextOpMotionCommand(
-            OnlineTextOpMotionCommandCfg(source=source),
+        OnlineMotionCommand(
+            OnlineMotionCommandCfg(source=source),
             fake_env(num_envs=2),
         )
 
 
 def test_online_command_counts_consecutive_stale_windows() -> None:
-    source = QueueTextOpOnlineSource([motion_block(frames=5)])
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(
+    source = QueueOnlineSource([motion_block(frames=5)])
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(
             source=source,
             source_mode="replay",
             future_steps=5,
@@ -445,9 +445,9 @@ def test_online_command_counts_consecutive_stale_windows() -> None:
 
 
 def test_online_command_replay_allows_stale_windows_at_clip_end() -> None:
-    source = QueueTextOpOnlineSource([motion_block(frames=5)])
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(
+    source = QueueOnlineSource([motion_block(frames=5)])
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(
             source=source,
             source_mode="replay",
             future_steps=5,
@@ -469,9 +469,9 @@ def test_online_command_replay_does_not_evict_preloaded_frames() -> None:
         motion_block(index=block_index * 64, frames=64, offset=float(block_index * 1000))
         for block_index in range(16)
     ]
-    source = QueueTextOpOnlineSource(blocks)
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(
+    source = QueueOnlineSource(blocks)
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(
             source=source,
             source_mode="replay",
             future_steps=5,
@@ -493,18 +493,18 @@ def test_online_command_replay_does_not_evict_preloaded_frames() -> None:
 
 def test_online_command_rejects_replay_source_without_reset() -> None:
     with pytest.raises(TypeError, match="implement reset"):
-        OnlineTextOpMotionCommandCfg(
+        OnlineMotionCommandCfg(
             source=_LiveTextOpOnlineSource([motion_block(frames=8)]),
             source_mode="replay",
         )
 
 
 def test_online_command_rejects_replay_source_fps_mismatch() -> None:
-    source = QueueTextOpOnlineSource([motion_block(frames=8)], fps=25.0)
+    source = QueueOnlineSource([motion_block(frames=8)], fps=25.0)
 
     with pytest.raises(ValueError, match="FPS must match env control rate"):
-        OnlineTextOpMotionCommand(
-            OnlineTextOpMotionCommandCfg(
+        OnlineMotionCommand(
+            OnlineMotionCommandCfg(
                 source=source,
                 source_mode="replay",
                 future_steps=5,
@@ -514,11 +514,11 @@ def test_online_command_rejects_replay_source_fps_mismatch() -> None:
 
 
 def test_online_command_rejects_live_source_fps_mismatch() -> None:
-    source = QueueTextOpOnlineSource([motion_block(frames=8)], fps=25.0)
+    source = QueueOnlineSource([motion_block(frames=8)], fps=25.0)
 
     with pytest.raises(ValueError, match="FPS must match env control rate"):
-        OnlineTextOpMotionCommand(
-            OnlineTextOpMotionCommandCfg(
+        OnlineMotionCommand(
+            OnlineMotionCommandCfg(
                 source=source,
                 source_mode="live",
                 future_steps=5,
@@ -528,8 +528,8 @@ def test_online_command_rejects_live_source_fps_mismatch() -> None:
 
 
 def test_online_command_cfg_with_live_source_cfg_is_deepcopyable() -> None:
-    cfg = OnlineTextOpMotionCommandCfg(
-        live_source_cfg=SocketTextOpSourceCfg(
+    cfg = OnlineMotionCommandCfg(
+        live_source_cfg=SocketSourceCfg(
             host="127.0.0.1",
             port=8765,
             fps=50.0,
@@ -569,13 +569,13 @@ def test_online_command_creates_live_socket_source_from_cfg(monkeypatch) -> None
             return None
 
     monkeypatch.setattr(
-        "mjlab_textop.core.mdp.online_commands.SocketTextOpOnlineSource",
+        "mjlab_textop.core.mdp.online_commands.SocketOnlineSource",
         _FakeSocketSource,
     )
-    live_source_cfg = SocketTextOpSourceCfg(port=8765)
+    live_source_cfg = SocketSourceCfg(port=8765)
 
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(
             live_source_cfg=live_source_cfg,
             source_mode="live",
             future_steps=5,
@@ -590,15 +590,15 @@ def test_online_command_creates_live_socket_source_from_cfg(monkeypatch) -> None
 
 
 def test_online_command_updates_live_diagnostics_metrics() -> None:
-    source = QueueTextOpOnlineSource([motion_block(frames=8)])
+    source = QueueOnlineSource([motion_block(frames=8)])
     source.diagnostics = SimpleNamespace(
         queue_depth=3,
         blocks_received=4,
         blocks_dropped=1,
         bad_messages=2,
     )
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(source=source, future_steps=5),
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(source=source, future_steps=5),
         fake_env(),
     )
 
@@ -623,11 +623,11 @@ def test_online_command_publishes_observations_with_images_on_interval(
         "mjlab_textop.core.mdp.online_commands.OnlineObservationReporter._render_observation_image",
         lambda self: ObservationImage(data=b"jpeg", mime_type="image/jpeg"),
     )
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(
-            source=QueueTextOpOnlineSource([motion_block(frames=8)]),
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(
+            source=QueueOnlineSource([motion_block(frames=8)]),
             future_steps=5,
-            observation=OnlineTextOpObservationCfg(
+            observation=OnlineObservationCfg(
                 publisher=publisher,
                 publish_interval=2,
             ),
@@ -651,9 +651,9 @@ def test_online_command_publishes_observations_with_images_on_interval(
 
 
 def test_online_command_does_not_create_observation_reporter_by_default() -> None:
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(
-            source=QueueTextOpOnlineSource([motion_block(frames=8)]),
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(
+            source=QueueOnlineSource([motion_block(frames=8)]),
             future_steps=5,
         ),
         fake_env(),
@@ -717,7 +717,7 @@ def test_online_observation_reporter_uses_observation_camera(monkeypatch) -> Non
         ),
     )
     reporter = OnlineObservationReporter(
-        OnlineTextOpObservationCfg(camera=observation_camera),
+        OnlineObservationCfg(camera=observation_camera),
         env,
     )
 
@@ -730,10 +730,10 @@ def test_online_observation_reporter_uses_observation_camera(monkeypatch) -> Non
 
 
 def test_online_command_replay_reset_rewinds_source() -> None:
-    source = QueueTextOpOnlineSource([motion_block(frames=8)])
+    source = QueueOnlineSource([motion_block(frames=8)])
     env = fake_env()
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(
             source=source,
             source_mode="replay",
             future_steps=5,
@@ -770,8 +770,8 @@ def test_online_command_replay_reset_rewinds_source() -> None:
 def test_online_command_live_reset_does_not_rewind_source() -> None:
     source = _LiveTextOpOnlineSource([motion_block(frames=8)])
     env = fake_env()
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(
             source=source,
             source_mode="live",
             future_steps=5,
@@ -805,8 +805,8 @@ def test_online_command_live_attaches_to_earliest_full_future_window() -> None:
         ]
     )
     env = fake_env(robot_anchor_pos=(10.0, 20.0, 30.0))
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(
             source=source,
             source_mode="live",
             future_steps=5,
@@ -847,8 +847,8 @@ def test_online_command_live_reset_before_first_start_uses_initial_window() -> N
             motion_block(index=200, frames=8),
         ]
     )
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(
             source=source,
             source_mode="live",
             future_steps=5,
@@ -866,8 +866,8 @@ def test_online_command_live_reset_before_first_start_uses_initial_window() -> N
 
 def test_online_command_live_reset_attaches_to_next_full_future_window() -> None:
     source = _LiveTextOpOnlineSource([motion_block(index=0, frames=8)])
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(
             source=source,
             source_mode="live",
             future_steps=5,
@@ -892,8 +892,8 @@ def test_online_command_live_reset_attaches_to_next_full_future_window() -> None
 
 def test_online_command_live_pauses_before_advancing_into_stale_window() -> None:
     source = _LiveTextOpOnlineSource([motion_block(index=0, frames=8)])
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(
             source=source,
             source_mode="live",
             future_steps=5,
@@ -918,8 +918,8 @@ def test_online_command_live_pauses_before_advancing_into_stale_window() -> None
 
 def test_online_command_live_resyncs_when_stream_jumps_ahead() -> None:
     source = _LiveTextOpOnlineSource([motion_block(index=0, frames=8)])
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(
             source=source,
             source_mode="live",
             future_steps=5,
@@ -945,7 +945,7 @@ def test_online_command_live_resyncs_when_stream_jumps_ahead() -> None:
 
 
 def test_use_online_textop_motion_command_preserves_injected_source() -> None:
-    source = QueueTextOpOnlineSource([motion_block(frames=8)])
+    source = QueueOnlineSource([motion_block(frames=8)])
     env_cfg = SimpleNamespace(
         commands={
             "motion": SimpleNamespace(entity_name="robot", anchor_body_name="pelvis")

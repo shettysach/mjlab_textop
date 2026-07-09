@@ -11,13 +11,13 @@ from mjlab_textop.core.mdp.observations import (
     future_joint_window,
 )
 from mjlab_textop.core.mdp.offline_commands import use_textop_motion_command
-from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
+from mjlab_textop.core.schema import FUTURE_STEPS
 
 
 def make_textop_g1_flat_tracking_env_cfg(
     *,
     play: bool = False,
-    future_steps: int = TEXTOP_FUTURE_STEPS,
+    future_steps: int = FUTURE_STEPS,
 ):
     cfg = unitree_g1_flat_tracking_env_cfg(play=play)
 

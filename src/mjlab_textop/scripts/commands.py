@@ -9,12 +9,12 @@ from mjlab.scripts.play import PlayConfig, run_play
 
 from mjlab_textop.core.feedback.observation import (
     HttpObservationPublisher,
-    OnlineTextOpObservationCfg,
+    OnlineObservationCfg,
     make_torso_observation_camera,
 )
-from mjlab_textop.core.online.live import SocketTextOpSourceCfg
+from mjlab_textop.core.online.live import SocketSourceCfg
 from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
-from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
+from mjlab_textop.core.schema import FUTURE_STEPS
 from mjlab_textop.scripts.utils import (
     ResolvedPolicy,
     TaskRegistrar,
@@ -60,7 +60,7 @@ class PlayLiveCommand:
     port: int = 8765
     device: str = "cuda:0"
     num_envs: int = 1
-    future_steps: int = TEXTOP_FUTURE_STEPS
+    future_steps: int = FUTURE_STEPS
     fps: float = 50.0
     max_queue_blocks: int = 32
     reset_robot_to_reference: bool = True
@@ -87,7 +87,7 @@ def play_live_textop_motion(
 ) -> None:
     task_name = LIVE_TASK_REGISTRY[cfg.task](
         runner_cls=policy.runner_cls,
-        live_source_cfg=SocketTextOpSourceCfg(
+        live_source_cfg=SocketSourceCfg(
             host=cfg.host,
             port=cfg.port,
             fps=cfg.fps,
@@ -111,7 +111,7 @@ def play_live_textop_motion(
     run_play(task_name, play_cfg)
 
 
-def _make_online_observation(cfg: PlayLiveCommand) -> OnlineTextOpObservationCfg | None:
+def _make_online_observation(cfg: PlayLiveCommand) -> OnlineObservationCfg | None:
     if cfg.observation is None:
         return None
 
@@ -127,7 +127,7 @@ def _make_online_observation(cfg: PlayLiveCommand) -> OnlineTextOpObservationCfg
         elevation=cfg.observation.camera_elevation,
     )
 
-    return OnlineTextOpObservationCfg(
+    return OnlineObservationCfg(
         publisher=publisher,
         publish_interval=cfg.observation.every_frames,
         camera=camera,
@@ -144,7 +144,7 @@ class PlayOnlineCommand:
     onnx_file: str | None = None
     device: str = "cuda:0"
     num_envs: int = 1
-    future_steps: int = TEXTOP_FUTURE_STEPS
+    future_steps: int = FUTURE_STEPS
     block_size: int = 8
     reset_robot_to_reference: bool = True
 

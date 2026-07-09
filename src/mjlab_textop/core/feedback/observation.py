@@ -33,7 +33,7 @@ class OnlineObservationState:
     robot_anchor_quat_w: torch.Tensor
 
 
-class TextOpObservationPublisher(Protocol):
+class ObservationPublisher(Protocol):
     def publish(
         self,
         state: dict[str, Any],
@@ -44,8 +44,8 @@ class TextOpObservationPublisher(Protocol):
 
 
 @dataclass(frozen=True, kw_only=True)
-class OnlineTextOpObservationCfg:
-    publisher: TextOpObservationPublisher | None = None
+class OnlineObservationCfg:
+    publisher: ObservationPublisher | None = None
     publish_interval: int = 1
     camera: ViewerConfig = field(
         default_factory=lambda: make_torso_observation_camera()

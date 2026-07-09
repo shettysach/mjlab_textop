@@ -3,12 +3,12 @@ from __future__ import annotations
 import numpy as np
 from mjlab.tasks.registry import load_env_cfg, load_runner_cls
 
-from mjlab_textop.core.feedback.observation import OnlineTextOpObservationCfg
-from mjlab_textop.core.mdp.offline_commands import TextOpMotionCommandCfg
-from mjlab_textop.core.mdp.online_commands import OnlineTextOpMotionCommandCfg
-from mjlab_textop.core.online.source import QueueTextOpOnlineSource, TextOpMotionBlock
+from mjlab_textop.core.feedback.observation import OnlineObservationCfg
+from mjlab_textop.core.mdp.offline_commands import OfflineMotionCommandCfg
+from mjlab_textop.core.mdp.online_commands import OnlineMotionCommandCfg
+from mjlab_textop.core.online.source import MotionBlock, QueueOnlineSource
 from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
-from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
+from mjlab_textop.core.schema import FUTURE_STEPS
 from mjlab_textop.tasks.online_textop.env_cfg import (
     make_online_textop_g1_flat_tracking_env_cfg,
     make_online_textop_onnx_g1_flat_tracking_env_cfg,
@@ -26,8 +26,8 @@ def test_textop_env_cfg_uses_textop_motion_command() -> None:
     env_cfg = make_textop_g1_flat_tracking_env_cfg(play=False)
     motion_cmd = env_cfg.commands["motion"]
 
-    assert isinstance(motion_cmd, TextOpMotionCommandCfg)
-    assert motion_cmd.future_steps == TEXTOP_FUTURE_STEPS
+    assert isinstance(motion_cmd, OfflineMotionCommandCfg)
+    assert motion_cmd.future_steps == FUTURE_STEPS
     assert motion_cmd.anchor_body_name == "torso_link"
 
 
@@ -35,8 +35,8 @@ def test_online_textop_env_cfg_uses_online_motion_command() -> None:
     env_cfg = make_online_textop_g1_flat_tracking_env_cfg(play=True)
     motion_cmd = env_cfg.commands["motion"]
 
-    assert isinstance(motion_cmd, OnlineTextOpMotionCommandCfg)
-    assert motion_cmd.future_steps == TEXTOP_FUTURE_STEPS
+    assert isinstance(motion_cmd, OnlineMotionCommandCfg)
+    assert motion_cmd.future_steps == FUTURE_STEPS
     assert motion_cmd.anchor_body_name == "pelvis"
     assert motion_cmd.source_mode == "live"
 
@@ -45,16 +45,16 @@ def test_online_textop_onnx_env_cfg_uses_online_motion_command() -> None:
     env_cfg = make_online_textop_onnx_g1_flat_tracking_env_cfg(play=True)
     motion_cmd = env_cfg.commands["motion"]
 
-    assert isinstance(motion_cmd, OnlineTextOpMotionCommandCfg)
-    assert motion_cmd.future_steps == TEXTOP_FUTURE_STEPS
+    assert isinstance(motion_cmd, OnlineMotionCommandCfg)
+    assert motion_cmd.future_steps == FUTURE_STEPS
     assert motion_cmd.anchor_body_name == "pelvis"
     assert motion_cmd.source_mode == "live"
 
 
 def test_online_textop_replay_task_uses_replay_source_mode() -> None:
-    source = QueueTextOpOnlineSource(
+    source = QueueOnlineSource(
         [
-            TextOpMotionBlock(
+            MotionBlock(
                 index=0,
                 joint_pos=np.zeros((5, 29), dtype=np.float32),
                 joint_vel=np.zeros((5, 29), dtype=np.float32),
@@ -74,9 +74,9 @@ def test_online_textop_replay_task_uses_replay_source_mode() -> None:
 
 
 def test_online_textop_onnx_replay_task_uses_replay_source_mode() -> None:
-    source = QueueTextOpOnlineSource(
+    source = QueueOnlineSource(
         [
-            TextOpMotionBlock(
+            MotionBlock(
                 index=0,
                 joint_pos=np.zeros((5, 29), dtype=np.float32),
                 joint_vel=np.zeros((5, 29), dtype=np.float32),
@@ -97,9 +97,9 @@ def test_online_textop_onnx_replay_task_uses_replay_source_mode() -> None:
 
 
 def test_online_textop_replay_task_can_disable_reference_reset() -> None:
-    source = QueueTextOpOnlineSource(
+    source = QueueOnlineSource(
         [
-            TextOpMotionBlock(
+            MotionBlock(
                 index=0,
                 joint_pos=np.zeros((5, 29), dtype=np.float32),
                 joint_vel=np.zeros((5, 29), dtype=np.float32),
@@ -123,12 +123,12 @@ def test_online_textop_replay_task_can_disable_reference_reset() -> None:
 
 
 def test_online_textop_live_task_uses_live_source_mode() -> None:
-    source = QueueTextOpOnlineSource([], fps=50.0)
+    source = QueueOnlineSource([], fps=50.0)
 
     task_name = register_online_textop_task(
         source=source,
         source_mode="live",
-        observation=OnlineTextOpObservationCfg(
+        observation=OnlineObservationCfg(
             publish_interval=7,
         ),
     )

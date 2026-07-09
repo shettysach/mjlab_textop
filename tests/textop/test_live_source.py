@@ -5,8 +5,8 @@ import pytest
 from builders import motion_block
 
 from mjlab_textop.core.online.live import (
-    SocketTextOpOnlineSource,
-    SocketTextOpSourceCfg,
+    SocketOnlineSource,
+    SocketSourceCfg,
     parse_textop_block_message,
     textop_block_to_ndjson_message,
 )
@@ -50,7 +50,7 @@ def test_textop_block_parser_rejects_bad_shape() -> None:
 
 
 def test_socket_source_queues_and_drops_oldest_blocks() -> None:
-    source = SocketTextOpOnlineSource(SocketTextOpSourceCfg(max_queue_blocks=1))
+    source = SocketOnlineSource(SocketSourceCfg(max_queue_blocks=1))
     source.append_message(textop_block_to_ndjson_message(motion_block(index=0)))
     source.append_message(textop_block_to_ndjson_message(motion_block(index=8)))
 
@@ -67,7 +67,7 @@ def test_socket_source_queues_and_drops_oldest_blocks() -> None:
 
 
 def test_socket_source_records_bad_messages() -> None:
-    source = SocketTextOpOnlineSource()
+    source = SocketOnlineSource()
 
     source._handle_line(b"{not json}\n")
 

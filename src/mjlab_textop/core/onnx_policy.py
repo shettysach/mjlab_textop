@@ -5,11 +5,11 @@ from typing import Any
 
 import torch
 
-from mjlab_textop.core.schema import TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
+from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
 
 
-class TextOpOnnxPolicy:
-    """Run a TextOp ONNX actor and convert its action to MJLab joint order."""
+class OnnxPolicy:
+    """Run an ONNX actor and convert its action to MJLab joint order."""
 
     def __init__(self, policy_file: Path, device: str = "cpu"):
         import onnxruntime as ort
@@ -20,7 +20,7 @@ class TextOpOnnxPolicy:
         self.input_name = self.session.get_inputs()[0].name
         self.output_name = self.session.get_outputs()[0].name
         self.textop_to_mjlab = torch.tensor(
-            TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
+            ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
             dtype=torch.long,
         )
 
@@ -72,12 +72,12 @@ class OnnxPolicyRunner:
     ) -> None:
         del env, train_cfg, log_dir
         self.device = device
-        self.policy: TextOpOnnxPolicy | None = None
+        self.policy: OnnxPolicy | None = None
 
     def load(self, path: str | Path, *_args: Any, **_kwargs: Any) -> None:
-        self.policy = TextOpOnnxPolicy(Path(path), device=self.device)
+        self.policy = OnnxPolicy(Path(path), device=self.device)
 
-    def get_inference_policy(self, *_args: Any, **_kwargs: Any) -> TextOpOnnxPolicy:
+    def get_inference_policy(self, *_args: Any, **_kwargs: Any) -> OnnxPolicy:
         if self.policy is None:
             raise RuntimeError("ONNX policy has not been loaded")
         return self.policy
@@ -91,12 +91,12 @@ def _actor_obs(obs: torch.Tensor | Any) -> torch.Tensor:
         actor_obs = obs["actor"]
     except (KeyError, TypeError):
         raise RuntimeError(
-            "Expected ONNX observation to be a tensor or contain an 'actor' tensor"
+            "Expected observation to be a tensor or contain an 'actor' tensor"
         ) from None
 
     if not isinstance(actor_obs, torch.Tensor):
         raise RuntimeError(
-            f"Expected ONNX actor observation to be a tensor, got "
+            f"Expected observation to be a tensor, got "
             f"{type(actor_obs).__name__}"
         )
     return actor_obs
