@@ -11,9 +11,7 @@ from mjlab_textop.core.schema import (
     ROOT_BODY_INDEX,
 )
 
-MJLAB_TO_TEXTOP_G1_JOINT_INDEX: tuple[int, ...] = tuple(
-    int(i) for i in np.argsort(ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)
-)
+MJLAB_TO_TEXTOP_G1_JOINT_INDEX = np.argsort(ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)
 
 MJLAB_REQUIRED_INPUT_KEYS: tuple[str, ...] = (
     "fps",
