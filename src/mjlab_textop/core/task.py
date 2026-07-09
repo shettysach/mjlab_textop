@@ -5,13 +5,17 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
 
+from mjlab.tasks.registry import register_mjlab_task
+from mjlab.tasks.tracking.config.g1.rl_cfg import unitree_g1_tracking_ppo_runner_cfg
+
+from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
+
 
 @dataclass(frozen=True)
 class DynamicOnlineTaskSpec:
     base_task_name: str
     checkpoint_env_cfg: Callable[..., Any]
     onnx_env_cfg: Callable[..., Any]
-    onnx_task_name: str | None = None
 
 
 def register_dynamic_online_task(
@@ -28,24 +32,17 @@ def register_dynamic_online_task(
     reference_debug_vis: bool | None = None,
     observation: Any = None,
 ) -> str:
-    from mjlab.tasks.registry import register_mjlab_task
-    from mjlab.tasks.tracking.config.g1.rl_cfg import (
-        unitree_g1_tracking_ppo_runner_cfg,
-    )
-
-    from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
-
-    is_onnx = runner_cls is OnnxPolicyRunner
-    task_prefix = (
-        spec.onnx_task_name if is_onnx and spec.onnx_task_name else spec.base_task_name
-    )
-    name_parts = [task_prefix]
-    if spec.onnx_task_name is None:
-        name_parts.append("Onnx" if is_onnx else "Checkpoint")
-    name_parts.extend([source_mode.capitalize(), uuid4().hex])
+    name_parts = [
+        spec.base_task_name,
+        "Onnx" if runner_cls is OnnxPolicyRunner else "Checkpoint",
+        source_mode.capitalize(),
+        uuid4().hex,
+    ]
     task_name = "-".join(name_parts)
 
-    make_env_cfg = spec.onnx_env_cfg if is_onnx else spec.checkpoint_env_cfg
+    make_env_cfg = (
+        spec.onnx_env_cfg if runner_cls is OnnxPolicyRunner else spec.checkpoint_env_cfg
+    )
     env_cfg = make_env_cfg(
         play=True,
         future_steps=future_steps,

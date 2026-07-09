@@ -60,7 +60,9 @@ def make_online_textop_g1_flat_tracking_env_cfg(
         observation=observation,
     )
     cfg.commands["motion"].anchor_body_name = "pelvis"  # ty:ignore[unresolved-attribute]
-    _configure_textop_deploy_timing(cfg)
+    cfg.sim.mujoco.timestep = TEXTOP_DEPLOY_SIM_TIMESTEP
+    cfg.decimation = TEXTOP_DEPLOY_DECIMATION
+
     configure_textop_actor_observations(cfg)
     configure_textop_critic_observations(cfg)
     configure_online_textop_tracking_terms(cfg)
@@ -97,21 +99,15 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
         observation=observation,
     )
     cfg.commands["motion"].anchor_body_name = "pelvis"  # ty:ignore[unresolved-attribute]
-    _configure_textop_deploy_timing(cfg)
+    cfg.sim.mujoco.timestep = TEXTOP_DEPLOY_SIM_TIMESTEP
+    cfg.decimation = TEXTOP_DEPLOY_DECIMATION
+
     configure_textop_onnx_actor_observations(cfg)
     configure_online_textop_tracking_terms(cfg)
 
     cfg.events.pop("push_robot", None)
 
     return cfg
-
-
-# TextOp's MuJoCo ONNX deploy uses 2 ms physics steps with decimation 10.
-# Keep the 50 Hz policy rate, but avoid MJLab's coarser 5 ms physics step.
-def _configure_textop_deploy_timing(cfg) -> None:
-    cfg.sim.mujoco.timestep = TEXTOP_DEPLOY_SIM_TIMESTEP
-    cfg.decimation = TEXTOP_DEPLOY_DECIMATION
-    return
 
 
 def configure_textop_onnx_actor_observations(cfg) -> None:

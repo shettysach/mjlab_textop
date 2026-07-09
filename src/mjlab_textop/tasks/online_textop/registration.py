@@ -20,11 +20,9 @@ from mjlab_textop.tasks.online_textop.env_cfg import (
 )
 
 ONLINE_TEXTOP_TASK_NAME = "Mjlab-OnlineTextOp-Flat-Unitree-G1"
-ONLINE_TEXTOP_ONNX_TASK_NAME = "Mjlab-OnlineTextOpOnnx-Flat-Unitree-G1"
 
 DYNAMIC_TASK_SPEC = DynamicOnlineTaskSpec(
     base_task_name=ONLINE_TEXTOP_TASK_NAME,
-    onnx_task_name=ONLINE_TEXTOP_ONNX_TASK_NAME,
     checkpoint_env_cfg=make_online_textop_g1_flat_tracking_env_cfg,
     onnx_env_cfg=make_online_textop_onnx_g1_flat_tracking_env_cfg,
 )
