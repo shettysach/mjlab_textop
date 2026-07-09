@@ -102,8 +102,12 @@ class OnlineTextOpMotionCommand(CommandTerm):
             if cfg.observation is None
             else OnlineObservationReporter(cfg.observation, env)
         )
-        self._reference_start_anchor_pos_w: torch.Tensor | None = None
-        self._robot_start_anchor_pos_w: torch.Tensor | None = None
+        self._reference_start_anchor_pos_w = torch.zeros(
+            self.num_envs, 3, device=self.device
+        )
+        self._robot_start_anchor_pos_w = torch.zeros(
+            self.num_envs, 3, device=self.device
+        )
         self._future_cache_frame: int | None = None
         self._future_cache: TextOpFutureWindow | None = None
         self._reference_ghost = OnlineReferenceGhost(env, self.robot)
@@ -248,8 +252,8 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._last_stale_steps = 0
         self._consecutive_stale_steps = 0
         self._last_stale_frame = None
-        self._reference_start_anchor_pos_w = None
-        self._robot_start_anchor_pos_w = None
+        self._reference_start_anchor_pos_w.zero_()
+        self._robot_start_anchor_pos_w.zero_()
         self._clear_future_cache()
 
     def _update_command(self) -> None:
@@ -342,10 +346,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
         joint_pos, joint_vel, anchor_pos_w, anchor_quat_w, stale_steps = (
             self.buffer.get_future(self.current_frame, self.cfg.future_steps)
         )
-        anchor_pos_w, anchor_quat_w = self._aligned_reference_pose(
-            anchor_pos_w,
-            anchor_quat_w,
-        )
+        anchor_pos_w = self._aligned_reference_pos(anchor_pos_w)
         window = TextOpFutureWindow(
             joint_pos=joint_pos,
             joint_vel=joint_vel,
@@ -385,27 +386,29 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._future_cache_frame = None
         self._future_cache = None
 
-    def _aligned_reference_pose(
-        self,
-        anchor_pos_w: torch.Tensor,
-        anchor_quat_w: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        aligned_pos_w = anchor_pos_w[None, :, :].clone()
-        local_delta_xy_w = anchor_pos_w[None, :, :2] - anchor_pos_w[None, 0:1, :2]
-        aligned_pos_w[:, :, :2] = self.robot_anchor_pos_w[:, None, :2] + local_delta_xy_w
-        aligned_pos_w[:, :, 2] = (
-            self._robot_start_anchor_pos_w[:, None, 2]
-            + anchor_pos_w[None, :, 2]
-            - self._reference_start_anchor_pos_w[:, None, 2]
+    # XY is re-anchored to the current robot anchor.
+    # Z preserves reference height motion, offset to the robot's start height.
+    def _aligned_reference_pos(self, anchor_pos_w: torch.Tensor) -> torch.Tensor:
+        aligned_pos_w = anchor_pos_w.clone()
+
+        reference_start_xy_w = anchor_pos_w[0, :2]
+        reference_delta_xy_w = anchor_pos_w[:, :2] - reference_start_xy_w
+
+        aligned_pos_w[:, :2] = self.robot_anchor_pos_w[0, :2] + reference_delta_xy_w
+        aligned_pos_w[:, 2] = (
+            self._robot_start_anchor_pos_w[0, 2]
+            + anchor_pos_w[:, 2]
+            - self._reference_start_anchor_pos_w[0, 2]
         )
-        return aligned_pos_w[0], anchor_quat_w
+
+        return aligned_pos_w
 
     def _align_reference_anchor(self) -> None:
         _, _, anchor_pos_w, _, _ = self.buffer.get_future(
             self.current_frame,
             1,
         )
-        self._reference_start_anchor_pos_w = anchor_pos_w
+        self._reference_start_anchor_pos_w = anchor_pos_w.expand(self.num_envs, -1)
         self._robot_start_anchor_pos_w = self.robot_anchor_pos_w.clone()
         self._clear_future_cache()
 
@@ -420,12 +423,9 @@ class OnlineTextOpMotionCommand(CommandTerm):
         joint_pos = torch.clip(joint_pos, soft_limits[:, :, 0], soft_limits[:, :, 1])
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
 
-        root_pos, root_quat = self._aligned_reference_pose(
-            anchor_pos_w,
-            anchor_quat_w,
-        )
+        root_pos = self._aligned_reference_pos(anchor_pos_w)
         root_pos = root_pos[0].repeat(len(env_ids), 1)
-        root_quat = root_quat[0].repeat(len(env_ids), 1)
+        root_quat = anchor_quat_w[0].repeat(len(env_ids), 1)
         root_vel = torch.zeros(
             len(env_ids), 6, device=self.device, dtype=root_pos.dtype
         )
