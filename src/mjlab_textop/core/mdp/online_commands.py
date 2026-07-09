@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, cast
+from typing import cast
 
 import torch
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
+from mjlab.utils.lab_api.math import quat_apply, quat_inv, quat_mul, yaw_quat
 from mjlab.viewer.debug_visualizer import DebugVisualizer
 
 from mjlab_textop.core.feedback.observation import (
@@ -49,9 +50,6 @@ class OnlineTextOpMotionCommandCfg(CommandTermCfg):
     max_buffer_frames: int | None = 512
     clear_buffer_on_reset: bool = True
     reset_robot_to_reference: bool = True
-    anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
-        "align_to_robot_start"
-    )
     observation: OnlineTextOpObservationCfg | None = None
 
     def __post_init__(self) -> None:
@@ -105,7 +103,10 @@ class OnlineTextOpMotionCommand(CommandTerm):
             if cfg.observation is None
             else OnlineObservationReporter(cfg.observation, env)
         )
-        self._anchor_pos_offset_w = torch.zeros(3, device=self.device)
+        self._reference_start_anchor_pos_w: torch.Tensor | None = None
+        self._robot_start_anchor_pos_w: torch.Tensor | None = None
+        self._reference_start_heading_inv_w: torch.Tensor | None = None
+        self._reference_to_robot_heading_w: torch.Tensor | None = None
         self._future_cache_frame: int | None = None
         self._future_cache: TextOpFutureWindow | None = None
         self._reference_ghost = OnlineReferenceGhost(env, self.robot)
@@ -226,6 +227,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
 
             self.current_frame = int(self.cfg.start_frame)
             if self.buffer.can_start(self.current_frame, self.cfg.future_steps):
+                self._align_reference_anchor()
                 if self.cfg.reset_robot_to_reference:
                     self._reset_robot_to_reference(env_ids)
                 self._started = True
@@ -249,7 +251,10 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._last_stale_steps = 0
         self._consecutive_stale_steps = 0
         self._last_stale_frame = None
-        self._anchor_pos_offset_w.zero_()
+        self._reference_start_anchor_pos_w = None
+        self._robot_start_anchor_pos_w = None
+        self._reference_start_heading_inv_w = None
+        self._reference_to_robot_heading_w = None
         self._clear_future_cache()
 
     def _update_command(self) -> None:
@@ -342,10 +347,10 @@ class OnlineTextOpMotionCommand(CommandTerm):
         joint_pos, joint_vel, anchor_pos_w, anchor_quat_w, stale_steps = (
             self.buffer.get_future(self.current_frame, self.cfg.future_steps)
         )
-        raw_anchor_pos_w = (
-            anchor_pos_w[None, :, :] + self._anchor_pos_offset_w[None, None, :]
+        anchor_pos_w, anchor_quat_w = self._aligned_reference_pose(
+            anchor_pos_w,
+            anchor_quat_w,
         )
-        anchor_pos_w = self._make_robot_relative_anchor_pos_w(raw_anchor_pos_w)[0]
         window = TextOpFutureWindow(
             joint_pos=joint_pos,
             joint_vel=joint_vel,
@@ -385,23 +390,44 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._future_cache_frame = None
         self._future_cache = None
 
-    def _make_robot_relative_anchor_pos_w(
+    def _aligned_reference_pose(
         self,
-        raw_anchor_pos_w: torch.Tensor,
-    ) -> torch.Tensor:
-        anchor_pos_w = raw_anchor_pos_w.clone()  # NOTE: Eliminate clone?
-        raw_delta_xy_w = raw_anchor_pos_w[:, :, :2] - raw_anchor_pos_w[:, 0:1, :2]
-        anchor_pos_w[:, :, :2] = self.robot_anchor_pos_w[:, None, :2] + raw_delta_xy_w
-        return anchor_pos_w
+        anchor_pos_w: torch.Tensor,
+        anchor_quat_w: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        pos_diff_w = anchor_pos_w[None, :, :] - self._reference_start_anchor_pos_w[
+            :, None, :
+        ]
+        reference_start_heading_inv_w = self._reference_start_heading_inv_w[
+            :, None, :
+        ].expand(-1, anchor_pos_w.shape[0], -1)
+        reference_to_robot_heading_w = self._reference_to_robot_heading_w[
+            :, None, :
+        ].expand(-1, anchor_quat_w.shape[0], -1)
+        aligned_pos_w = self._robot_start_anchor_pos_w[:, None, :] + quat_apply(
+            reference_start_heading_inv_w,
+            pos_diff_w,
+        )
+        aligned_quat_w = quat_mul(
+            reference_to_robot_heading_w,
+            anchor_quat_w[None, :, :],
+        )
+        return aligned_pos_w[0], aligned_quat_w[0]
 
     def _align_reference_anchor(self) -> None:
-        if self.cfg.anchor_alignment == "direct_world":
-            self._anchor_pos_offset_w.zero_()
-            self._clear_future_cache()
-            return
-
-        _, _, anchor_pos_w, _, _ = self.buffer.get_future(self.current_frame, 1)
-        self._anchor_pos_offset_w = self.robot_anchor_pos_w[0] - anchor_pos_w[0]
+        _, _, anchor_pos_w, anchor_quat_w, _ = self.buffer.get_future(
+            self.current_frame,
+            1,
+        )
+        reference_start_heading_w = yaw_quat(anchor_quat_w)
+        robot_start_heading_w = yaw_quat(self.robot_anchor_quat_w)
+        self._reference_start_anchor_pos_w = anchor_pos_w
+        self._robot_start_anchor_pos_w = self.robot_anchor_pos_w.clone()
+        self._reference_start_heading_inv_w = quat_inv(reference_start_heading_w)
+        self._reference_to_robot_heading_w = quat_mul(
+            robot_start_heading_w,
+            self._reference_start_heading_inv_w,
+        )
         self._clear_future_cache()
 
     def _reset_robot_to_reference(self, env_ids: torch.Tensor) -> None:
@@ -415,13 +441,12 @@ class OnlineTextOpMotionCommand(CommandTerm):
         joint_pos = torch.clip(joint_pos, soft_limits[:, :, 0], soft_limits[:, :, 1])
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
 
-        raw_anchor_pos_w = (
-            anchor_pos_w[None, :, :] + self._anchor_pos_offset_w[None, None, :]
+        root_pos, root_quat = self._aligned_reference_pose(
+            anchor_pos_w,
+            anchor_quat_w,
         )
-        root_pos = self._make_robot_relative_anchor_pos_w(raw_anchor_pos_w)[
-            :, 0
-        ].repeat(len(env_ids), 1)
-        root_quat = anchor_quat_w[0].repeat(len(env_ids), 1)
+        root_pos = root_pos[0].repeat(len(env_ids), 1)
+        root_quat = root_quat[0].repeat(len(env_ids), 1)
         root_vel = torch.zeros(
             len(env_ids), 6, device=self.device, dtype=root_pos.dtype
         )
@@ -470,9 +495,6 @@ def use_online_textop_motion_command(
     source: TextOpOnlineSource | None = None,
     live_source_cfg: SocketTextOpSourceCfg | None = None,
     source_mode: TextOpOnlineSourceMode = "live",
-    anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
-        "align_to_robot_start"
-    ),
     reset_robot_to_reference: bool = True,
     debug_vis: bool | None = None,
     observation: OnlineTextOpObservationCfg | None = None,
@@ -492,7 +514,6 @@ def use_online_textop_motion_command(
         source=source,
         live_source_cfg=live_source_cfg,
         source_mode=source_mode,
-        anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
         observation=observation,
         debug_vis=debug_vis,

@@ -61,9 +61,6 @@ class PlayLiveCommand:
     future_steps: int = TEXTOP_FUTURE_STEPS
     fps: float = 50.0
     max_queue_blocks: int = 32
-    anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
-        "align_to_robot_start"
-    )
     reset_robot_to_reference: bool = True
     reference_debug_vis: bool = False
     observation: ObservationParams | None = None
@@ -97,7 +94,6 @@ def play_live_textop_motion(
         source_mode="live",
         future_steps=cfg.future_steps,
         num_envs=cfg.num_envs,
-        anchor_alignment=cfg.anchor_alignment,
         reset_robot_to_reference=cfg.reset_robot_to_reference,
         reference_debug_vis=cfg.reference_debug_vis,
         observation=_make_online_observation(cfg),
@@ -149,9 +145,6 @@ class PlayOnlineCommand:
     future_steps: int = TEXTOP_FUTURE_STEPS
     block_size: int = 8
     reset_robot_to_reference: bool = True
-    anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
-        "align_to_robot_start"
-    )
 
 
 def play_online_textop_motion(
@@ -167,7 +160,6 @@ def play_online_textop_motion(
         source_mode="replay",
         future_steps=cfg.future_steps,
         num_envs=cfg.num_envs,
-        anchor_alignment=cfg.anchor_alignment,
         reset_robot_to_reference=cfg.reset_robot_to_reference,
     )
     play_cfg = PlayConfig(

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Protocol
 
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
@@ -69,9 +69,6 @@ class TaskRegistrar(Protocol):
         source_mode: TextOpOnlineSourceMode,
         future_steps: int,
         num_envs: int,
-        anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
-            "align_to_robot_start"
-        ),
         reset_robot_to_reference: bool = True,
         reference_debug_vis: bool | None = None,
         observation: OnlineTextOpObservationCfg | None = None,

@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 import torch
 from builders import fake_env, motion_block, write_mjlab_motion_npz
+from mjlab.utils.lab_api.math import quat_apply, quat_inv, quat_mul, yaw_quat
 
 from mjlab_textop.core.feedback.observation import (
     ObservationImage,
@@ -344,6 +345,71 @@ def test_online_command_aligns_anchor_position_to_robot_start() -> None:
     future_anchor_pos = command.future_anchor_pos_w[0]
     torch.testing.assert_close(future_anchor_pos[0], torch.tensor([10.0, 20.0, 30.0]))
     torch.testing.assert_close(future_anchor_pos[1], torch.tensor([11.0, 20.0, 30.0]))
+
+
+def test_online_command_alignment_preserves_reference_z_delta() -> None:
+    block = motion_block(frames=8, offset=100.0)
+    block.anchor_pos_w[:, 2] = np.arange(8, dtype=np.float32) + 2.0
+    source = QueueTextOpOnlineSource([block])
+    command = OnlineTextOpMotionCommand(
+        OnlineTextOpMotionCommandCfg(source=source, future_steps=5),
+        fake_env(robot_anchor_pos=(10.0, 20.0, 30.0)),
+    )
+
+    command._update_command()
+
+    future_anchor_pos = command.future_anchor_pos_w[0]
+    torch.testing.assert_close(future_anchor_pos[0], torch.tensor([10.0, 20.0, 30.0]))
+    torch.testing.assert_close(future_anchor_pos[1], torch.tensor([11.0, 20.0, 31.0]))
+
+
+def test_online_command_alignment_matches_textopdeploy_heading_transform() -> None:
+    block = motion_block(frames=8)
+    block.anchor_pos_w[:, :] = np.array(
+        [
+            [100.0, 200.0, 2.0],
+            [100.0, 201.0, 3.0],
+            [99.0, 201.0, 4.0],
+            [99.0, 200.0, 5.0],
+            [100.0, 200.0, 6.0],
+            [101.0, 200.0, 7.0],
+            [101.0, 201.0, 8.0],
+            [100.0, 201.0, 9.0],
+        ],
+        dtype=np.float32,
+    )
+    ref_yaw_90 = np.array([np.sqrt(0.5), 0.0, 0.0, np.sqrt(0.5)], dtype=np.float32)
+    robot_yaw_180 = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)
+    block.anchor_quat_w[:] = ref_yaw_90
+    source = QueueTextOpOnlineSource([block])
+    command = OnlineTextOpMotionCommand(
+        OnlineTextOpMotionCommandCfg(source=source, future_steps=5),
+        fake_env(
+            robot_anchor_pos=(10.0, 20.0, 30.0),
+            robot_anchor_quat=tuple(robot_yaw_180.tolist()),
+        ),
+    )
+
+    command._update_command()
+
+    ref_pos = torch.tensor(block.anchor_pos_w[:5])
+    ref_quat = torch.tensor(block.anchor_quat_w[:5])
+    robot_pos = torch.tensor([[10.0, 20.0, 30.0]])
+    robot_quat = torch.from_numpy(robot_yaw_180).unsqueeze(0)
+    ref_start_quat = torch.from_numpy(ref_yaw_90).unsqueeze(0)
+    ref_start_heading_inv = quat_inv(yaw_quat(ref_start_quat))
+    reference_to_robot_heading = quat_mul(yaw_quat(robot_quat), ref_start_heading_inv)
+    expected_pos = robot_pos + quat_apply(
+        ref_start_heading_inv[:, None, :].expand(-1, 5, -1),
+        ref_pos[None, :, :] - ref_pos[None, 0:1, :],
+    )
+    expected_quat = quat_mul(
+        reference_to_robot_heading[:, None, :].expand(-1, 5, -1),
+        ref_quat[None, :, :],
+    )
+
+    torch.testing.assert_close(command.future_anchor_pos_w, expected_pos)
+    torch.testing.assert_close(command.future_anchor_quat_w, expected_quat)
 
 
 def test_online_command_rejects_vectorized_envs() -> None:

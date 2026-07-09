@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Literal
-
 from mjlab.envs.mdp.observations import projected_gravity
 from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
 from mjlab.tasks.tracking.config.g1.env_cfgs import unitree_g1_flat_tracking_env_cfg
@@ -38,9 +36,6 @@ def make_online_textop_g1_flat_tracking_env_cfg(
     source: TextOpOnlineSource | None = None,
     live_source_cfg: SocketTextOpSourceCfg | None = None,
     source_mode: TextOpOnlineSourceMode = "live",
-    anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
-        "align_to_robot_start"
-    ),
     reset_robot_to_reference: bool = True,
     reference_debug_vis: bool | None = None,
     observation: OnlineTextOpObservationCfg | None = None,
@@ -54,7 +49,6 @@ def make_online_textop_g1_flat_tracking_env_cfg(
         source=source,
         live_source_cfg=live_source_cfg,
         source_mode=source_mode,
-        anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
         debug_vis=reference_debug_vis,
         observation=observation,
@@ -77,9 +71,6 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
     source: TextOpOnlineSource | None = None,
     live_source_cfg: SocketTextOpSourceCfg | None = None,
     source_mode: TextOpOnlineSourceMode = "live",
-    anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
-        "align_to_robot_start"
-    ),
     reset_robot_to_reference: bool = True,
     reference_debug_vis: bool | None = None,
     observation: OnlineTextOpObservationCfg | None = None,
@@ -93,7 +84,6 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
         source=source,
         live_source_cfg=live_source_cfg,
         source_mode=source_mode,
-        anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
         debug_vis=reference_debug_vis,
         observation=observation,

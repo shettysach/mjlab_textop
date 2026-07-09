@@ -38,9 +38,13 @@ def motion_block(
 def fake_env(
     num_envs: int = 1,
     robot_anchor_pos: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    robot_anchor_quat: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
     step_dt: float = 0.02,
 ):
     body_pos = torch.tensor([[robot_anchor_pos]], dtype=torch.float32).repeat(
+        num_envs, 1, 1
+    )
+    body_quat = torch.tensor([[robot_anchor_quat]], dtype=torch.float32).repeat(
         num_envs, 1, 1
     )
     robot = SimpleNamespace(
@@ -51,9 +55,7 @@ def fake_env(
         ),
         data=SimpleNamespace(
             body_link_pos_w=body_pos,
-            body_link_quat_w=torch.tensor([[[1.0, 0.0, 0.0, 0.0]]]).repeat(
-                num_envs, 1, 1
-            ),
+            body_link_quat_w=body_quat,
             soft_joint_pos_limits=torch.tensor(
                 [[[-float("inf"), float("inf")]]], dtype=torch.float32
             ).repeat(num_envs, 29, 1),

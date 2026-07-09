@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
 
 from mjlab.envs.mdp import terminations as base_terminations
 from mjlab.managers.metrics_manager import MetricsTermCfg
@@ -42,9 +41,6 @@ def make_straight_g1_env_cfg(
     source: TextOpOnlineSource | None = None,
     live_source_cfg: SocketTextOpSourceCfg | None = None,
     source_mode: TextOpOnlineSourceMode = "live",
-    anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
-        "align_to_robot_start"
-    ),
     reset_robot_to_reference: bool = True,
     reference_debug_vis: bool | None = None,
     observation: OnlineTextOpObservationCfg | None = None,
@@ -56,7 +52,6 @@ def make_straight_g1_env_cfg(
         source=source,
         live_source_cfg=live_source_cfg,
         source_mode=source_mode,
-        anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
         reference_debug_vis=reference_debug_vis,
         observation=observation,
@@ -71,9 +66,6 @@ def make_straight_onnx_g1_env_cfg(
     source: TextOpOnlineSource | None = None,
     live_source_cfg: SocketTextOpSourceCfg | None = None,
     source_mode: TextOpOnlineSourceMode = "live",
-    anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
-        "align_to_robot_start"
-    ),
     reset_robot_to_reference: bool = True,
     reference_debug_vis: bool | None = None,
     observation: OnlineTextOpObservationCfg | None = None,
@@ -85,7 +77,6 @@ def make_straight_onnx_g1_env_cfg(
         source=source,
         live_source_cfg=live_source_cfg,
         source_mode=source_mode,
-        anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
         reference_debug_vis=reference_debug_vis,
         observation=observation,
