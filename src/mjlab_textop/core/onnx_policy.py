@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import torch
 
 from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
@@ -14,7 +15,7 @@ class OnnxPolicy:
     def __init__(self, policy_file: Path, device: str = "cpu"):
         import onnxruntime as ort
 
-        self.onnx_device = torch.device(device)
+        self.onnx_device = _normalize_onnx_device(torch.device(device))
         providers = _onnx_providers_for_device(ort, self.onnx_device)
         self.session = ort.InferenceSession(str(policy_file), providers=providers)
         self.input_name = self.session.get_inputs()[0].name
@@ -33,7 +34,7 @@ class OnnxPolicy:
         if obs.shape[-1] != 431:
             raise RuntimeError(f"Expected ONNX obs dim 431, got {obs.shape[-1]}")
 
-        action_textop = self._run_cpu(obs)
+        action_textop = self._run(obs)
         index = self.textop_to_mjlab.to(obs.device)
         action_mjlab = action_textop.index_select(-1, index)
 
@@ -48,6 +49,11 @@ class OnnxPolicy:
 
         return action_mjlab
 
+    def _run(self, obs: torch.Tensor) -> torch.Tensor:
+        if self.onnx_device.type == "cuda":
+            return self._run_cuda_iobinding(obs)
+        return self._run_cpu(obs)
+
     def _run_cpu(self, obs: torch.Tensor) -> torch.Tensor:
         obs_device = obs.device
         obs = obs.detach()
@@ -58,6 +64,35 @@ class OnnxPolicy:
 
         action_textop_np = self.session.run(None, {self.input_name: obs.numpy()})[0]
         return torch.from_numpy(action_textop_np).to(obs_device)
+
+    def _run_cuda_iobinding(self, obs: torch.Tensor) -> torch.Tensor:
+        _check_cuda_iobinding_obs(obs, expected_device=self.onnx_device)
+        action_textop = torch.empty(
+            (obs.shape[0], 29),
+            device=obs.device,
+            dtype=torch.float32,
+        )
+        device_id = _cuda_device_id(obs.device)
+
+        binding = self.session.io_binding()
+        binding.bind_input(
+            name=self.input_name,
+            device_type="cuda",
+            device_id=device_id,
+            element_type=np.float32,
+            shape=tuple(obs.shape),
+            buffer_ptr=obs.data_ptr(),
+        )
+        binding.bind_output(
+            name=self.output_name,
+            device_type="cuda",
+            device_id=device_id,
+            element_type=np.float32,
+            shape=tuple(action_textop.shape),
+            buffer_ptr=action_textop.data_ptr(),
+        )
+        self.session.run_with_iobinding(binding)
+        return action_textop
 
 
 class OnnxPolicyRunner:
@@ -102,6 +137,23 @@ def _actor_obs(obs: torch.Tensor | Any) -> torch.Tensor:
     return actor_obs
 
 
+def _check_cuda_iobinding_obs(
+    obs: torch.Tensor,
+    *,
+    expected_device: torch.device,
+) -> None:
+    if obs.device != expected_device:
+        raise RuntimeError(
+            f"Expected ONNX CUDA obs on {expected_device}, got {obs.device}"
+        )
+    if obs.dtype != torch.float32:
+        raise RuntimeError(f"Expected ONNX CUDA obs dtype float32, got {obs.dtype}")
+    if not obs.is_contiguous():
+        raise RuntimeError("Expected ONNX CUDA obs to be contiguous")
+    if obs.requires_grad:
+        raise RuntimeError("Expected ONNX CUDA obs to be detached")
+
+
 def _onnx_providers_for_device(ort: Any, torch_device: torch.device) -> list[Any]:
     if torch_device.type == "cpu":
         return ["CPUExecutionProvider"]
@@ -116,6 +168,18 @@ def _onnx_providers_for_device(ort: Any, torch_device: torch.device) -> list[Any
         )
 
     return [
-        ("CUDAExecutionProvider", {"device_id": torch_device.index}),
+        ("CUDAExecutionProvider", {"device_id": _cuda_device_id(torch_device)}),
         "CPUExecutionProvider",
     ]
+
+
+def _normalize_onnx_device(torch_device: torch.device) -> torch.device:
+    if torch_device.type == "cuda" and torch_device.index is None:
+        return torch.device("cuda:0")
+    return torch_device
+
+
+def _cuda_device_id(torch_device: torch.device) -> int:
+    if torch_device.type != "cuda":
+        raise RuntimeError(f"Expected CUDA device, got {torch_device}")
+    return 0 if torch_device.index is None else int(torch_device.index)

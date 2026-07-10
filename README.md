@@ -311,5 +311,7 @@ uv run python -m mjlab_textop.robotmdar.produce \
 
 > [!NOTE]
 > ONNX policy inference uses the ONNX Runtime provider selected by `--device`
-(`CPUExecutionProvider` for `cpu`, `CUDAExecutionProvider` for `cuda:*`).
-> To avoid CUDA I/O binding instability, the actor observation tensor is copied to CPU before calling ONNX Runtime, and the action tensor is copied back to the original observation device before MJLab uses it.
+> (`CPUExecutionProvider` for `cpu`, `CUDAExecutionProvider` for `cuda:*`).
+> CPU inference copies through NumPy. CUDA inference uses strict ONNX Runtime
+> I/O binding: actor observations must already be float32, contiguous, detached
+> CUDA tensors on the same device as `--device`.

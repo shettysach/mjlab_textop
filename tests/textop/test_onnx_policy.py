@@ -8,7 +8,11 @@ import numpy as np
 import pytest
 import torch
 
-from mjlab_textop.core.onnx_policy import OnnxPolicy, OnnxPolicyRunner
+from mjlab_textop.core.onnx_policy import (
+    OnnxPolicy,
+    OnnxPolicyRunner,
+    _check_cuda_iobinding_obs,
+)
 from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
 
 
@@ -93,11 +97,21 @@ def test_textop_onnx_policy_accepts_cpu_obs_for_cuda_device(
     _install_fake_onnxruntime(monkeypatch)
     policy = OnnxPolicy(Path("latest.onnx"), device="cuda:0")
 
-    action = policy(torch.zeros(1, 431))
+    with pytest.raises(RuntimeError, match="Expected ONNX CUDA obs on cuda:0"):
+        policy(torch.zeros(1, 431))
 
-    assert action.shape == (1, 29)
-    assert policy.session.received is not None
-    assert policy.session.received.dtype == np.float32
+
+def test_textop_onnx_policy_uses_zero_cuda_device_id_for_plain_cuda(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_onnxruntime(monkeypatch)
+    policy = OnnxPolicy(Path("latest.onnx"), device="cuda")
+
+    assert policy.onnx_device == torch.device("cuda:0")
+    assert policy.session.providers == [
+        ("CUDAExecutionProvider", {"device_id": 0}),
+        "CPUExecutionProvider",
+    ]
 
 
 def test_textop_onnx_policy_accepts_actor_observation_dict(
@@ -129,6 +143,27 @@ def test_textop_onnx_policy_rejects_wrong_obs_dim(
 
     with pytest.raises(RuntimeError, match="Expected ONNX obs dim 431"):
         policy(torch.zeros(1, 430))
+
+
+def test_cuda_iobinding_check_rejects_wrong_dtype() -> None:
+    obs = torch.zeros(1, 431, dtype=torch.float64)
+
+    with pytest.raises(RuntimeError, match="dtype float32"):
+        _check_cuda_iobinding_obs(obs, expected_device=torch.device("cpu"))
+
+
+def test_cuda_iobinding_check_rejects_noncontiguous_obs() -> None:
+    obs = torch.zeros(2, 862, dtype=torch.float32)[:, ::2]
+
+    with pytest.raises(RuntimeError, match="contiguous"):
+        _check_cuda_iobinding_obs(obs, expected_device=torch.device("cpu"))
+
+
+def test_cuda_iobinding_check_rejects_grad_obs() -> None:
+    obs = torch.zeros(1, 431, dtype=torch.float32, requires_grad=True)
+
+    with pytest.raises(RuntimeError, match="detached"):
+        _check_cuda_iobinding_obs(obs, expected_device=torch.device("cpu"))
 
 
 def test_textop_onnx_runner_loads_inference_policy(
