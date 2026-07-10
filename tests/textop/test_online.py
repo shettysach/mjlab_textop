@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import threading
 from types import SimpleNamespace
 
 import numpy as np
@@ -9,8 +10,8 @@ import torch
 from builders import fake_env, motion_block, write_mjlab_motion_npz
 
 from mjlab_textop.core.feedback.observation import (
-    ObservationImage,
     OnlineObservationCfg,
+    OnlineObservationState,
     make_torso_observation_camera,
 )
 from mjlab_textop.core.mdp.online_commands import (
@@ -47,6 +48,24 @@ class _RecordingObservationPublisher:
 
     def publish(self, *, image=None) -> None:
         self.images.append(image)
+
+
+class _BlockingObservationPublisher:
+    def __init__(
+        self,
+        *,
+        started: threading.Event,
+        release: threading.Event,
+    ) -> None:
+        self.started = started
+        self.release = release
+        self.publish_count = 0
+
+    def publish(self, *, image=None) -> None:
+        del image
+        self.publish_count += 1
+        self.started.set()
+        assert self.release.wait(timeout=1.0)
 
 
 class _RecordingDebugVisualizer:
@@ -618,8 +637,12 @@ def test_online_command_publishes_observations_with_images_on_interval(
 ) -> None:
     publisher = _RecordingObservationPublisher()
     monkeypatch.setattr(
-        "mjlab_textop.core.mdp.online_commands.OnlineObservationReporter._render_observation_image",
-        lambda self: ObservationImage(data=b"jpeg", mime_type="image/jpeg"),
+        "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._render_image",
+        lambda self: np.zeros((1, 1, 3), dtype=np.uint8),
+    )
+    monkeypatch.setattr(
+        "mjlab_textop.core.feedback.online_reporter.encode_render_image_jpeg",
+        lambda image: b"jpeg",
     )
     command = OnlineMotionCommand(
         OnlineMotionCommandCfg(
@@ -635,10 +658,12 @@ def test_online_command_publishes_observations_with_images_on_interval(
 
     command._update_command()
     command._update_metrics()
+    _wait_for_observation_publish(command.observation_reporter)
     command._update_command()
     command._update_metrics()
     command._update_command()
     command._update_metrics()
+    _wait_for_observation_publish(command.observation_reporter)
 
     assert [image.data for image in publisher.images] == [b"jpeg", b"jpeg"]
 
@@ -654,6 +679,50 @@ def test_online_command_does_not_create_observation_reporter_by_default() -> Non
 
     assert command.cfg.observation is None
     assert command.observation_reporter is None
+
+
+def test_online_observation_reporter_drops_observation_while_publish_inflight(
+    monkeypatch,
+) -> None:
+    started = threading.Event()
+    release = threading.Event()
+    publisher = _BlockingObservationPublisher(started=started, release=release)
+    render_calls = []
+
+    monkeypatch.setattr(
+        "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._render_image",
+        lambda self: render_calls.append(len(render_calls)) or np.zeros(
+            (1, 1, 3),
+            dtype=np.uint8,
+        ),
+    )
+    monkeypatch.setattr(
+        "mjlab_textop.core.feedback.online_reporter.encode_render_image_jpeg",
+        lambda image: b"jpeg",
+    )
+    reporter = OnlineObservationReporter(
+        OnlineObservationCfg(
+            publisher=publisher,
+            publish_interval=2,
+        ),
+        fake_env(),
+    )
+
+    reporter.maybe_publish(_observation_state(frame=0))
+    assert started.wait(timeout=1.0)
+    reporter.maybe_publish(_observation_state(frame=2))
+
+    assert len(render_calls) == 1
+    assert publisher.publish_count == 1
+
+    release.set()
+    _wait_for_reporter_publish(reporter)
+    reporter.maybe_publish(_observation_state(frame=3))
+    reporter.maybe_publish(_observation_state(frame=4))
+    _wait_for_reporter_publish(reporter)
+
+    assert len(render_calls) == 2
+    assert publisher.publish_count == 2
 
 
 def test_online_observation_reporter_uses_observation_camera(monkeypatch) -> None:
@@ -720,6 +789,31 @@ def test_online_observation_reporter_uses_observation_camera(monkeypatch) -> Non
     assert calls["initialized"] is True
     assert calls["updated"] is True
     assert calls["azimuth"] == pytest.approx(90.0)
+
+
+def _wait_for_observation_publish(reporter: OnlineObservationReporter | None) -> None:
+    assert reporter is not None
+    _wait_for_reporter_publish(reporter)
+
+
+def _wait_for_reporter_publish(reporter: OnlineObservationReporter) -> None:
+    assert reporter._publish_future is not None
+    reporter._publish_future.result(timeout=1.0)
+    reporter._collect_publish_result()
+
+
+def _observation_state(*, frame: int) -> OnlineObservationState:
+    return OnlineObservationState(
+        frame=frame,
+        started=True,
+        latest_index=frame,
+        lag_frames=0,
+        buffer_frames=0,
+        stale_steps=0,
+        consecutive_stale_steps=0,
+        robot_anchor_pos_w=torch.tensor([0.0, 0.0, 0.0]),
+        robot_anchor_quat_w=torch.tensor([1.0, 0.0, 0.0, 0.0]),
+    )
 
 
 def test_online_command_replay_reset_rewinds_source() -> None:
