@@ -43,11 +43,9 @@ class _LiveTextOpOnlineSource:
 
 class _RecordingObservationPublisher:
     def __init__(self) -> None:
-        self.payloads = []
         self.images = []
 
-    def publish(self, state, *, image=None) -> None:
-        self.payloads.append(state)
+    def publish(self, *, image=None) -> None:
         self.images.append(image)
 
 
@@ -642,11 +640,6 @@ def test_online_command_publishes_observations_with_images_on_interval(
     command._update_command()
     command._update_metrics()
 
-    assert [payload["frame"] for payload in publisher.payloads] == [0, 2]
-    assert publisher.payloads[0]["started"] is True
-    assert publisher.payloads[0]["latest_frame"] == 7
-    assert publisher.payloads[0]["robot_anchor_pos_w"] == [10.0, 20.0, 30.0]
-    assert publisher.payloads[0]["robot_anchor_quat_w"] == [1.0, 0.0, 0.0, 0.0]
     assert [image.data for image in publisher.images] == [b"jpeg", b"jpeg"]
 
 

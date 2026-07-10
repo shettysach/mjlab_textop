@@ -110,7 +110,6 @@ def test_http_observation_publisher_posts_image_only(monkeypatch) -> None:
     )
 
     publisher.publish(
-        {"frame": 1},
         image=ObservationImage(data=b"jpeg bytes", mime_type="image/jpeg"),
     )
 
@@ -132,7 +131,6 @@ def test_http_observation_publisher_rejects_empty_url() -> None:
 
 def test_make_http_observation_payload_includes_image() -> None:
     assert make_http_observation_payload(
-        state={"frame": 1},
         image=ObservationImage(data=b"jpeg bytes", mime_type="image/jpeg"),
     ) == {
         "image": {

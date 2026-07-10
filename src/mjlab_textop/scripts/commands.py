@@ -72,7 +72,7 @@ class PlayLiveCommand:
 class ObservationParams:
     url: str = "http://127.0.0.1:8766/observation"
     timeout_sec: float = 1.0
-    every_frames: int = 5
+    every_frames: int = 20
     image_width: int = 320
     image_height: int = 240
     camera_distance: float = 2.0

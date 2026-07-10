@@ -36,7 +36,6 @@ class OnlineObservationState:
 class ObservationPublisher(Protocol):
     def publish(
         self,
-        state: dict[str, Any],
         *,
         image: ObservationImage,
     ) -> None:
@@ -74,14 +73,13 @@ class HttpObservationPublisher:
 
     def publish(
         self,
-        state: dict[str, Any],
         *,
         image: ObservationImage,
     ) -> None:
         request = urllib.request.Request(
             self.url,
             data=json.dumps(
-                make_http_observation_payload(state=state, image=image),
+                make_http_observation_payload(image=image),
                 separators=(",", ":"),
             ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
@@ -134,10 +132,8 @@ def make_torso_observation_camera(
 
 def make_http_observation_payload(
     *,
-    state: dict[str, Any],
     image: ObservationImage,
 ) -> dict[str, Any]:
-    del state
     return {
         "image": {
             "mime_type": image.mime_type,

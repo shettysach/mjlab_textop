@@ -10,7 +10,6 @@ from mjlab_textop.core.feedback.observation import (
     OnlineObservationCfg,
     OnlineObservationState,
     encode_render_image_jpeg,
-    make_online_textop_observation,
 )
 
 
@@ -38,8 +37,7 @@ class OnlineObservationReporter:
             return
 
         image = self._render_observation_image()
-        payload = make_online_textop_observation(state)
-        publisher.publish(payload, image=image)
+        publisher.publish(image=image)
         self._last_publish_frame = current_frame
 
     def _render_observation_image(self) -> ObservationImage:
