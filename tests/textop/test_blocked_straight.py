@@ -9,9 +9,7 @@ from mjlab_textop.tasks.blocked_straight.env_cfg import (
     BLOCKED_STRAIGHT_TASK_CFG,
     make_blocked_straight_g1_env_cfg,
 )
-from mjlab_textop.tasks.blocked_straight.registration import (
-    register_blocked_straight_task,
-)
+from mjlab_textop.tasks.registration import register_task
 
 
 def test_blocked_straight_env_cfg_has_fixed_goal_eval_terms() -> None:
@@ -33,7 +31,8 @@ def test_blocked_straight_play_task_uses_onnx_runner(tmp_path) -> None:
     onnx_file = tmp_path / "policy.onnx"
     onnx_file.write_text("onnx")
 
-    task_name = register_blocked_straight_task(
+    task_name = register_task(
+        "blocked-straight",
         runner_cls=OnnxPolicyRunner,
         source_mode="live",
         future_steps=2,

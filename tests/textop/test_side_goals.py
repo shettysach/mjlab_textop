@@ -5,12 +5,10 @@ from mjlab.tasks.registry import load_env_cfg, load_runner_cls
 
 from mjlab_textop.core.mdp.observations import future_joint_window_textop_order
 from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
+from mjlab_textop.tasks.registration import register_task
 from mjlab_textop.tasks.side_goals.env_cfg import (
     SIDE_GOALS_TASK_CFG,
     make_side_goals_g1_env_cfg,
-)
-from mjlab_textop.tasks.side_goals.registration import (
-    register_side_goals_task,
 )
 
 
@@ -38,7 +36,8 @@ def test_side_goals_play_task_uses_onnx_runner(tmp_path) -> None:
     onnx_file = tmp_path / "policy.onnx"
     onnx_file.write_text("onnx")
 
-    task_name = register_side_goals_task(
+    task_name = register_task(
+        "side-goals",
         runner_cls=OnnxPolicyRunner,
         source_mode="live",
         future_steps=2,
@@ -72,14 +71,10 @@ def test_side_goals_spec_fn_adds_two_goals_and_four_walls() -> None:
     assert tuple(green_goal.pos) == (0.0, -5.0, 0.005)
 
     blue_geom = next(
-        geom
-        for geom in blue_goal.geoms
-        if geom.name == "side_goals_blue_goal_visual"
+        geom for geom in blue_goal.geoms if geom.name == "side_goals_blue_goal_visual"
     )
     green_geom = next(
-        geom
-        for geom in green_goal.geoms
-        if geom.name == "side_goals_green_goal_visual"
+        geom for geom in green_goal.geoms if geom.name == "side_goals_green_goal_visual"
     )
     assert tuple(blue_geom.size) == (4.0, 4.0, 0.005)
     assert tuple(blue_geom.rgba) == (0.0, 0.0, 1.0, 1.0)

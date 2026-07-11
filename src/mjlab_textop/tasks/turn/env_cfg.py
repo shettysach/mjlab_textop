@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from mjlab.envs.mdp import terminations as base_terminations
 from mjlab.managers.metrics_manager import MetricsTermCfg
@@ -14,7 +15,6 @@ from mjlab_textop.core.online.source import OnlineSource
 from mjlab_textop.core.schema import FUTURE_STEPS
 from mjlab_textop.tasks.online_textop.env_cfg import (
     make_online_textop_g1_flat_tracking_env_cfg,
-    make_online_textop_onnx_g1_flat_tracking_env_cfg,
 )
 from mjlab_textop.tasks.straight import mdp
 from mjlab_textop.tasks.turn.assets import make_turn_task_spec_fn
@@ -46,6 +46,7 @@ def make_turn_task_g1_env_cfg(
     reset_robot_to_reference: bool = True,
     reference_debug_vis: bool | None = None,
     observation: OnlineObservationCfg | None = None,
+    policy_format: Literal["pt", "onnx"] = "pt",
     task_cfg: TurnTaskCfg = TURN_TASK_CFG,
 ):
     cfg = make_online_textop_g1_flat_tracking_env_cfg(
@@ -57,31 +58,7 @@ def make_turn_task_g1_env_cfg(
         reset_robot_to_reference=reset_robot_to_reference,
         reference_debug_vis=reference_debug_vis,
         observation=observation,
-    )
-    return _configure_turn_task_cfg(cfg, task_cfg=task_cfg)
-
-
-def make_turn_task_onnx_g1_env_cfg(
-    *,
-    play: bool = True,
-    future_steps: int = FUTURE_STEPS,
-    source: OnlineSource | None = None,
-    live_source_cfg: SocketSourceCfg | None = None,
-    source_mode: OnlineSourceMode = "live",
-    reset_robot_to_reference: bool = True,
-    reference_debug_vis: bool | None = None,
-    observation: OnlineObservationCfg | None = None,
-    task_cfg: TurnTaskCfg = TURN_TASK_CFG,
-):
-    cfg = make_online_textop_onnx_g1_flat_tracking_env_cfg(
-        play=play,
-        future_steps=future_steps,
-        source=source,
-        live_source_cfg=live_source_cfg,
-        source_mode=source_mode,
-        reset_robot_to_reference=reset_robot_to_reference,
-        reference_debug_vis=reference_debug_vis,
-        observation=observation,
+        policy_format=policy_format,
     )
     return _configure_turn_task_cfg(cfg, task_cfg=task_cfg)
 

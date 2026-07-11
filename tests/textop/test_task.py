@@ -11,12 +11,8 @@ from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
 from mjlab_textop.core.schema import FUTURE_STEPS
 from mjlab_textop.tasks.online_textop.env_cfg import (
     make_online_textop_g1_flat_tracking_env_cfg,
-    make_online_textop_onnx_g1_flat_tracking_env_cfg,
 )
-from mjlab_textop.tasks.online_textop.registration import (
-    register_online_textop_onnx_task,
-    register_online_textop_task,
-)
+from mjlab_textop.tasks.registration import register_task
 from mjlab_textop.tasks.textop_tracking.env_cfg import (
     make_textop_g1_flat_tracking_env_cfg,
 )
@@ -42,7 +38,9 @@ def test_online_textop_env_cfg_uses_online_motion_command() -> None:
 
 
 def test_online_textop_onnx_env_cfg_uses_online_motion_command() -> None:
-    env_cfg = make_online_textop_onnx_g1_flat_tracking_env_cfg(play=True)
+    env_cfg = make_online_textop_g1_flat_tracking_env_cfg(
+        play=True, policy_format="onnx"
+    )
     motion_cmd = env_cfg.commands["motion"]
 
     assert isinstance(motion_cmd, OnlineMotionCommandCfg)
@@ -67,7 +65,7 @@ def test_online_textop_replay_task_uses_replay_source_mode() -> None:
         ]
     )
 
-    task_name = register_online_textop_task(source=source, source_mode="replay")
+    task_name = register_task("default", source=source, source_mode="replay")
     env_cfg = load_env_cfg(task_name, play=True)
 
     assert env_cfg.commands["motion"].source_mode == "replay"
@@ -89,7 +87,9 @@ def test_online_textop_onnx_replay_task_uses_replay_source_mode() -> None:
         ]
     )
 
-    task_name = register_online_textop_onnx_task(source=source, source_mode="replay")
+    task_name = register_task(
+        "default", runner_cls=OnnxPolicyRunner, source=source, source_mode="replay"
+    )
     env_cfg = load_env_cfg(task_name, play=True)
 
     assert env_cfg.commands["motion"].source_mode == "replay"
@@ -112,7 +112,8 @@ def test_online_textop_replay_task_can_disable_reference_reset() -> None:
         ]
     )
 
-    task_name = register_online_textop_task(
+    task_name = register_task(
+        "default",
         source=source,
         source_mode="replay",
         reset_robot_to_reference=False,
@@ -125,7 +126,8 @@ def test_online_textop_replay_task_can_disable_reference_reset() -> None:
 def test_online_textop_live_task_uses_live_source_mode() -> None:
     source = QueueOnlineSource([], fps=50.0)
 
-    task_name = register_online_textop_task(
+    task_name = register_task(
+        "default",
         source=source,
         source_mode="live",
         observation=OnlineObservationCfg(
@@ -140,10 +142,12 @@ def test_online_textop_live_task_uses_live_source_mode() -> None:
 
 def test_online_textop_onnx_env_cfg_uses_textop_deploy_timing() -> None:
     from mjlab_textop.tasks.online_textop.env_cfg import (
-        make_online_textop_onnx_g1_flat_tracking_env_cfg,
+        make_online_textop_g1_flat_tracking_env_cfg,
     )
 
-    env_cfg = make_online_textop_onnx_g1_flat_tracking_env_cfg(play=True)
+    env_cfg = make_online_textop_g1_flat_tracking_env_cfg(
+        play=True, policy_format="onnx"
+    )
 
     assert env_cfg.sim.mujoco.timestep == 0.002
     assert env_cfg.decimation == 10
@@ -180,7 +184,9 @@ def test_textop_actor_observation_order() -> None:
 
 
 def test_textop_onnx_actor_observation_order_and_no_corruption() -> None:
-    env_cfg = make_online_textop_onnx_g1_flat_tracking_env_cfg(play=True)
+    env_cfg = make_online_textop_g1_flat_tracking_env_cfg(
+        play=True, policy_format="onnx"
+    )
 
     assert list(env_cfg.observations["actor"].terms) == [
         "future_joint_window",

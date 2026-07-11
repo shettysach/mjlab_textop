@@ -2,16 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
 
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
-from mjlab_textop.core.feedback.observation import (
-    OnlineObservationCfg,
-)
-from mjlab_textop.core.mdp.online_commands import OnlineSourceMode
-from mjlab_textop.core.online.live import SocketSourceCfg
-from mjlab_textop.core.online.source import OnlineSource
 from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
 
 PolicyRunnerCls = type[MotionTrackingOnPolicyRunner] | type[OnnxPolicyRunner]
@@ -57,19 +50,3 @@ def resolve_policy(
         )
 
     raise ValueError("Pass exactly one of --checkpoint-file or --onnx-file")
-
-
-class TaskRegistrar(Protocol):
-    def __call__(
-        self,
-        *,
-        runner_cls: PolicyRunnerCls,
-        source: OnlineSource | None = None,
-        live_source_cfg: SocketSourceCfg | None = None,
-        source_mode: OnlineSourceMode,
-        future_steps: int,
-        num_envs: int,
-        reset_robot_to_reference: bool = True,
-        reference_debug_vis: bool | None = None,
-        observation: OnlineObservationCfg | None = None,
-    ) -> str: ...

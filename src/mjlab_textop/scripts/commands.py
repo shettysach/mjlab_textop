@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
 
 import tyro
 from mjlab.scripts.play import PlayConfig, run_play
@@ -17,27 +16,8 @@ from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
 from mjlab_textop.core.schema import FUTURE_STEPS
 from mjlab_textop.scripts.utils import (
     ResolvedPolicy,
-    TaskRegistrar,
 )
-from mjlab_textop.tasks.blocked_straight.registration import (
-    register_blocked_straight_task,
-)
-from mjlab_textop.tasks.online_textop.registration import register_online_textop_task
-from mjlab_textop.tasks.side_goals.registration import register_side_goals_task
-from mjlab_textop.tasks.straight.registration import register_straight_task
-from mjlab_textop.tasks.turn.registration import register_turn_task
-
-TextOpLiveTask = Literal[
-    "default", "straight", "blocked-straight", "side-goals", "turn"
-]
-
-LIVE_TASK_REGISTRY: dict[TextOpLiveTask, TaskRegistrar] = {
-    "default": register_online_textop_task,
-    "straight": register_straight_task,
-    "blocked-straight": register_blocked_straight_task,
-    "side-goals": register_side_goals_task,
-    "turn": register_turn_task,
-}
+from mjlab_textop.tasks.registration import TextOpTask, register_task
 
 
 @dataclass(kw_only=True)
@@ -53,7 +33,7 @@ class NormalizeCommand:
 
 @dataclass(kw_only=True)
 class PlayLiveCommand:
-    task: TextOpLiveTask = "default"
+    task: TextOpTask = "default"
     checkpoint_file: str | None = None
     onnx_file: str | None = None
     host: str = "127.0.0.1"
@@ -85,7 +65,8 @@ def play_live_textop_motion(
     *,
     policy: ResolvedPolicy,
 ) -> None:
-    task_name = LIVE_TASK_REGISTRY[cfg.task](
+    task_name = register_task(
+        cfg.task,
         runner_cls=policy.runner_cls,
         live_source_cfg=SocketSourceCfg(
             host=cfg.host,
@@ -156,7 +137,8 @@ def play_online_textop_motion(
     policy: ResolvedPolicy,
 ) -> None:
     source = make_mjlab_npz_replay_source(motion_file, block_size=cfg.block_size)
-    task_name = register_online_textop_task(
+    task_name = register_task(
+        "default",
         runner_cls=policy.runner_cls,
         source=source,
         source_mode="replay",

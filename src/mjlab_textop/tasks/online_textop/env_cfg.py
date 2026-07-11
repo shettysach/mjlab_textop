@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from mjlab.envs.mdp.observations import projected_gravity
 from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
 from mjlab.tasks.tracking.config.g1.env_cfgs import unitree_g1_flat_tracking_env_cfg
@@ -39,6 +41,7 @@ def make_online_textop_g1_flat_tracking_env_cfg(
     reset_robot_to_reference: bool = True,
     reference_debug_vis: bool | None = None,
     observation: OnlineObservationCfg | None = None,
+    policy_format: Literal["pt", "onnx"] = "pt",
 ):
     cfg = unitree_g1_flat_tracking_env_cfg(play=play)
 
@@ -57,45 +60,15 @@ def make_online_textop_g1_flat_tracking_env_cfg(
     cfg.sim.mujoco.timestep = TEXTOP_DEPLOY_SIM_TIMESTEP
     cfg.decimation = TEXTOP_DEPLOY_DECIMATION
 
-    configure_textop_actor_observations(cfg)
-    configure_textop_critic_observations(cfg)
+    if policy_format == "onnx":
+        configure_textop_onnx_actor_observations(cfg)
+    else:
+        configure_textop_actor_observations(cfg)
+        configure_textop_critic_observations(cfg)
     configure_online_textop_tracking_terms(cfg)
 
-    return cfg
-
-
-def make_online_textop_onnx_g1_flat_tracking_env_cfg(
-    *,
-    play: bool = True,
-    future_steps: int = FUTURE_STEPS,
-    source: OnlineSource | None = None,
-    live_source_cfg: SocketSourceCfg | None = None,
-    source_mode: OnlineSourceMode = "live",
-    reset_robot_to_reference: bool = True,
-    reference_debug_vis: bool | None = None,
-    observation: OnlineObservationCfg | None = None,
-):
-    cfg = unitree_g1_flat_tracking_env_cfg(play=play)
-
-    use_online_textop_motion_command(
-        cfg,
-        command_name="motion",
-        future_steps=future_steps,
-        source=source,
-        live_source_cfg=live_source_cfg,
-        source_mode=source_mode,
-        reset_robot_to_reference=reset_robot_to_reference,
-        debug_vis=reference_debug_vis,
-        observation=observation,
-    )
-    cfg.commands["motion"].anchor_body_name = "pelvis"  # ty:ignore[unresolved-attribute]
-    cfg.sim.mujoco.timestep = TEXTOP_DEPLOY_SIM_TIMESTEP
-    cfg.decimation = TEXTOP_DEPLOY_DECIMATION
-
-    configure_textop_onnx_actor_observations(cfg)
-    configure_online_textop_tracking_terms(cfg)
-
-    cfg.events.pop("push_robot", None)
+    if policy_format == "onnx":
+        cfg.events.pop("push_robot", None)
 
     return cfg
 

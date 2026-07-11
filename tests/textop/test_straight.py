@@ -8,13 +8,11 @@ from mjlab.tasks.registry import load_env_cfg, load_runner_cls
 
 from mjlab_textop.core.mdp.observations import future_joint_window_textop_order
 from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
+from mjlab_textop.tasks.registration import register_task
 from mjlab_textop.tasks.straight import mdp
 from mjlab_textop.tasks.straight.env_cfg import (
     STRAIGHT_TASK_CFG,
     make_straight_g1_env_cfg,
-)
-from mjlab_textop.tasks.straight.registration import (
-    register_straight_task,
 )
 
 
@@ -37,7 +35,8 @@ def test_straight_play_task_uses_onnx_runner(tmp_path) -> None:
     onnx_file = tmp_path / "policy.onnx"
     onnx_file.write_text("onnx")
 
-    task_name = register_straight_task(
+    task_name = register_task(
+        "straight",
         runner_cls=OnnxPolicyRunner,
         source_mode="live",
         future_steps=2,
