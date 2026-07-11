@@ -15,7 +15,7 @@ class OnnxPolicy:
     def __init__(self, policy_file: Path, device: str = "cpu"):
         import onnxruntime as ort
 
-        self.onnx_device = _normalize_onnx_device(torch.device(device))
+        self.onnx_device = torch.device(device)
         providers = _onnx_providers_for_device(ort, self.onnx_device)
         self.session = ort.InferenceSession(str(policy_file), providers=providers)
         self.input_name = self.session.get_inputs()[0].name
@@ -72,13 +72,11 @@ class OnnxPolicy:
             device=obs.device,
             dtype=torch.float32,
         )
-        device_id = _cuda_device_id(obs.device)
-
         binding = self.session.io_binding()
         binding.bind_input(
             name=self.input_name,
             device_type="cuda",
-            device_id=device_id,
+            device_id=obs.device,
             element_type=np.float32,
             shape=tuple(obs.shape),
             buffer_ptr=obs.data_ptr(),
@@ -86,7 +84,7 @@ class OnnxPolicy:
         binding.bind_output(
             name=self.output_name,
             device_type="cuda",
-            device_id=device_id,
+            device_id=obs.device,
             element_type=np.float32,
             shape=tuple(action_textop.shape),
             buffer_ptr=action_textop.data_ptr(),
@@ -131,8 +129,7 @@ def _actor_obs(obs: torch.Tensor | Any) -> torch.Tensor:
 
     if not isinstance(actor_obs, torch.Tensor):
         raise RuntimeError(
-            f"Expected observation to be a tensor, got "
-            f"{type(actor_obs).__name__}"
+            f"Expected observation to be a tensor, got {type(actor_obs).__name__}"
         )
     return actor_obs
 
@@ -168,18 +165,6 @@ def _onnx_providers_for_device(ort: Any, torch_device: torch.device) -> list[Any
         )
 
     return [
-        ("CUDAExecutionProvider", {"device_id": _cuda_device_id(torch_device)}),
+        ("CUDAExecutionProvider", {"device_id": torch_device}),
         "CPUExecutionProvider",
     ]
-
-
-def _normalize_onnx_device(torch_device: torch.device) -> torch.device:
-    if torch_device.type == "cuda" and torch_device.index is None:
-        return torch.device("cuda:0")
-    return torch_device
-
-
-def _cuda_device_id(torch_device: torch.device) -> int:
-    if torch_device.type != "cuda":
-        raise RuntimeError(f"Expected CUDA device, got {torch_device}")
-    return 0 if torch_device.index is None else int(torch_device.index)
