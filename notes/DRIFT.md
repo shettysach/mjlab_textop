@@ -1,51 +1,32 @@
+# Drift Investigation
+
 **Problem**
 
-`play-live` with TextOp ONNX policy shows unstable/chasing behavior. The reference ghost drifts smoothly and can move much farther than the robot. The robot sometimes looks slow, catch-up-ish, or worse depending on bridge changes.
+In `play-live`, the TextOp ghost drifts forward while standing/squatting. The MJLab robot stays put, then walks forward to catch up and eventually loses balance.
 
-**Observations**
+**Findings**
 
-- Current static ONNX contract mostly matches TextOp Python `deploy_mujoco.py`:
-  - Observation order matches.
-  - `future_anchor_pos_b` should be real, not zeroed.
-  - Anchor body is `pelvis`.
-  - Control rate is 50 Hz.
-  - Action scale/default offset appear matched.
-  - Reset-to-reference is enabled and writes joint pos/vel plus root pos/quat.
+- `observation_computer.cpp` is the relevant live-deploy reference. `deploy_mujoco.py` is offline replay and resets to the first motion pose.
+- TextOp's C++ deploy has a debug block that zeros future anchor position; its Python deploy keeps the displacement. MJLab needs the real displacement for walking.
+- RobotMDAR's producer and MJLab `produce.py` agree on anchor position and quaternion conventions.
+- TextOp's fixed-start global reference transform is unsuitable for live RobotMDAR data: drifting anchor offsets make the ghost move away, so the policy chases it.
 
-- TextOp has conflicting deploy paths:
-  - C++ deploy manually zeros future anchor position.
-  - Python MuJoCo ONNX deploy does not zero it.
-  - Your released ONNX behavior matches Python deploy better than C++ deploy.
+**Experiments**
 
-- Remaining likely suspects:
-  - RobotMDAR root trajectory magnitude or vertical drift.
-  - Live block continuity across block boundaries.
-  - Yaw/reference-frame convention mismatch.
-  - Startup/reset root velocity being zero.
-  - Live buffering behavior may matter, but strict no-skip timing was not better.
+- Only zeroing `future_anchor_pos_b`: robot walked slowly while the ghost moved away. Wrong.
+- Restoring real anchor displacement: better. Keep it.
+- Strict no-skip frame clock: worse. Default catch-up behavior is preferable here.
+- Action scales/default offsets and static observation layout: matched; not the primary issue.
+- `direct_world`: removed; unnecessary for TextOp compatibility.
+- Fixed-start global XY alignment: brought the forward drift back.
+- Moving-window XY alignment fixed the drift: subtract the first reference anchor and add the current robot anchor. Z remains startup-relative: robot start Z plus reference Z delta. Quaternions are unchanged.
 
-**Experiments and Results**
+**Current state**
 
-- **Zero `future_anchor_pos_b` for ONNX**
-  - Result: robot walked very slowly; ghost drifted farther away.
-  - Conclusion: wrong default. ONNX policy needs translational anchor displacement for walking.
+The anchor-position fix and Z-position fix are both required. Stored start anchors are tensors, not `Tensor | None`, so nullable-indexing diagnostics are avoided. The command currently supports one environment; `_aligned_reference_pos` still uses `[0]`. True batched references would require per-environment vectorization.
 
-- **Restore true `future_anchor_pos_b`**
-  - Result: better than zeroing.
-  - Conclusion: keep true future anchor position.
+Legs cross while walking
 
-- **Strict live clock: no catch-up jumps**
-  - Change: only advance from `current_frame` to `current_frame + 1`; never jump to latest buffered frame.
-  - Result: worse.
-  - Conclusion: strict clock is not the fix; default catch-up behavior is preferable in current live setup.
+**Validation**
 
-- **Action scale suspicion**
-  - Checked TextOp and MJLab values.
-  - Result: values appear intentionally matched.
-  - Conclusion: not the top suspect.
-
-- **Static TextOp compatibility check**
-  - Result: repo already matches most Python deploy assumptions.
-  - Conclusion: issue is likely dynamic/reference-data related, not observation layout.
-
-Stop trying to exactly copy Python deploy at the frame-clock level. Python deploy is offline replay. Your system is online generated rolling-reference control.
+Focused online tests: 42 passed. Ruff and `ty` passed. The full suite previously passed: 147 tests.
