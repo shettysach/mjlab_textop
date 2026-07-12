@@ -11,8 +11,8 @@ import torch
 from mjlab_textop.core.onnx_policy import (
     OnnxPolicy,
     OnnxPolicyRunner,
-    _cuda_device_id,
     _check_cuda_iobinding_obs,
+    _cuda_device_id,
 )
 from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
 
@@ -47,6 +47,23 @@ def _install_fake_onnxruntime(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(sys.modules, "onnxruntime", fake_ort)
 
 
+def _install_fake_cuda_stream(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(torch.cuda, "device", lambda _device: _NullContext())
+    monkeypatch.setattr(
+        torch.cuda,
+        "current_stream",
+        lambda _device: SimpleNamespace(cuda_stream=1234),
+    )
+
+
+class _NullContext:
+    def __enter__(self) -> None:
+        return None
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+
 def test_textop_onnx_policy_reindexes_action_to_mjlab_order(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -71,10 +88,18 @@ def test_textop_onnx_policy_uses_cuda_provider_for_cuda_device(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install_fake_onnxruntime(monkeypatch)
+    _install_fake_cuda_stream(monkeypatch)
     policy = OnnxPolicy(Path("latest.onnx"), device="cuda:1")
 
     assert policy.session.providers == [
-        ("CUDAExecutionProvider", {"device_id": 1}),
+        (
+            "CUDAExecutionProvider",
+            {
+                "device_id": 1,
+                "user_compute_stream": "1234",
+                "do_copy_in_default_stream": "1",
+            },
+        ),
         "CPUExecutionProvider",
     ]
 
@@ -96,6 +121,7 @@ def test_textop_onnx_policy_accepts_cpu_obs_for_cuda_device(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install_fake_onnxruntime(monkeypatch)
+    _install_fake_cuda_stream(monkeypatch)
     policy = OnnxPolicy(Path("latest.onnx"), device="cuda:0")
 
     with pytest.raises(RuntimeError, match="Expected ONNX CUDA obs on cuda:0"):
@@ -106,11 +132,19 @@ def test_textop_onnx_policy_uses_zero_cuda_device_id_for_plain_cuda(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install_fake_onnxruntime(monkeypatch)
+    _install_fake_cuda_stream(monkeypatch)
     policy = OnnxPolicy(Path("latest.onnx"), device="cuda")
 
     assert policy.onnx_device == torch.device("cuda:0")
     assert policy.session.providers == [
-        ("CUDAExecutionProvider", {"device_id": 0}),
+        (
+            "CUDAExecutionProvider",
+            {
+                "device_id": 0,
+                "user_compute_stream": "1234",
+                "do_copy_in_default_stream": "1",
+            },
+        ),
         "CPUExecutionProvider",
     ]
 

@@ -166,8 +166,18 @@ def _onnx_providers_for_device(ort: Any, torch_device: torch.device) -> list[Any
             "extra and verify CUDA libraries are visible to onnxruntime-gpu."
         )
 
+    with torch.cuda.device(torch_device):
+        stream_ptr = torch.cuda.current_stream(torch_device).cuda_stream
+
     return [
-        ("CUDAExecutionProvider", {"device_id": _cuda_device_id(torch_device)}),
+        (
+            "CUDAExecutionProvider",
+            {
+                "device_id": _cuda_device_id(torch_device),
+                "user_compute_stream": str(stream_ptr),
+                "do_copy_in_default_stream": "1",
+            },
+        ),
         "CPUExecutionProvider",
     ]
 
