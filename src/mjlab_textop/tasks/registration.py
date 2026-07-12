@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Literal
 from uuid import uuid4
 
+from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.tasks.registry import register_mjlab_task
 from mjlab.tasks.tracking.config.g1.rl_cfg import unitree_g1_tracking_ppo_runner_cfg
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
@@ -16,9 +16,7 @@ from mjlab_textop.core.online.source import OnlineSource
 from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
 from mjlab_textop.core.schema import FUTURE_STEPS
 from mjlab_textop.tasks.blocked_straight.env_cfg import make_blocked_straight_g1_env_cfg
-from mjlab_textop.tasks.online_textop.env_cfg import (
-    make_online_textop_g1_flat_tracking_env_cfg,
-)
+from mjlab_textop.tasks.online_textop.env_cfg import make_online_textop_g1_env_cfg
 from mjlab_textop.tasks.side_goals.env_cfg import make_side_goals_g1_env_cfg
 from mjlab_textop.tasks.straight.env_cfg import make_straight_g1_env_cfg
 from mjlab_textop.tasks.turn.env_cfg import make_turn_task_g1_env_cfg
@@ -26,24 +24,12 @@ from mjlab_textop.tasks.turn.env_cfg import make_turn_task_g1_env_cfg
 TextOpTask = Literal["default", "straight", "blocked-straight", "side-goals", "turn"]
 PolicyRunnerCls = type[MotionTrackingOnPolicyRunner] | type[OnnxPolicyRunner]
 
-
-@dataclass(frozen=True)
-class TaskSpec:
-    name: str
-    make_env_cfg: Callable[..., Any]
-
-
-TASK_SPECS: dict[TextOpTask, TaskSpec] = {
-    "default": TaskSpec(
-        "Mjlab-OnlineTextOp-Flat-Unitree-G1",
-        make_online_textop_g1_flat_tracking_env_cfg,
-    ),
-    "straight": TaskSpec("Mjlab-VLA-Straight-G1", make_straight_g1_env_cfg),
-    "blocked-straight": TaskSpec(
-        "Mjlab-VLA-BlockedStraight-G1", make_blocked_straight_g1_env_cfg
-    ),
-    "side-goals": TaskSpec("Mjlab-VLA-SideGoals-G1", make_side_goals_g1_env_cfg),
-    "turn": TaskSpec("Mjlab-VLA-TurnTask-G1", make_turn_task_g1_env_cfg),
+TASK_CFGS: dict[TextOpTask, Callable[..., ManagerBasedRlEnvCfg]] = {
+    "default": make_online_textop_g1_env_cfg,
+    "straight": make_straight_g1_env_cfg,
+    "blocked-straight": make_blocked_straight_g1_env_cfg,
+    "side-goals": make_side_goals_g1_env_cfg,
+    "turn": make_turn_task_g1_env_cfg,
 }
 
 
@@ -60,19 +46,13 @@ def register_task(
     reference_debug_vis: bool | None = None,
     observation: OnlineObservationCfg | None = None,
 ) -> str:
-    spec = TASK_SPECS[task]
+    make_env_cfg = TASK_CFGS[task]
     policy_format: Literal["pt", "onnx"] = (
         "onnx" if runner_cls is OnnxPolicyRunner else "pt"
     )
-    task_name = "-".join(
-        (
-            spec.name,
-            policy_format,
-            source_mode.capitalize(),
-            uuid4().hex,
-        )
-    )
-    env_cfg = spec.make_env_cfg(
+    name_parts = [task, policy_format, source_mode.capitalize(), uuid4().hex]
+    task_name = "-".join(name_parts)
+    env_cfg = make_env_cfg(
         play=True,
         future_steps=future_steps,
         source=source,

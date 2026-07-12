@@ -14,7 +14,7 @@ from mjlab_textop.core.online.live import SocketSourceCfg
 from mjlab_textop.core.online.source import OnlineSource
 from mjlab_textop.core.schema import FUTURE_STEPS
 from mjlab_textop.tasks.online_textop.env_cfg import (
-    make_online_textop_g1_flat_tracking_env_cfg,
+    make_online_textop_g1_env_cfg,
 )
 from mjlab_textop.tasks.straight import mdp
 from mjlab_textop.tasks.turn.assets import make_turn_task_spec_fn
@@ -49,7 +49,7 @@ def make_turn_task_g1_env_cfg(
     policy_format: Literal["pt", "onnx"] = "pt",
     task_cfg: TurnTaskCfg = TURN_TASK_CFG,
 ):
-    cfg = make_online_textop_g1_flat_tracking_env_cfg(
+    cfg = make_online_textop_g1_env_cfg(
         play=play,
         future_steps=future_steps,
         source=source,

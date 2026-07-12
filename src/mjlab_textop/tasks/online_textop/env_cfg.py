@@ -31,7 +31,7 @@ TEXTOP_DEPLOY_SIM_TIMESTEP = 0.002
 TEXTOP_DEPLOY_DECIMATION = 10
 
 
-def make_online_textop_g1_flat_tracking_env_cfg(
+def make_online_textop_g1_env_cfg(
     *,
     play: bool = True,
     future_steps: int = FUTURE_STEPS,
@@ -62,13 +62,12 @@ def make_online_textop_g1_flat_tracking_env_cfg(
 
     if policy_format == "onnx":
         configure_textop_onnx_actor_observations(cfg)
+        cfg.events.pop("push_robot", None)
     else:
         configure_textop_actor_observations(cfg)
         configure_textop_critic_observations(cfg)
-    configure_online_textop_tracking_terms(cfg)
 
-    if policy_format == "onnx":
-        cfg.events.pop("push_robot", None)
+    configure_online_textop_tracking_terms(cfg)
 
     return cfg
 

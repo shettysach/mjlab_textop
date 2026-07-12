@@ -17,7 +17,7 @@ from mjlab_textop.tasks.blocked_straight.assets import (
     make_blocked_straight_spec_fn,
 )
 from mjlab_textop.tasks.online_textop.env_cfg import (
-    make_online_textop_g1_flat_tracking_env_cfg,
+    make_online_textop_g1_env_cfg,
 )
 from mjlab_textop.tasks.straight import mdp
 
@@ -51,7 +51,7 @@ def make_blocked_straight_g1_env_cfg(
     policy_format: Literal["pt", "onnx"] = "pt",
     task_cfg: BlockedStraightTaskCfg = BLOCKED_STRAIGHT_TASK_CFG,
 ):
-    cfg = make_online_textop_g1_flat_tracking_env_cfg(
+    cfg = make_online_textop_g1_env_cfg(
         play=play,
         future_steps=future_steps,
         source=source,

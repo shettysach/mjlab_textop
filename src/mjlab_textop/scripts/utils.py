@@ -6,8 +6,7 @@ from pathlib import Path
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
 from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
-
-PolicyRunnerCls = type[MotionTrackingOnPolicyRunner] | type[OnnxPolicyRunner]
+from mjlab_textop.tasks.registration import PolicyRunnerCls
 
 
 def verify_resolved(resolved: Path, label: str) -> Path:

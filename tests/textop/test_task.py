@@ -10,7 +10,7 @@ from mjlab_textop.core.online.source import MotionBlock, QueueOnlineSource
 from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
 from mjlab_textop.core.schema import FUTURE_STEPS
 from mjlab_textop.tasks.online_textop.env_cfg import (
-    make_online_textop_g1_flat_tracking_env_cfg,
+    make_online_textop_g1_env_cfg,
 )
 from mjlab_textop.tasks.registration import register_task
 from mjlab_textop.tasks.textop_tracking.env_cfg import (
@@ -28,7 +28,7 @@ def test_textop_env_cfg_uses_textop_motion_command() -> None:
 
 
 def test_online_textop_env_cfg_uses_online_motion_command() -> None:
-    env_cfg = make_online_textop_g1_flat_tracking_env_cfg(play=True)
+    env_cfg = make_online_textop_g1_env_cfg(play=True)
     motion_cmd = env_cfg.commands["motion"]
 
     assert isinstance(motion_cmd, OnlineMotionCommandCfg)
@@ -38,9 +38,7 @@ def test_online_textop_env_cfg_uses_online_motion_command() -> None:
 
 
 def test_online_textop_onnx_env_cfg_uses_online_motion_command() -> None:
-    env_cfg = make_online_textop_g1_flat_tracking_env_cfg(
-        play=True, policy_format="onnx"
-    )
+    env_cfg = make_online_textop_g1_env_cfg(play=True, policy_format="onnx")
     motion_cmd = env_cfg.commands["motion"]
 
     assert isinstance(motion_cmd, OnlineMotionCommandCfg)
@@ -142,19 +140,17 @@ def test_online_textop_live_task_uses_live_source_mode() -> None:
 
 def test_online_textop_onnx_env_cfg_uses_textop_deploy_timing() -> None:
     from mjlab_textop.tasks.online_textop.env_cfg import (
-        make_online_textop_g1_flat_tracking_env_cfg,
+        make_online_textop_g1_env_cfg,
     )
 
-    env_cfg = make_online_textop_g1_flat_tracking_env_cfg(
-        play=True, policy_format="onnx"
-    )
+    env_cfg = make_online_textop_g1_env_cfg(play=True, policy_format="onnx")
 
     assert env_cfg.sim.mujoco.timestep == 0.002
     assert env_cfg.decimation == 10
 
 
 def test_online_textop_task_removes_full_body_tracking_terms() -> None:
-    env_cfg = make_online_textop_g1_flat_tracking_env_cfg(play=True)
+    env_cfg = make_online_textop_g1_env_cfg(play=True)
 
     assert "body_pos" not in env_cfg.observations["critic"].terms
     assert "body_ori" not in env_cfg.observations["critic"].terms
@@ -184,9 +180,7 @@ def test_textop_actor_observation_order() -> None:
 
 
 def test_textop_onnx_actor_observation_order_and_no_corruption() -> None:
-    env_cfg = make_online_textop_g1_flat_tracking_env_cfg(
-        play=True, policy_format="onnx"
-    )
+    env_cfg = make_online_textop_g1_env_cfg(play=True, policy_format="onnx")
 
     assert list(env_cfg.observations["actor"].terms) == [
         "future_joint_window",
