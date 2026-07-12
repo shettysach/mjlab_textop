@@ -348,6 +348,7 @@ class OnlineMotionCommand(CommandTerm):
         )
 
         anchor_pos_w = self._fixed_start_reference_pos(anchor_pos_w)
+        # anchor_pos_w = self._zero_future_anchor_pos_w(anchor_pos_w)
 
         window = FutureWindow(
             joint_pos=joint_pos,
@@ -389,6 +390,19 @@ class OnlineMotionCommand(CommandTerm):
         self._future_cache_frame = None
         self._future_cache = None
 
+    # Place the raw reference origin at the robot's startup anchor.
+    def _fixed_start_reference_pos(self, anchor_pos_w: torch.Tensor) -> torch.Tensor:
+        return (
+            self._robot_start_anchor_pos_w[0]
+            + anchor_pos_w
+            - self._reference_start_anchor_pos_w[0]
+        )
+
+    # FIX: Meant to fix the drift, see /notes/DRIFT.md
+    # Match TextOpDeploy's unconditional zero anchor-position observation.
+    def _zero_future_anchor_pos_w(self, anchor_pos_w: torch.Tensor) -> torch.Tensor:
+        return self.robot_anchor_pos_w[0].expand_as(anchor_pos_w)
+
     # FIX: Meant to fix the drift, see /notes/DRIFT.md
     # XY is re-anchored to the current robot anchor.
     # Z preserves reference height motion, offset to the robot's start height.
@@ -406,14 +420,6 @@ class OnlineMotionCommand(CommandTerm):
         )
 
         return aligned_pos_w
-
-    # Place the raw reference origin at the robot's startup anchor.
-    def _fixed_start_reference_pos(self, anchor_pos_w: torch.Tensor) -> torch.Tensor:
-        return (
-            self._robot_start_anchor_pos_w[0]
-            + anchor_pos_w
-            - self._reference_start_anchor_pos_w[0]
-        )
 
     def _align_reference_anchor(self) -> None:
         _, _, anchor_pos_w, _, _ = self.buffer.get_future(
