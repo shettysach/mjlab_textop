@@ -93,7 +93,7 @@ class SocketOnlineSource:
         self.fps = cfg.fps
         self.diagnostics = TextOpLiveDiagnostics()
         self._queue: deque[MotionBlock] = deque()
-        self._lock = threading.Lock()
+        self._queue_condition = threading.Condition()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._sock: socket.socket | None = None
@@ -107,6 +107,8 @@ class SocketOnlineSource:
 
     def close(self) -> None:
         self._stop.set()
+        with self._queue_condition:
+            self._queue_condition.notify_all()
         if self._sock is not None:
             try:
                 self._sock.shutdown(socket.SHUT_RDWR)
@@ -120,13 +122,14 @@ class SocketOnlineSource:
             self._thread.join(timeout=1.0)
 
     def poll(self) -> MotionBlock | None:
-        with self._lock:
+        with self._queue_condition:
             if not self._queue:
                 self._sync_queue_depth_locked()
                 return None
             block = self._queue.popleft()
             self.diagnostics.blocks_polled += 1
             self._sync_queue_depth_locked()
+            self._queue_condition.notify()
             return block
 
     def append_message(self, message: str | bytes | dict[str, Any]) -> None:
@@ -154,15 +157,19 @@ class SocketOnlineSource:
         try:
             self.append_message(line)
         except (TypeError, ValueError, json.JSONDecodeError) as exc:
-            with self._lock:
+            with self._queue_condition:
                 self.diagnostics.bad_messages += 1
                 self.diagnostics.last_error = str(exc)
 
     def _append_block(self, block: MotionBlock) -> None:
-        with self._lock:
-            if len(self._queue) >= self.cfg.max_queue_blocks:
-                self._queue.popleft()
-                self.diagnostics.blocks_dropped += 1
+        with self._queue_condition:
+            while (
+                len(self._queue) >= self.cfg.max_queue_blocks
+                and not self._stop.is_set()
+            ):
+                self._queue_condition.wait()
+            if self._stop.is_set():
+                return
             self._queue.append(block)
             self.diagnostics.blocks_received += 1
             self._sync_queue_depth_locked()

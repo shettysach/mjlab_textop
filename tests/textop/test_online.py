@@ -205,9 +205,10 @@ def test_rolling_buffer_rejects_request_before_earliest_frame() -> None:
         buffer.get_future(0, 5)
 
 
-def test_rolling_buffer_evicts_old_frames() -> None:
-    buffer = RollingMotionBuffer(max_frames=5)
+def test_rolling_buffer_discards_only_frames_behind_consumer() -> None:
+    buffer = RollingMotionBuffer()
     buffer.append_block(motion_block(index=0, frames=8))
+    buffer.discard_before(3)
 
     assert buffer.frame_count == 5
     assert buffer.can_start(0, 5) is False
@@ -493,7 +494,6 @@ def test_online_command_replay_does_not_evict_preloaded_frames() -> None:
             source_mode="replay",
             future_steps=5,
             max_poll_blocks=16,
-            max_buffer_frames=32,
         ),
         fake_env(),
     )
@@ -502,7 +502,6 @@ def test_online_command_replay_does_not_evict_preloaded_frames() -> None:
 
     assert command._started is True
     assert command.current_frame == 0
-    assert command.buffer.max_frames is None
     assert command.buffer.earliest_index == 0
     assert command.buffer.frame_count == 1024
     assert command.future_joint_pos.shape == (1, 5, 29)
@@ -936,7 +935,7 @@ def test_online_command_live_reset_before_first_start_uses_initial_window() -> N
     source = _LiveTextOpOnlineSource(
         [
             motion_block(index=100, frames=8),
-            motion_block(index=200, frames=8),
+            motion_block(index=108, frames=8),
         ]
     )
     command = OnlineMotionCommand(
@@ -956,7 +955,7 @@ def test_online_command_live_reset_before_first_start_uses_initial_window() -> N
     assert command._last_stale_steps == 0
 
 
-def test_online_command_live_reset_attaches_to_next_full_future_window() -> None:
+def test_online_command_live_reset_rejects_non_contiguous_stream() -> None:
     source = _LiveTextOpOnlineSource([motion_block(index=0, frames=8)])
     command = OnlineMotionCommand(
         OnlineMotionCommandCfg(
@@ -974,12 +973,8 @@ def test_online_command_live_reset_attaches_to_next_full_future_window() -> None
             motion_block(index=103, frames=5),
         ]
     )
-    command._resample_command(torch.tensor([0]))
-
-    assert command._started is True
-    assert command._has_started_once is True
-    assert command.current_frame == 103
-    assert command._last_stale_steps == 0
+    with pytest.raises(RuntimeError, match="Non-contiguous RobotMDAR live stream"):
+        command._resample_command(torch.tensor([0]))
 
 
 def test_online_command_live_pauses_before_advancing_into_stale_window() -> None:
@@ -1008,7 +1003,7 @@ def test_online_command_live_pauses_before_advancing_into_stale_window() -> None
     assert command.current_frame == 4
 
 
-def test_online_command_live_resyncs_when_stream_jumps_ahead() -> None:
+def test_online_command_live_rejects_stream_jump_ahead() -> None:
     source = _LiveTextOpOnlineSource([motion_block(index=0, frames=8)])
     command = OnlineMotionCommand(
         OnlineMotionCommandCfg(
@@ -1029,11 +1024,39 @@ def test_online_command_live_resyncs_when_stream_jumps_ahead() -> None:
             motion_block(index=103, frames=5),
         ]
     )
+    with pytest.raises(RuntimeError, match="Non-contiguous RobotMDAR live stream"):
+        command._update_command()
+
+
+def test_online_command_live_prunes_frames_behind_current_frame() -> None:
+    source = _LiveTextOpOnlineSource([motion_block(index=0, frames=8)])
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(
+            source=source,
+            source_mode="live",
+            future_steps=5,
+        ),
+        fake_env(),
+    )
+    command._update_command()
     command._update_command()
 
-    assert command.current_frame == 103
-    assert command.future_joint_pos.shape == (1, 5, 29)
-    assert command._last_stale_steps == 0
+    assert command.current_frame == 1
+    assert command.buffer.earliest_index == 1
+
+
+def test_online_command_live_polling_uses_hysteresis() -> None:
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(source=QueueOnlineSource(), source_mode="live"),
+        fake_env(),
+    )
+    command.buffer.append_block(motion_block(index=0, frames=151))
+
+    assert command._should_poll_live_source() is False
+
+    command.current_frame = 101
+
+    assert command._should_poll_live_source() is True
 
 
 def test_use_online_textop_motion_command_preserves_injected_source() -> None:

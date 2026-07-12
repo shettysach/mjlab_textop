@@ -33,6 +33,9 @@ from mjlab_textop.core.online.source import (
 )
 from mjlab_textop.core.schema import FUTURE_STEPS, G1_JOINT_COUNT
 
+LIVE_BUFFER_LOW_WATERMARK_FRAMES = 50
+LIVE_BUFFER_HIGH_WATERMARK_FRAMES = 150
+
 
 @dataclass(kw_only=True)
 class OnlineMotionCommandCfg(CommandTermCfg):
@@ -46,7 +49,6 @@ class OnlineMotionCommandCfg(CommandTermCfg):
     start_frame: int = 0
     startup_timeout_steps: int = 250
     max_poll_blocks: int = 16
-    max_buffer_frames: int | None = 512
     clear_buffer_on_reset: bool = True
     reset_robot_to_reference: bool = True
     observation: OnlineObservationCfg | None = None
@@ -83,13 +85,7 @@ class OnlineMotionCommand(CommandTerm):
 
         self.robot = env.scene[cfg.entity_name]
         self.robot_anchor_body_index = self.robot.body_names.index(cfg.anchor_body_name)
-        max_buffer_frames = (
-            None if self.cfg.source_mode == "replay" else self.cfg.max_buffer_frames
-        )
-        self.buffer = RollingMotionBuffer(
-            device=self.device,
-            max_frames=max_buffer_frames,
-        )
+        self.buffer = RollingMotionBuffer(device=self.device)
         self.current_frame = int(self.cfg.start_frame)
         self._started = False
         self._has_started_once = False
@@ -97,6 +93,7 @@ class OnlineMotionCommand(CommandTerm):
         self._last_stale_steps = 0
         self._consecutive_stale_steps = 0
         self._last_stale_frame: int | None = None
+        self._live_polling_paused = False
         self.observation_reporter = (
             None
             if cfg.observation is None
@@ -252,6 +249,7 @@ class OnlineMotionCommand(CommandTerm):
         self._last_stale_steps = 0
         self._consecutive_stale_steps = 0
         self._last_stale_frame = None
+        self._live_polling_paused = False
         self._reference_start_anchor_pos_w.zero_()
         self._robot_start_anchor_pos_w.zero_()
         self._clear_future_cache()
@@ -286,15 +284,43 @@ class OnlineMotionCommand(CommandTerm):
         if self.cfg.source_mode == "live" and not self._can_advance_live_frame():
             return
         self.current_frame += 1
+        if self.cfg.source_mode == "live":
+            self.buffer.discard_before(self.current_frame)
         self._clear_future_cache()
 
     def _poll_source(self) -> None:
         for _ in range(self.cfg.max_poll_blocks):
+            if self.cfg.source_mode == "live" and not self._should_poll_live_source():
+                return
             block = self.source.poll()
             if block is None:
                 return
+            if self.cfg.source_mode == "live":
+                latest_index = self.buffer.latest_index
+                if latest_index is not None and block.index != latest_index + 1:
+                    raise RuntimeError(
+                        "Non-contiguous RobotMDAR live stream: "
+                        f"expected block index {latest_index + 1}, got "
+                        f"{block.index}"
+                    )
             self.buffer.append_block(block)
             self._clear_future_cache()
+
+    def _should_poll_live_source(self) -> bool:
+        latest_index = self.buffer.latest_index
+        if latest_index is None:
+            self._live_polling_paused = False
+            return True
+
+        future_lead = latest_index - self.current_frame
+        if self._live_polling_paused:
+            if future_lead >= LIVE_BUFFER_LOW_WATERMARK_FRAMES:
+                return False
+            self._live_polling_paused = False
+        elif future_lead >= LIVE_BUFFER_HIGH_WATERMARK_FRAMES:
+            self._live_polling_paused = True
+            return False
+        return True
 
     def _startup_start_frame(self) -> int | None:
         if self.cfg.source_mode == "live":
@@ -315,24 +341,17 @@ class OnlineMotionCommand(CommandTerm):
         return self._resync_live_start_frame()
 
     def _can_advance_live_frame(self) -> bool:
-        latest_index = self.buffer.latest_index
-        latest_start_frame = self._resync_live_start_frame()
-        if latest_index is None or latest_start_frame is None:
-            return False
-
         if not self.buffer.can_start(self.current_frame, self.cfg.future_steps):
-            if latest_start_frame > self.current_frame:
-                self.current_frame = latest_start_frame
-                self._align_reference_anchor()
-            return False
+            raise RuntimeError(
+                "Lost active live reference window: "
+                f"current={self.current_frame}, "
+                f"earliest={self.buffer.earliest_index}, "
+                f"latest={self.buffer.latest_index}, "
+                f"future_steps={self.cfg.future_steps}"
+            )
 
         next_frame = self.current_frame + 1
-        if self.buffer.can_start(next_frame, self.cfg.future_steps):
-            return True
-        if latest_start_frame > self.current_frame:
-            self.current_frame = latest_start_frame
-            self._align_reference_anchor()
-        return False
+        return self.buffer.can_start(next_frame, self.cfg.future_steps)
 
     def _future_window(self) -> FutureWindow:
         if not self._started:

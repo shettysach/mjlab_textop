@@ -16,12 +16,8 @@ class RollingMotionBuffer:
         self,
         *,
         device: torch.device | str = "cpu",
-        max_frames: int | None = 512,
     ) -> None:
-        if max_frames is not None and max_frames <= 0:
-            raise ValueError(f"max_frames must be positive, got {max_frames}")
         self.device = torch.device(device)
-        self.max_frames = max_frames
         self._joint_pos: dict[int, torch.Tensor] = {}
         self._joint_vel: dict[int, torch.Tensor] = {}
         self._anchor_pos_w: dict[int, torch.Tensor] = {}
@@ -76,7 +72,16 @@ class RollingMotionBuffer:
             if self._latest_index is None
             else max(self._latest_index, block_latest)
         )
-        self._evict_old_frames()
+
+    def discard_before(self, frame: int) -> None:
+        """Discard frames that the live consumer can no longer request."""
+
+        for index in tuple(self._joint_pos):
+            if index < frame:
+                del self._joint_pos[index]
+                del self._joint_vel[index]
+                del self._anchor_pos_w[index]
+                del self._anchor_quat_w[index]
 
     def can_start(self, frame: int, future_steps: int) -> bool:
         return all(
@@ -135,14 +140,3 @@ class RollingMotionBuffer:
             return max(available)
 
         raise RuntimeError(f"No available online TextOp frame at or before {frame}")
-
-    def _evict_old_frames(self) -> None:
-        if self.max_frames is None or self._latest_index is None:
-            return
-        first_kept = self._latest_index - self.max_frames + 1
-        for frame in list(self._joint_pos):
-            if frame < first_kept:
-                del self._joint_pos[frame]
-                del self._joint_vel[frame]
-                del self._anchor_pos_w[frame]
-                del self._anchor_quat_w[frame]

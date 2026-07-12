@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+
 import numpy as np
 import pytest
 from builders import motion_block
@@ -49,20 +51,38 @@ def test_textop_block_parser_rejects_bad_shape() -> None:
         parse_textop_block_message(message)
 
 
-def test_socket_source_queues_and_drops_oldest_blocks() -> None:
+def test_socket_source_blocks_when_queue_is_full() -> None:
     source = SocketOnlineSource(SocketSourceCfg(max_queue_blocks=1))
     source.append_message(textop_block_to_ndjson_message(motion_block(index=0)))
-    source.append_message(textop_block_to_ndjson_message(motion_block(index=8)))
 
-    assert source.diagnostics.blocks_received == 2
-    assert source.diagnostics.blocks_dropped == 1
+    started = threading.Event()
+
+    def append_second_block() -> None:
+        started.set()
+        source.append_message(textop_block_to_ndjson_message(motion_block(index=8)))
+
+    thread = threading.Thread(target=append_second_block)
+    thread.start()
+    assert started.wait(timeout=1.0)
+    thread.join(timeout=0.05)
+    assert thread.is_alive()
+
     assert source.diagnostics.queue_depth == 1
 
     block = source.poll()
 
     assert block is not None
+    assert block.index == 0
+    thread.join(timeout=1.0)
+    assert not thread.is_alive()
+
+    block = source.poll()
+
+    assert block is not None
     assert block.index == 8
-    assert source.diagnostics.blocks_polled == 1
+    assert source.diagnostics.blocks_received == 2
+    assert source.diagnostics.blocks_dropped == 0
+    assert source.diagnostics.blocks_polled == 2
     assert source.diagnostics.queue_depth == 0
 
 
