@@ -55,7 +55,7 @@ uvx hf download Yochish/TextOp-Data \
 # In TextOp directory
 uv run python -m mjlab_textop.robotmdar.record \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
-  --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/BABEL-AMASS-ROBOT-23dof-FULL-50fps \
+  --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/PRIVATE-DATA \
   --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1 \
   --prompt "walk" \
   --num-blocks 200 \
@@ -169,7 +169,7 @@ Setup - [TextOpRobotMDAR Setup](#textoprobotmdar-setup)
 # In TextOp directory
 uv run python -m mjlab_textop.robotmdar.produce \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
-  --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/BABEL-AMASS-ROBOT-23dof-FULL-50fps \
+  --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/PRIVATE-DATA \
   --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1
 ```
 
@@ -192,7 +192,7 @@ returned with a VLM response:
 ```bash
 uv run python -m mjlab_textop.robotmdar.produce \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
-  --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/BABEL-AMASS-ROBOT-23dof-FULL-50fps \
+  --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/PRIVATE-DATA \
   --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1 \
   --planner vlm \
   --prompt "walk" \
@@ -209,7 +209,7 @@ but still uses the manual stdin prompt for motion generation:
 ```bash
 uv run python -m mjlab_textop.robotmdar.produce \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
-  --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/BABEL-AMASS-ROBOT-23dof-FULL-50fps \
+  --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/PRIVATE-DATA \
   --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1 \
   --planner describe \
   --prompt "stand" \
@@ -297,7 +297,7 @@ avoidance behavior.
 ```bash
 uv run python -m mjlab_textop.robotmdar.produce \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
-  --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/BABEL-AMASS-ROBOT-23dof-FULL-50fps \
+  --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/PRIVATE-DATA \
   --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1 \
   --planner vlm \
   --prompt "stand" \

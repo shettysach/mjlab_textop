@@ -349,7 +349,7 @@ def test_online_command_exposes_startup_window_before_source_poll() -> None:
     )
 
 
-def test_online_command_preserves_raw_future_anchor_positions() -> None:
+def test_online_command_aligns_future_anchors_to_fixed_start_frame() -> None:
     source = QueueOnlineSource([motion_block(frames=8, offset=100.0)])
     command = OnlineMotionCommand(
         OnlineMotionCommandCfg(source=source, future_steps=5),
@@ -359,11 +359,11 @@ def test_online_command_preserves_raw_future_anchor_positions() -> None:
     command._update_command()
 
     future_anchor_pos = command.future_anchor_pos_w[0]
-    torch.testing.assert_close(future_anchor_pos[0], torch.tensor([100.0, 0.0, 1.0]))
-    torch.testing.assert_close(future_anchor_pos[1], torch.tensor([101.0, 0.0, 1.0]))
+    torch.testing.assert_close(future_anchor_pos[0], torch.tensor([10.0, 20.0, 30.0]))
+    torch.testing.assert_close(future_anchor_pos[1], torch.tensor([11.0, 20.0, 30.0]))
 
 
-def test_online_command_preserves_raw_reference_z_delta() -> None:
+def test_online_command_fixed_start_alignment_preserves_reference_z_delta() -> None:
     block = motion_block(frames=8, offset=100.0)
     block.anchor_pos_w[:, 2] = np.arange(8, dtype=np.float32) + 2.0
     source = QueueOnlineSource([block])
@@ -375,11 +375,11 @@ def test_online_command_preserves_raw_reference_z_delta() -> None:
     command._update_command()
 
     future_anchor_pos = command.future_anchor_pos_w[0]
-    torch.testing.assert_close(future_anchor_pos[0], torch.tensor([100.0, 0.0, 2.0]))
-    torch.testing.assert_close(future_anchor_pos[1], torch.tensor([101.0, 0.0, 3.0]))
+    torch.testing.assert_close(future_anchor_pos[0], torch.tensor([10.0, 20.0, 30.0]))
+    torch.testing.assert_close(future_anchor_pos[1], torch.tensor([11.0, 20.0, 31.0]))
 
 
-def test_online_command_preserves_raw_future_xy_deltas() -> None:
+def test_online_command_fixed_start_alignment_preserves_future_xy_deltas() -> None:
     block = motion_block(frames=8)
     block.anchor_pos_w[:, :] = np.array(
         [
@@ -407,7 +407,17 @@ def test_online_command_preserves_raw_future_xy_deltas() -> None:
     command._update_command()
     command._update_command()
 
-    expected_pos = torch.tensor(block.anchor_pos_w[1:6])[None, :, :]
+    expected_pos = torch.tensor(
+        [
+            [
+                [10.0, 21.0, 31.0],
+                [9.0, 21.0, 32.0],
+                [9.0, 20.0, 33.0],
+                [10.0, 20.0, 34.0],
+                [11.0, 20.0, 35.0],
+            ]
+        ]
+    )
 
     torch.testing.assert_close(command.future_anchor_pos_w, expected_pos)
     torch.testing.assert_close(
@@ -840,7 +850,8 @@ def test_online_command_replay_reset_rewinds_source() -> None:
         command.current_frame, 1
     )
     expected_root = torch.cat(
-        [command._aligned_reference_pos(raw_anchor_pos), raw_anchor_quat], dim=-1
+        [command._fixed_start_reference_pos(raw_anchor_pos), raw_anchor_quat],
+        dim=-1,
     )
     torch.testing.assert_close(robot.written_root_state[:, :7], expected_root)
     torch.testing.assert_close(robot.written_root_state[:, 7:], torch.zeros(1, 6))
@@ -913,7 +924,8 @@ def test_online_command_live_attaches_to_earliest_full_future_window() -> None:
         command.current_frame, 1
     )
     expected_root = torch.cat(
-        [command._aligned_reference_pos(raw_anchor_pos), raw_anchor_quat], dim=-1
+        [command._fixed_start_reference_pos(raw_anchor_pos), raw_anchor_quat],
+        dim=-1,
     )
     torch.testing.assert_close(robot.written_root_state[:, :7], expected_root)
     torch.testing.assert_close(robot.written_root_state[:, 7:], torch.zeros(1, 6))
