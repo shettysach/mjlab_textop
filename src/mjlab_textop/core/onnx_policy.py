@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import onnxruntime as ort
 import torch
 
 from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
@@ -13,12 +14,13 @@ class OnnxPolicy:
     """Run an ONNX actor and convert its action to MJLab joint order."""
 
     def __init__(self, policy_file: Path, device: str = "cpu"):
-        import onnxruntime as ort
+        # FIXME: self.device = torch.device(device)
+        self.device = torch.device("cpu")  # FIX: Temporary
 
-        self.onnx_device = torch.device(device)
-        if self.onnx_device.type == "cuda" and self.onnx_device.index is None:
+        if self.device.type == "cuda" and self.device.index is None:
             self.onnx_device = torch.device("cuda:0")
-        providers = _onnx_providers_for_device(ort, self.onnx_device)
+
+        providers = _onnx_providers_for_device(ort, self.device)
         self.session = ort.InferenceSession(str(policy_file), providers=providers)
         self.input_name = self.session.get_inputs()[0].name
         self.output_name = self.session.get_outputs()[0].name
@@ -52,7 +54,7 @@ class OnnxPolicy:
         return action_mjlab
 
     def _run(self, obs: torch.Tensor) -> torch.Tensor:
-        if self.onnx_device.type == "cuda":
+        if self.device.type == "cuda":
             return self._run_cuda_iobinding(obs)
         return self._run_cpu(obs)
 
@@ -61,14 +63,13 @@ class OnnxPolicy:
         obs = obs.detach()
         if obs.device.type != "cpu" or obs.dtype != torch.float32:
             obs = obs.to(device="cpu", dtype=torch.float32)
-        if not obs.is_contiguous():
-            obs = obs.contiguous()
+        obs = obs.contiguous()
 
         action_textop_np = self.session.run(None, {self.input_name: obs.numpy()})[0]
         return torch.from_numpy(action_textop_np).to(obs_device)
 
     def _run_cuda_iobinding(self, obs: torch.Tensor) -> torch.Tensor:
-        _check_cuda_iobinding_obs(obs, expected_device=self.onnx_device)
+        _check_cuda_iobinding_obs(obs, expected_device=self.device)
         action_textop = torch.empty(
             (obs.shape[0], 29),
             device=obs.device,
