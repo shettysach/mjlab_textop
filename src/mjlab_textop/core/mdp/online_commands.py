@@ -346,8 +346,10 @@ class OnlineMotionCommand(CommandTerm):
         joint_pos, joint_vel, anchor_pos_w, anchor_quat_w, stale_steps = (
             self.buffer.get_future(self.current_frame, self.cfg.future_steps)
         )
+
         # anchor_pos_w = self._aligned_reference_pos(anchor_pos_w)
-        anchor_pos_w = self._zero_future_anchor_pos_w(anchor_pos_w)
+        # anchor_pos_w = self._zero_future_anchor_pos_w(anchor_pos_w)
+
         window = FutureWindow(
             joint_pos=joint_pos,
             joint_vel=joint_vel,
@@ -362,6 +364,7 @@ class OnlineMotionCommand(CommandTerm):
             else:
                 self._consecutive_stale_steps = 0
             self._last_stale_frame = self.current_frame
+
         # Clamp stale future frames for now. Keep tracking consecutive stale
         # windows so live deployments can surface underruns without aborting.
         self._future_cache_frame = self.current_frame
