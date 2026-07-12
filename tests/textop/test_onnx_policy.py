@@ -11,6 +11,7 @@ import torch
 from mjlab_textop.core.onnx_policy import (
     OnnxPolicy,
     OnnxPolicyRunner,
+    _cuda_device_id,
     _check_cuda_iobinding_obs,
 )
 from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
@@ -112,6 +113,11 @@ def test_textop_onnx_policy_uses_zero_cuda_device_id_for_plain_cuda(
         ("CUDAExecutionProvider", {"device_id": 0}),
         "CPUExecutionProvider",
     ]
+
+
+def test_cuda_device_id_is_an_integer() -> None:
+    assert _cuda_device_id(torch.device("cuda")) == 0
+    assert _cuda_device_id(torch.device("cuda:1")) == 1
 
 
 def test_textop_onnx_policy_accepts_actor_observation_dict(

@@ -16,6 +16,8 @@ class OnnxPolicy:
         import onnxruntime as ort
 
         self.onnx_device = torch.device(device)
+        if self.onnx_device.type == "cuda" and self.onnx_device.index is None:
+            self.onnx_device = torch.device("cuda:0")
         providers = _onnx_providers_for_device(ort, self.onnx_device)
         self.session = ort.InferenceSession(str(policy_file), providers=providers)
         self.input_name = self.session.get_inputs()[0].name
@@ -76,7 +78,7 @@ class OnnxPolicy:
         binding.bind_input(
             name=self.input_name,
             device_type="cuda",
-            device_id=obs.device,
+            device_id=_cuda_device_id(obs.device),
             element_type=np.float32,
             shape=tuple(obs.shape),
             buffer_ptr=obs.data_ptr(),
@@ -84,7 +86,7 @@ class OnnxPolicy:
         binding.bind_output(
             name=self.output_name,
             device_type="cuda",
-            device_id=obs.device,
+            device_id=_cuda_device_id(obs.device),
             element_type=np.float32,
             shape=tuple(action_textop.shape),
             buffer_ptr=action_textop.data_ptr(),
@@ -165,6 +167,10 @@ def _onnx_providers_for_device(ort: Any, torch_device: torch.device) -> list[Any
         )
 
     return [
-        ("CUDAExecutionProvider", {"device_id": torch_device}),
+        ("CUDAExecutionProvider", {"device_id": _cuda_device_id(torch_device)}),
         "CPUExecutionProvider",
     ]
+
+
+def _cuda_device_id(device: torch.device) -> int:
+    return 0 if device.index is None else device.index
