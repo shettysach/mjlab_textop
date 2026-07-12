@@ -349,7 +349,7 @@ def test_online_command_exposes_startup_window_before_source_poll() -> None:
     )
 
 
-def test_online_command_aligns_anchor_position_to_robot_start() -> None:
+def test_online_command_zeros_future_anchor_positions_like_textop_online() -> None:
     source = QueueOnlineSource([motion_block(frames=8, offset=100.0)])
     command = OnlineMotionCommand(
         OnlineMotionCommandCfg(source=source, future_steps=5),
@@ -360,10 +360,10 @@ def test_online_command_aligns_anchor_position_to_robot_start() -> None:
 
     future_anchor_pos = command.future_anchor_pos_w[0]
     torch.testing.assert_close(future_anchor_pos[0], torch.tensor([10.0, 20.0, 30.0]))
-    torch.testing.assert_close(future_anchor_pos[1], torch.tensor([11.0, 20.0, 30.0]))
+    torch.testing.assert_close(future_anchor_pos[1], torch.tensor([10.0, 20.0, 30.0]))
 
 
-def test_online_command_alignment_preserves_reference_z_delta() -> None:
+def test_online_command_zeroing_discards_reference_z_delta() -> None:
     block = motion_block(frames=8, offset=100.0)
     block.anchor_pos_w[:, 2] = np.arange(8, dtype=np.float32) + 2.0
     source = QueueOnlineSource([block])
@@ -376,10 +376,10 @@ def test_online_command_alignment_preserves_reference_z_delta() -> None:
 
     future_anchor_pos = command.future_anchor_pos_w[0]
     torch.testing.assert_close(future_anchor_pos[0], torch.tensor([10.0, 20.0, 30.0]))
-    torch.testing.assert_close(future_anchor_pos[1], torch.tensor([11.0, 20.0, 31.0]))
+    torch.testing.assert_close(future_anchor_pos[1], torch.tensor([10.0, 20.0, 30.0]))
 
 
-def test_online_command_alignment_uses_moving_xy_anchor() -> None:
+def test_online_command_zeroing_discards_future_xy_deltas() -> None:
     block = motion_block(frames=8)
     block.anchor_pos_w[:, :] = np.array(
         [
@@ -407,17 +407,7 @@ def test_online_command_alignment_uses_moving_xy_anchor() -> None:
     command._update_command()
     command._update_command()
 
-    expected_pos = torch.tensor(
-        [
-            [
-                [10.0, 20.0, 31.0],
-                [9.0, 20.0, 32.0],
-                [9.0, 19.0, 33.0],
-                [10.0, 19.0, 34.0],
-                [11.0, 19.0, 35.0],
-            ]
-        ]
-    )
+    expected_pos = torch.tensor([[[10.0, 20.0, 30.0]]]).expand(1, 5, 3)
 
     torch.testing.assert_close(command.future_anchor_pos_w, expected_pos)
     torch.testing.assert_close(

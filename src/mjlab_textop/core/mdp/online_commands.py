@@ -346,7 +346,8 @@ class OnlineMotionCommand(CommandTerm):
         joint_pos, joint_vel, anchor_pos_w, anchor_quat_w, stale_steps = (
             self.buffer.get_future(self.current_frame, self.cfg.future_steps)
         )
-        anchor_pos_w = self._aligned_reference_pos(anchor_pos_w)
+        # anchor_pos_w = self._aligned_reference_pos(anchor_pos_w)
+        anchor_pos_w = self._zero_future_anchor_pos_w(anchor_pos_w)
         window = FutureWindow(
             joint_pos=joint_pos,
             joint_vel=joint_vel,
@@ -403,6 +404,13 @@ class OnlineMotionCommand(CommandTerm):
         )
 
         return aligned_pos_w
+
+    # FIX: Meant to fix the drift, see /notes/DRIFT.md
+    # Match TextOpDeploy's unconditional zero anchor-position observation.
+    # The policy receives anchor positions in the current robot body frame.
+    # Returning the current robot anchor for every future frame therefore makes all five body-frame position vectors zero.
+    def _zero_future_anchor_pos_w(self, anchor_pos_w: torch.Tensor) -> torch.Tensor:
+        return self.robot_anchor_pos_w[0].expand_as(anchor_pos_w)
 
     def _align_reference_anchor(self) -> None:
         _, _, anchor_pos_w, _, _ = self.buffer.get_future(
