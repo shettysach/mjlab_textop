@@ -33,8 +33,8 @@ from mjlab_textop.core.online.source import (
 )
 from mjlab_textop.core.schema import FUTURE_STEPS, G1_JOINT_COUNT
 
-LIVE_BUFFER_LOW_WATERMARK_FRAMES = 50
-LIVE_BUFFER_HIGH_WATERMARK_FRAMES = 150
+LIVE_BUFFER_LOW_WATERMARK_FRAMES = 150
+LIVE_BUFFER_HIGH_WATERMARK_FRAMES = 350
 
 
 @dataclass(kw_only=True)
