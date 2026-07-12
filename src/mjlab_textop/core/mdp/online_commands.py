@@ -386,6 +386,7 @@ class OnlineMotionCommand(CommandTerm):
         self._future_cache_frame = None
         self._future_cache = None
 
+    # FIX: Meant to fix the drift, see /notes/DRIFT.md
     # XY is re-anchored to the current robot anchor.
     # Z preserves reference height motion, offset to the robot's start height.
     def _aligned_reference_pos(self, anchor_pos_w: torch.Tensor) -> torch.Tensor:
