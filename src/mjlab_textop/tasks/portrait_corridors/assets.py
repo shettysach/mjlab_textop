@@ -11,7 +11,10 @@ from mjlab_textop.tasks.wall_contact import _add_wall
 if TYPE_CHECKING:
     from mujoco import MjSpec  # ty: ignore[unresolved-import]
 
-MJGEOM_BOX = mujoco.mjtGeom.mjGEOM_BOX  # ty: ignore[unresolved-attribute]
+MJGEOM_MESH = mujoco.mjtGeom.mjGEOM_MESH  # ty: ignore[unresolved-attribute]
+MJMESH_INERTIA_SHELL = (  # ty: ignore[unresolved-attribute]
+    mujoco.mjtMeshInertia.mjMESH_INERTIA_SHELL
+)
 MJTEXTURE_2D = mujoco.mjtTexture.mjTEXTURE_2D  # ty: ignore[unresolved-attribute]
 
 _ASSETS_DIR = Path(__file__).resolve().parents[4] / "assets"
@@ -19,11 +22,11 @@ _ASSETS_DIR = Path(__file__).resolve().parents[4] / "assets"
 
 def make_portrait_corridors_spec_fn(
     *,
-    start_x: float = -3.0,
-    corridor_length: float = 13.0,
-    corridor_width: float = 3.0,
-    divider_start_x: float = 1.5,
-    wall_height: float = 3.2,
+    start_x: float = -2.0,
+    corridor_length: float = 8.0,
+    corridor_width: float = 2.0,
+    divider_start_x: float = 0.8,
+    wall_height: float = 2.5,
     wall_thickness: float = 0.2,
     wall_rgba: tuple[float, float, float, float] = (0.5, 0.5, 0.5, 1.0),
 ) -> Callable[["MjSpec"], None]:
@@ -74,10 +77,10 @@ def make_portrait_corridors_spec_fn(
                 rgba=wall_rgba,
             )
 
-        portrait_x = end_x - half_wall_thickness - 0.03 - 0.01
-        _add_portrait(spec, name="linus", pos=(portrait_x, corridor_width, 1.6))
-        _add_portrait(spec, name="jensen", pos=(portrait_x, 0.0, 1.6))
-        _add_portrait(spec, name="bugs", pos=(portrait_x, -corridor_width, 1.6))
+        portrait_x = end_x - half_wall_thickness - 0.01
+        _add_portrait(spec, name="linus", pos=(portrait_x, corridor_width, 1.25))
+        _add_portrait(spec, name="jensen", pos=(portrait_x, 0.0, 1.25))
+        _add_portrait(spec, name="bugs", pos=(portrait_x, -corridor_width, 1.25))
 
     return add_portrait_corridors
 
@@ -97,12 +100,38 @@ def _add_portrait(
     material.texrepeat = (1.0, 1.0)
     material.emission = 0.15
 
+    # A box wraps one texture around six faces, squeezing the portrait into
+    # thin vertical strips. This single quad gives the image one direct UV map.
+    half_width = 0.8
+    half_height = 1.1
+    mesh = spec.add_mesh(
+        name=f"portrait_corridors_{name}_mesh",
+        inertia=MJMESH_INERTIA_SHELL,
+    )
+    mesh.uservert = [
+        0.0,
+        -half_width,
+        -half_height,
+        0.0,
+        half_width,
+        -half_height,
+        0.0,
+        half_width,
+        half_height,
+        0.0,
+        -half_width,
+        half_height,
+    ]
+    mesh.userface = [0, 2, 1, 0, 3, 2]
+    mesh.usertexcoord = [0.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0]
+    mesh.userfacetexcoord = [0, 2, 1, 0, 3, 2]
+
     body = spec.worldbody.add_body(name=f"portrait_corridors_{name}_portrait")
     body.pos = pos
     body.add_geom(
         name=f"portrait_corridors_{name}_portrait_visual",
-        type=MJGEOM_BOX,
-        size=(0.03, 1.25, 1.55),
+        type=MJGEOM_MESH,
+        meshname=mesh.name,
         material=material.name,
         contype=0,
         conaffinity=0,

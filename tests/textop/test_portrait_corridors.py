@@ -37,10 +37,12 @@ def test_portrait_corridors_spec_adds_three_textured_portraits_and_walls() -> No
         for body in spec.bodies
         if body.name.endswith("_portrait")
     }
-    assert [position[1] for position in portrait_positions.values()] == [3.0, 0.0, -3.0]
-    # The end wall's corridor-facing surface is at x=17.9; portraits must be
+    assert [position[1] for position in portrait_positions.values()] == [2.0, 0.0, -2.0]
+    # The end wall's corridor-facing surface is at x=5.9; portraits must be
     # in front of it to remain visible from inside the corridors.
-    assert all(position[0] + 0.03 < 9.9 for position in portrait_positions.values())
+    assert all(position[0] < 5.9 for position in portrait_positions.values())
     model = spec.compile()
     assert model.ntex == 3
+    assert model.nmesh == 3
     assert model.mat_texid[:, 1].tolist() == [0, 1, 2]
+    assert model.mesh_texcoordnum.tolist() == [4, 4, 4]
