@@ -25,5 +25,8 @@ class FollowupCommandQueue:
             return self._commands.popleft()
         return None
 
+    def clear(self) -> None:
+        self._commands.clear()
+
     def __bool__(self) -> bool:
         return bool(self._commands)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import threading
+from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
@@ -47,9 +48,21 @@ class _LiveTextOpOnlineSource:
 class _RecordingObservationPublisher:
     def __init__(self) -> None:
         self.images = []
+        self.collision_stops = []
+        self.collision_events = []
 
-    def publish(self, *, image=None) -> None:
-        self.images.append(image)
+    def publish(
+        self,
+        *,
+        image=None,
+        collision_stop=None,
+        recovery_epoch=None,
+    ) -> None:
+        if image is not None:
+            self.images.append(image)
+        if collision_stop is not None:
+            self.collision_stops.append(collision_stop)
+            self.collision_events.append((collision_stop, recovery_epoch))
 
 
 class _BlockingObservationPublisher:
@@ -63,8 +76,16 @@ class _BlockingObservationPublisher:
         self.release = release
         self.publish_count = 0
 
-    def publish(self, *, image=None) -> None:
+    def publish(
+        self,
+        *,
+        image=None,
+        collision_stop=None,
+        recovery_epoch=None,
+    ) -> None:
         del image
+        del collision_stop
+        del recovery_epoch
         self.publish_count += 1
         self.started.set()
         assert self.release.wait(timeout=1.0)
@@ -404,6 +425,71 @@ def test_online_command_clears_collision_latch_on_reset(monkeypatch) -> None:
 
     assert command.collision_stop is False
     assert command._collision_hold_window is None
+
+
+def test_online_command_discards_motion_until_fresh_stand_block(monkeypatch) -> None:
+    source = QueueOnlineSource([motion_block(index=0, frames=8)])
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(source=source, future_steps=5),
+        fake_env(robot_anchor_pos=(10.0, 20.0, 30.0)),
+    )
+    command._update_command()
+    _ = command.future_joint_pos
+    monkeypatch.setattr(
+        OnlineMotionCommand,
+        "_has_obstacle_collision",
+        lambda self: True,
+    )
+    command._update_command()
+    assert command.collision_stop is True
+
+    source.append(
+        replace(
+            motion_block(index=8, frames=8, offset=1000.0),
+            prompt="walk forward",
+        )
+    )
+    source.append(
+        replace(
+            motion_block(index=16, frames=8, offset=1500.0),
+            prompt="stand",
+            recovery_epoch=0,
+        )
+    )
+    stand_block = replace(
+        motion_block(index=24, frames=8, offset=2000.0),
+        prompt="stand",
+        recovery_epoch=command._collision_epoch,
+    )
+    source.append(stand_block)
+    monkeypatch.setattr(
+        OnlineMotionCommand,
+        "_has_obstacle_collision",
+        lambda self: False,
+    )
+
+    command._update_command()
+
+    assert command.collision_stop is False
+    assert command.current_frame == 0
+    expected = stand_block.joint_pos[0, list(ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)]
+    np.testing.assert_allclose(command.joint_pos[0].numpy(), expected)
+    torch.testing.assert_close(
+        command.anchor_pos_w,
+        torch.tensor([[10.0, 20.0, 30.0]]),
+    )
+    assert command._live_index_offset == -24
+
+    source.append(
+        replace(
+            motion_block(index=32, frames=8, offset=3000.0),
+            prompt="walk forward",
+        )
+    )
+    command._update_command()
+
+    assert command.current_frame == 1
+    assert command.buffer.latest_index == 15
 
 
 def test_collision_geom_pair_matches_either_contact_order() -> None:
@@ -801,6 +887,21 @@ def test_online_command_does_not_create_observation_reporter_by_default() -> Non
 
     assert command.cfg.observation is None
     assert command.observation_reporter is None
+
+
+def test_online_observation_reporter_publishes_collision_event() -> None:
+    publisher = _RecordingObservationPublisher()
+    reporter = OnlineObservationReporter(
+        OnlineObservationCfg(publisher=publisher),
+        fake_env(),
+    )
+
+    reporter.publish_collision_stop(True, recovery_epoch=7)
+
+    assert reporter._event_future is not None
+    reporter._event_future.result(timeout=1.0)
+    reporter._collect_event_result()
+    assert publisher.collision_events == [(True, 7)]
 
 
 def test_online_observation_reporter_drops_observation_while_publish_inflight(

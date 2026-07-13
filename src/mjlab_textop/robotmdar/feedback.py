@@ -13,6 +13,8 @@ from typing import Any
 class FeedbackObservation:
     image_bytes: bytes | None = None
     image_mime_type: str | None = None
+    collision_stop: bool = False
+    recovery_epoch: int = 0
 
 
 class HttpObservationReceiver:
@@ -107,6 +109,8 @@ def parse_feedback_observation(
     return FeedbackObservation(
         image_bytes=None if image is None else image["data"],
         image_mime_type=None if image is None else image["mime_type"],
+        collision_stop=bool(message.get("collision_stop", False)),
+        recovery_epoch=int(message.get("recovery_epoch", 0)),
     )
 
 

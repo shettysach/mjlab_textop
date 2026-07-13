@@ -102,11 +102,15 @@ def test_robotmdar_motion_dict_to_block_converts_to_textop_block() -> None:
             "root_trans_offset": root_trans_offset,
         },
         index=11,
+        prompt="stand",
+        recovery_epoch=3,
     )
 
     expected_mjlab_pos = expand_robotmdar_dof_to_mjlab_g1(dof_pos[0].numpy())
     expected_mjlab_vel = expand_robotmdar_dof_to_mjlab_g1(dof_vel[0].numpy())
     assert block.index == 11
+    assert block.prompt == "stand"
+    assert block.recovery_epoch == 3
     np.testing.assert_allclose(
         block.joint_pos, reindex_mjlab_g1_joints_to_textop(expected_mjlab_pos)
     )

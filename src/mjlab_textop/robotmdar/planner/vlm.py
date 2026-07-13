@@ -54,6 +54,10 @@ class VlmPromptPlanner:
         self._pending_reasoning: str | None = None
         self._stop = False
         self._future: Future[VlmPromptSelection] | None = None
+        self._future_epoch: int | None = None
+        self._selection_epoch = 0
+        self._collision_recovery = False
+        self._recovery_epoch = 0
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._last_query_block: int | None = None
         self._commands = FollowupCommandQueue()
@@ -66,6 +70,10 @@ class VlmPromptPlanner:
     @property
     def input_active(self) -> bool:
         return False
+
+    @property
+    def recovery_epoch(self) -> int:
+        return self._recovery_epoch if self._collision_recovery else 0
 
     @property
     def log_suffix(self) -> str:
@@ -88,6 +96,16 @@ class VlmPromptPlanner:
         self._executor.shutdown(wait=False, cancel_futures=True)
 
     def choose_prompt(self, *, block_count: int) -> str:
+        observation = self.feedback.latest()
+        if observation is not None and observation.collision_stop:
+            self._enter_collision_recovery(observation.recovery_epoch)
+            return self.current_prompt
+        if self._collision_recovery:
+            self._collision_recovery = False
+            self.current_prompt_source = "collision_recovery"
+            self._command_started_block = None
+            self._last_query_block = None
+
         if self._collect_finished_request():
             return self._activate_next_command(source="vlm", block_count=block_count)
 
@@ -104,7 +122,6 @@ class VlmPromptPlanner:
 
         self._command_started_block = None
 
-        observation = self.feedback.latest()
         if (
             not self._stop
             and self._future is None
@@ -112,11 +129,25 @@ class VlmPromptPlanner:
             and self._should_query_selector(block_count)
         ):
             self._last_query_block = block_count
+            self._future_epoch = self._selection_epoch
             self._future = self._executor.submit(
                 self.selector.choose_prompt_with_debug,
                 observation=observation,
             )
         return self.current_prompt
+
+    def _enter_collision_recovery(self, recovery_epoch: int) -> None:
+        if not self._collision_recovery:
+            self._collision_recovery = True
+            self._selection_epoch += 1
+            self._commands.clear()
+            self._command_started_block = None
+            if self._future is not None and self._future.cancel():
+                self._future = None
+                self._future_epoch = None
+        self._recovery_epoch = recovery_epoch
+        self.current_prompt = "stand"
+        self.current_prompt_source = "collision_recovery"
 
     def _activate_next_command(self, *, source: str, block_count: int) -> str:
         command = self._commands.next()
@@ -138,14 +169,16 @@ class VlmPromptPlanner:
         received_command = False
         try:
             selection = self._future.result()
-            self._commands.receive(selection.prompt)
-            self._pending_reasoning = selection.reasoning
+            if self._future_epoch == self._selection_epoch:
+                self._commands.receive(selection.prompt)
+                self._pending_reasoning = selection.reasoning
+                received_command = True
             self.last_error = None
-            received_command = True
         except Exception as exc:
             self.last_error = f"{type(exc).__name__}: {exc}"
         finally:
             self._future = None
+            self._future_epoch = None
         return received_command
 
     def _should_query_selector(self, block_count: int) -> bool:

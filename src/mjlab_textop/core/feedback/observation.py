@@ -37,7 +37,9 @@ class ObservationPublisher(Protocol):
     def publish(
         self,
         *,
-        image: ObservationImage,
+        image: ObservationImage | None,
+        collision_stop: bool | None = None,
+        recovery_epoch: int | None = None,
     ) -> None:
         """Publish one MJLab observation payload."""
 
@@ -74,12 +76,18 @@ class HttpObservationPublisher:
     def publish(
         self,
         *,
-        image: ObservationImage,
+        image: ObservationImage | None,
+        collision_stop: bool | None = None,
+        recovery_epoch: int | None = None,
     ) -> None:
         request = urllib.request.Request(
             self.url,
             data=json.dumps(
-                make_http_observation_payload(image=image),
+                make_http_observation_payload(
+                    image=image,
+                    collision_stop=collision_stop,
+                    recovery_epoch=recovery_epoch,
+                ),
                 separators=(",", ":"),
             ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
@@ -132,14 +140,21 @@ def make_torso_observation_camera(
 
 def make_http_observation_payload(
     *,
-    image: ObservationImage,
+    image: ObservationImage | None,
+    collision_stop: bool | None = None,
+    recovery_epoch: int | None = None,
 ) -> dict[str, Any]:
-    return {
-        "image": {
+    payload: dict[str, Any] = {}
+    if collision_stop is not None:
+        payload["collision_stop"] = collision_stop
+    if recovery_epoch is not None:
+        payload["recovery_epoch"] = recovery_epoch
+    if image is not None:
+        payload["image"] = {
             "mime_type": image.mime_type,
             "data": b64encode(image.data).decode("ascii"),
-        },
-    }
+        }
+    return payload
 
 
 def encode_render_image_jpeg(image: Any) -> bytes:

@@ -140,6 +140,14 @@ def test_make_http_observation_payload_includes_image() -> None:
     }
 
 
+def test_make_http_observation_payload_supports_collision_event() -> None:
+    assert make_http_observation_payload(
+        image=None,
+        collision_stop=True,
+        recovery_epoch=7,
+    ) == {"collision_stop": True, "recovery_epoch": 7}
+
+
 def test_encode_render_image_jpeg_uses_high_quality(monkeypatch) -> None:
     calls = {}
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from dataclasses import replace
 
 import numpy as np
 import pytest
@@ -15,7 +16,11 @@ from mjlab_textop.core.online.live import (
 
 
 def test_textop_block_ndjson_round_trip() -> None:
-    block = motion_block(index=100, frames=8)
+    block = replace(
+        motion_block(index=100, frames=8),
+        prompt="stand",
+        recovery_epoch=3,
+    )
 
     parsed, fps = parse_textop_block_message(
         textop_block_to_ndjson_message(block, fps=50.0)
@@ -23,6 +28,8 @@ def test_textop_block_ndjson_round_trip() -> None:
 
     assert fps == 50.0
     assert parsed.index == 100
+    assert parsed.prompt == "stand"
+    assert parsed.recovery_epoch == 3
     np.testing.assert_allclose(parsed.joint_pos, block.joint_pos)
     np.testing.assert_allclose(parsed.joint_vel, block.joint_vel)
     np.testing.assert_allclose(parsed.anchor_pos_w, block.anchor_pos_w)

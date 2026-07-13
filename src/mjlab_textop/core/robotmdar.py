@@ -67,6 +67,8 @@ def robotmdar_motion_dict_to_block(
     motion_dict: dict[str, Any],
     *,
     index: int,
+    prompt: str | None = None,
+    recovery_epoch: int = 0,
 ) -> MotionBlock:
     joint_pos_mjlab = expand_robotmdar_dof_to_mjlab_g1(
         motion_dict["dof_pos"][0].detach().cpu().numpy()
@@ -82,6 +84,8 @@ def robotmdar_motion_dict_to_block(
         joint_vel=reindex_mjlab_g1_joints_to_textop(joint_vel_mjlab),
         anchor_pos_w=motion_dict["root_trans_offset"][0].detach().cpu().numpy(),
         anchor_quat_w=root_rot_xyzw[:, [3, 0, 1, 2]],
+        prompt=prompt,
+        recovery_epoch=recovery_epoch,
     )
 
 

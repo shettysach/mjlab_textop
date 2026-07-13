@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import cast
 
 import torch
@@ -111,7 +111,10 @@ class OnlineMotionCommand(CommandTerm):
         self._future_cache_frame: int | None = None
         self._future_cache: FutureWindow | None = None
         self._collision_stop = False
+        self._collision_epoch = 0
         self._collision_hold_window: FutureWindow | None = None
+        self._recovery_stand_started = False
+        self._live_index_offset = 0
         (
             self._robot_collision_geom_ids,
             self._obstacle_collision_geom_ids,
@@ -264,6 +267,11 @@ class OnlineMotionCommand(CommandTerm):
             return
 
     def _reset_runtime_counters(self) -> None:
+        if self._collision_stop and self.observation_reporter is not None:
+            self.observation_reporter.publish_collision_stop(
+                False,
+                recovery_epoch=self._collision_epoch,
+            )
         self._startup_wait_steps = 0
         self._last_stale_steps = 0
         self._consecutive_stale_steps = 0
@@ -271,12 +279,14 @@ class OnlineMotionCommand(CommandTerm):
         self._live_polling_paused = False
         self._collision_stop = False
         self._collision_hold_window = None
+        self._recovery_stand_started = False
         self._reference_start_anchor_pos_w.zero_()
         self._robot_start_anchor_pos_w.zero_()
         self._clear_future_cache()
 
     def _update_command(self) -> None:
         if self._collision_stop:
+            self._poll_collision_recovery_source()
             return
         if self._started and self._has_obstacle_collision():
             self._activate_collision_stop()
@@ -323,6 +333,7 @@ class OnlineMotionCommand(CommandTerm):
             if block is None:
                 return
             if self.cfg.source_mode == "live":
+                block = replace(block, index=block.index + self._live_index_offset)
                 latest_index = self.buffer.latest_index
                 if latest_index is not None and block.index != latest_index + 1:
                     raise RuntimeError(
@@ -452,7 +463,47 @@ class OnlineMotionCommand(CommandTerm):
             safe_window = self._future_window()
         self._collision_hold_window = _make_stationary_window(safe_window)
         self._collision_stop = True
+        self._collision_epoch += 1
+        self._recovery_stand_started = False
+        self.buffer.clear()
+        self._live_polling_paused = False
         self._clear_future_cache()
+        if self.observation_reporter is not None:
+            self.observation_reporter.publish_collision_stop(
+                True,
+                recovery_epoch=self._collision_epoch,
+            )
+
+    def _poll_collision_recovery_source(self) -> None:
+        for _ in range(self.cfg.max_poll_blocks):
+            block = self.source.poll()
+            if block is None:
+                return
+            if (
+                block.prompt is None
+                or block.prompt.strip().lower() != "stand"
+                or block.recovery_epoch != self._collision_epoch
+            ):
+                continue
+
+            if not self._recovery_stand_started:
+                self._live_index_offset = self.current_frame - block.index
+                self._recovery_stand_started = True
+            block = replace(block, index=block.index + self._live_index_offset)
+            self.buffer.append_block(block)
+            if not self.buffer.can_start(self.current_frame, self.cfg.future_steps):
+                continue
+
+            self._align_reference_anchor()
+            self._collision_stop = False
+            self._collision_hold_window = None
+            self._recovery_stand_started = False
+            if self.observation_reporter is not None:
+                self.observation_reporter.publish_collision_stop(
+                    False,
+                    recovery_epoch=self._collision_epoch,
+                )
+            return
 
     def _startup_future_window(self) -> FutureWindow:
         dtype = self.robot_anchor_pos_w.dtype

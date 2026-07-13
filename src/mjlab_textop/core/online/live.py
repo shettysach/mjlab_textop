@@ -46,7 +46,10 @@ def textop_block_to_ndjson_message(
         "joint_vel": np.asarray(block.joint_vel, dtype=np.float32).tolist(),
         "anchor_pos_w": np.asarray(block.anchor_pos_w, dtype=np.float32).tolist(),
         "anchor_quat_w": np.asarray(block.anchor_quat_w, dtype=np.float32).tolist(),
+        "recovery_epoch": int(block.recovery_epoch),
     }
+    if block.prompt is not None:
+        message["prompt"] = block.prompt
     return json.dumps(message, separators=(",", ":")) + "\n"
 
 
@@ -77,6 +80,8 @@ def parse_textop_block_message(
             joint_vel=np.asarray(data["joint_vel"]),
             anchor_pos_w=np.asarray(data["anchor_pos_w"]),
             anchor_quat_w=np.asarray(data["anchor_quat_w"]),
+            prompt=None if data.get("prompt") is None else str(data["prompt"]),
+            recovery_epoch=int(data.get("recovery_epoch", 0)),
         )
     )
     return block, float(data.get("fps", default_fps))

@@ -26,6 +26,8 @@ class MotionBlock:
     joint_vel: np.ndarray
     anchor_pos_w: np.ndarray
     anchor_quat_w: np.ndarray
+    prompt: str | None = None
+    recovery_epoch: int = 0
 
 
 def validate_motion_block(block: MotionBlock) -> MotionBlock:
@@ -55,6 +57,8 @@ def validate_motion_block(block: MotionBlock) -> MotionBlock:
         joint_vel=joint_vel,
         anchor_pos_w=anchor_pos_w,
         anchor_quat_w=anchor_quat_w,
+        prompt=block.prompt,
+        recovery_epoch=block.recovery_epoch,
     )
 
 

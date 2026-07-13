@@ -108,10 +108,14 @@ def _observation(
     *,
     image_bytes: bytes | None = None,
     image_mime_type: str | None = None,
+    collision_stop: bool = False,
+    recovery_epoch: int = 0,
 ) -> FeedbackObservation:
     return FeedbackObservation(
         image_bytes=image_bytes,
         image_mime_type=image_mime_type,
+        collision_stop=collision_stop,
+        recovery_epoch=recovery_epoch,
     )
 
 
@@ -131,6 +135,17 @@ def test_parse_feedback_observation() -> None:
 
     assert observation.image_bytes == b"jpeg bytes"
     assert observation.image_mime_type == "image/jpeg"
+    assert observation.collision_stop is False
+
+
+def test_parse_collision_feedback_without_image() -> None:
+    observation = parse_feedback_observation(
+        {"collision_stop": True, "recovery_epoch": 7}
+    )
+
+    assert observation.image_bytes is None
+    assert observation.collision_stop is True
+    assert observation.recovery_epoch == 7
 
 
 def test_manual_prompt_planner_uses_current_prompt_without_starting_thread() -> None:
@@ -200,6 +215,33 @@ def test_vlm_planner_queries_selector_on_cadence() -> None:
     planner.request_stop()
 
     assert provider.closed is True
+
+
+def test_vlm_planner_forces_stand_until_collision_recovery_clears() -> None:
+    provider = _FakeObservationProvider(
+        _observation(collision_stop=True, recovery_epoch=7)
+    )
+    selector = _FixedSelector("walk forward")
+    planner = VlmPromptPlanner(
+        feedback=provider,
+        selector=selector,
+        initial_prompt="walk forward",
+        query_every_blocks=1,
+    )
+
+    assert planner.choose_prompt(block_count=0) == "stand"
+    assert planner.current_prompt_source == "collision_recovery"
+    assert planner.recovery_epoch == 7
+    assert planner.choose_prompt(block_count=1) == "stand"
+    assert selector.calls == 0
+
+    provider.observation = _observation(collision_stop=False)
+
+    assert planner.choose_prompt(block_count=2) == "stand"
+    assert selector.finished.wait(timeout=1)
+    assert planner.choose_prompt(block_count=3) == "walk forward"
+
+    planner.request_stop()
 
 
 def test_vlm_planner_locally_schedules_stand_after_lateral_command() -> None:

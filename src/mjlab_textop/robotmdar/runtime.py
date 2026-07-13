@@ -61,7 +61,14 @@ class RobotMdarGenerator:
     future_len: int
     abs_pose: Any
 
-    def next_block(self, *, prompt: str, index: int, guidance_scale: float):
+    def next_block(
+        self,
+        *,
+        prompt: str,
+        index: int,
+        guidance_scale: float,
+        recovery_epoch: int = 0,
+    ):
         future_motion, motion_dict, self.abs_pose = generate_motion_block(
             runtime=self.runtime,
             clip_model=self.clip_model,
@@ -79,6 +86,8 @@ class RobotMdarGenerator:
         return robotmdar_motion_dict_to_block(
             slice_motion_dict_tail(motion_dict, self.future_len),
             index=index,
+            prompt=prompt,
+            recovery_epoch=recovery_epoch,
         )
 
 
@@ -233,6 +242,7 @@ def stream_robotmdar_blocks(
             prompt=current_prompt,
             index=frame_index,
             guidance_scale=cfg.guidance_scale,
+            recovery_epoch=int(getattr(prompt_controller, "recovery_epoch", 0)),
         )
         conn.sendall(textop_block_to_ndjson_message(block, fps=cfg.fps).encode("utf-8"))
 
