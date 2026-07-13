@@ -14,7 +14,9 @@ class FollowupCommandQueue:
     def __init__(self) -> None:
         self._commands: deque[str] = deque()
 
-    def receive(self, command: str) -> None:
+    def receive(self, command: str, *, replace: bool = False) -> None:
+        if replace:
+            self._commands.clear()
         self._commands.append(command)
         self._commands.extend(command_followups(command))
 

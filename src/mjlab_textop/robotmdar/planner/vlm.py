@@ -34,16 +34,22 @@ class VlmPromptPlanner:
         selector: "OpenAIChatPromptSelector",
         initial_prompt: str,
         query_every_blocks: int,
+        command_hold_blocks: int = 1,
     ) -> None:
         if query_every_blocks <= 0:
             raise ValueError(
                 f"query_every_blocks must be positive, got {query_every_blocks}"
+            )
+        if command_hold_blocks <= 0:
+            raise ValueError(
+                f"command_hold_blocks must be positive, got {command_hold_blocks}"
             )
         self.feedback = feedback
         self.selector = selector
         self.current_prompt = initial_prompt
         self.current_prompt_source = "initial"
         self.query_every_blocks = query_every_blocks
+        self.command_hold_blocks = command_hold_blocks
         self.last_error: str | None = None
         self._pending_reasoning: str | None = None
         self._stop = False
@@ -51,6 +57,7 @@ class VlmPromptPlanner:
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._last_query_block: int | None = None
         self._commands = FollowupCommandQueue()
+        self._command_started_block: int | None = None
 
     @property
     def should_stop(self) -> bool:
@@ -82,18 +89,20 @@ class VlmPromptPlanner:
 
     def choose_prompt(self, *, block_count: int) -> str:
         if self._collect_finished_request():
-            command = self._commands.next()
-            assert command is not None
-            self.current_prompt = command
-            self.current_prompt_source = "vlm"
+            return self._activate_next_command(source="vlm", block_count=block_count)
+
+        if (
+            self._command_started_block is not None
+            and block_count - self._command_started_block < self.command_hold_blocks
+        ):
             return self.current_prompt
 
         if self._commands:
-            command = self._commands.next()
-            assert command is not None
-            self.current_prompt = command
-            self.current_prompt_source = "followup"
-            return self.current_prompt
+            return self._activate_next_command(
+                source="followup", block_count=block_count
+            )
+
+        self._command_started_block = None
 
         observation = self.feedback.latest()
         if (
@@ -108,6 +117,14 @@ class VlmPromptPlanner:
                 observation=observation,
             )
         return self.current_prompt
+
+    def _activate_next_command(self, *, source: str, block_count: int) -> str:
+        command = self._commands.next()
+        assert command is not None
+        self.current_prompt = command
+        self.current_prompt_source = source
+        self._command_started_block = block_count
+        return command
 
     def consume_pending_reasoning(self) -> str | None:
         reasoning = self._pending_reasoning

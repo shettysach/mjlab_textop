@@ -147,17 +147,17 @@ def test_manual_prompt_planner_uses_current_prompt_without_starting_thread() -> 
 
 
 def test_manual_prompt_planner_locally_schedules_stand_after_lateral_command() -> None:
-    planner = ManualPromptPlanner("step left")
+    planner = ManualPromptPlanner("step left", command_hold_blocks=2)
 
     assert planner.choose_prompt(block_count=0) == "step left"
-    assert planner.choose_prompt(block_count=1) == "stand"
+    assert planner.choose_prompt(block_count=1) == "step left"
     assert planner.choose_prompt(block_count=2) == "stand"
 
     planner.prompt.text = "turn right"
     planner.prompt.revision += 1
 
     assert planner.choose_prompt(block_count=3) == "turn right"
-    assert planner.choose_prompt(block_count=4) == "stand"
+    assert planner.choose_prompt(block_count=4) == "turn right"
     assert planner.choose_prompt(block_count=5) == "stand"
 
 
@@ -210,6 +210,7 @@ def test_vlm_planner_locally_schedules_stand_after_lateral_command() -> None:
         selector=selector,
         initial_prompt="walk forward",
         query_every_blocks=1,
+        command_hold_blocks=3,
     )
 
     assert planner.choose_prompt(block_count=0) == "walk forward"
@@ -219,11 +220,17 @@ def test_vlm_planner_locally_schedules_stand_after_lateral_command() -> None:
     assert planner.current_prompt_source == "vlm"
     assert selector.calls == 1
 
-    assert planner.choose_prompt(block_count=2) == "stand"
-    assert planner.current_prompt_source == "followup"
+    assert planner.choose_prompt(block_count=2) == "step RIGHT"
+    assert planner.choose_prompt(block_count=3) == "step RIGHT"
     assert selector.calls == 1
 
-    assert planner.choose_prompt(block_count=3) == "stand"
+    assert planner.choose_prompt(block_count=4) == "stand"
+    assert planner.current_prompt_source == "followup"
+    assert planner.choose_prompt(block_count=5) == "stand"
+    assert planner.choose_prompt(block_count=6) == "stand"
+    assert selector.calls == 1
+
+    assert planner.choose_prompt(block_count=7) == "stand"
     _wait_for(lambda: selector.calls == 2)
 
     planner.request_stop()

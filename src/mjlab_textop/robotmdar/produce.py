@@ -109,6 +109,12 @@ def parse_args() -> argparse.Namespace:
         help="Print VLM reasoning when the server returns it.",
     )
     parser.add_argument("--query-every-blocks", type=int, default=20)
+    parser.add_argument(
+        "--command-hold-blocks",
+        type=int,
+        default=4,
+        help="Generate each received command before activating a queued follow-up.",
+    )
     parser.add_argument("--log-every-blocks", type=int, default=20)
     args = parser.parse_args()
     if args.planner == "vlm" and args.observation_listen_port is None:
@@ -118,6 +124,10 @@ def parse_args() -> argparse.Namespace:
     if args.planner == "vlm" and args.query_every_blocks <= 0:
         raise ValueError(
             f"--query-every-blocks must be positive, got {args.query_every_blocks}"
+        )
+    if args.command_hold_blocks <= 0:
+        raise ValueError(
+            f"--command-hold-blocks must be positive, got {args.command_hold_blocks}"
         )
     if args.vlm_timeout_sec <= 0:
         raise ValueError(
@@ -214,8 +224,12 @@ def make_prompt_planner(
             selector=selector,
             initial_prompt=args.prompt,
             query_every_blocks=args.query_every_blocks,
+            command_hold_blocks=getattr(args, "command_hold_blocks", 4),
         )
-    return ManualPromptPlanner(args.prompt)
+    return ManualPromptPlanner(
+        args.prompt,
+        command_hold_blocks=getattr(args, "command_hold_blocks", 4),
+    )
 
 
 if __name__ == "__main__":
