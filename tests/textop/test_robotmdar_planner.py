@@ -164,12 +164,42 @@ def test_vlm_planner_queries_selector_on_cadence() -> None:
     assert selector.finished.wait(timeout=1)
     assert planner.choose_prompt(block_count=1) == "turn left"
     assert planner.current_prompt_source == "vlm"
-    assert planner.choose_prompt(block_count=2) == "turn left"
+    assert planner.choose_prompt(block_count=2) == "stand"
+    assert planner.current_prompt_source == "followup"
+    assert selector.calls == 1
+    assert planner.choose_prompt(block_count=3) == "stand"
     _wait_for(lambda: selector.calls == 2)
 
     planner.request_stop()
 
     assert provider.closed is True
+
+
+def test_vlm_planner_locally_schedules_stand_after_lateral_command() -> None:
+    provider = _FakeObservationProvider(_observation())
+    selector = _FixedSelector("step RIGHT")
+    planner = VlmPromptPlanner(
+        feedback=provider,
+        selector=selector,
+        initial_prompt="walk forward",
+        query_every_blocks=1,
+    )
+
+    assert planner.choose_prompt(block_count=0) == "walk forward"
+    assert selector.finished.wait(timeout=1)
+
+    assert planner.choose_prompt(block_count=1) == "step RIGHT"
+    assert planner.current_prompt_source == "vlm"
+    assert selector.calls == 1
+
+    assert planner.choose_prompt(block_count=2) == "stand"
+    assert planner.current_prompt_source == "followup"
+    assert selector.calls == 1
+
+    assert planner.choose_prompt(block_count=3) == "stand"
+    _wait_for(lambda: selector.calls == 2)
+
+    planner.request_stop()
 
 
 def test_vlm_planner_does_not_block_while_selector_runs() -> None:
