@@ -19,9 +19,10 @@ _ASSETS_DIR = Path(__file__).resolve().parents[4] / "assets"
 
 def make_portrait_corridors_spec_fn(
     *,
-    start_x: float = -4.0,
-    corridor_length: float = 22.0,
+    start_x: float = -3.0,
+    corridor_length: float = 13.0,
     corridor_width: float = 3.0,
+    divider_start_x: float = 1.5,
     wall_height: float = 3.2,
     wall_thickness: float = 0.2,
     wall_rgba: tuple[float, float, float, float] = (0.5, 0.5, 0.5, 1.0),
@@ -60,13 +61,16 @@ def make_portrait_corridors_spec_fn(
                 rgba=wall_rgba,
             )
 
-        # Two parallel dividers turn the enclosure into three corridors.
+        # The dividers begin ahead of the robot, leaving space to choose a
+        # corridor by stepping left or right before committing forward.
+        divider_center_x = (divider_start_x + end_x) * 0.5
+        divider_half_length = (end_x - divider_start_x) * 0.5
         for index, y in enumerate((-corridor_width * 0.5, corridor_width * 0.5), 1):
             _add_wall(
                 spec,
                 name=f"portrait_corridors_divider_{index}_wall",
-                pos=(center_x, y, wall_z),
-                size=(corridor_length * 0.5, half_wall_thickness, half_wall_height),
+                pos=(divider_center_x, y, wall_z),
+                size=(divider_half_length, half_wall_thickness, half_wall_height),
                 rgba=wall_rgba,
             )
 
@@ -87,7 +91,9 @@ def _add_portrait(
         file=str(_ASSETS_DIR / f"{name}.png"),
     )
     material = spec.add_material(name=f"portrait_corridors_{name}_material")
-    material.textures[0] = texture.name
+    # MuJoCo's legacy ``texture=`` material attribute maps to the RGB role.
+    # The user role (index 0) leaves the panel untextured and white.
+    material.textures[1] = texture.name
     material.texrepeat = (1.0, 1.0)
     material.emission = 0.15
 
