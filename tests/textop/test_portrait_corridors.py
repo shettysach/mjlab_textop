@@ -31,6 +31,15 @@ def test_portrait_corridors_spec_adds_three_textured_portraits_and_walls() -> No
         "portrait_corridors_jensen_texture",
         "portrait_corridors_bugs_texture",
     }
-    assert len([body for body in spec.bodies if body.name.endswith("_wall")]) == 16
+    assert len([body for body in spec.bodies if body.name.endswith("_wall")]) == 6
+    portrait_positions = {
+        body.name: tuple(float(value) for value in body.pos)
+        for body in spec.bodies
+        if body.name.endswith("_portrait")
+    }
+    assert [position[1] for position in portrait_positions.values()] == [3.0, 0.0, -3.0]
+    # The end wall's corridor-facing surface is at x=17.9; portraits must be
+    # in front of it to remain visible from inside the corridors.
+    assert all(position[0] + 0.03 < 17.9 for position in portrait_positions.values())
     model = spec.compile()
     assert model.ntex == 3
