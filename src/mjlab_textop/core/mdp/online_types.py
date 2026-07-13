@@ -19,6 +19,7 @@ ONLINE_METRIC_NAMES = (
     "online_blocks_received",
     "online_blocks_dropped",
     "online_bad_messages",
+    "online_collision_stop",
 )
 
 

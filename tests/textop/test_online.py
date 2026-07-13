@@ -18,6 +18,8 @@ from mjlab_textop.core.mdp.online_commands import (
     OnlineMotionCommand,
     OnlineMotionCommandCfg,
     OnlineObservationReporter,
+    _contains_geom_pair,
+    _find_collision_geom_ids,
     use_online_textop_motion_command,
 )
 from mjlab_textop.core.online.buffer import (
@@ -331,6 +333,125 @@ def test_online_command_reuses_future_window_for_current_frame() -> None:
     assert calls == 1
 
 
+def test_online_command_latches_collision_and_holds_last_safe_reference(
+    monkeypatch,
+) -> None:
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(
+            source=QueueOnlineSource([motion_block(frames=8)]),
+            future_steps=5,
+        ),
+        fake_env(),
+    )
+    command._update_command()
+    safe_joint_pos = command.joint_pos.clone()
+    safe_anchor_pos = command.anchor_pos_w.clone()
+    safe_anchor_quat = command.anchor_quat_w.clone()
+    monkeypatch.setattr(
+        OnlineMotionCommand,
+        "_has_obstacle_collision",
+        lambda self: True,
+    )
+
+    command._update_command()
+
+    assert command.collision_stop is True
+    assert command.current_frame == 0
+    torch.testing.assert_close(
+        command.future_joint_pos,
+        safe_joint_pos[:, None, :].expand(-1, 5, -1),
+    )
+    torch.testing.assert_close(command.future_joint_vel, torch.zeros(1, 5, 29))
+    torch.testing.assert_close(
+        command.future_anchor_pos_w,
+        safe_anchor_pos[:, None, :].expand(-1, 5, -1),
+    )
+    torch.testing.assert_close(
+        command.future_anchor_quat_w,
+        safe_anchor_quat[:, None, :].expand(-1, 5, -1),
+    )
+
+    monkeypatch.setattr(
+        OnlineMotionCommand,
+        "_has_obstacle_collision",
+        lambda self: False,
+    )
+    command._update_command()
+
+    assert command.collision_stop is True
+    assert command.current_frame == 0
+
+
+def test_online_command_clears_collision_latch_on_reset(monkeypatch) -> None:
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(
+            source=QueueOnlineSource([motion_block(frames=8)]),
+            future_steps=5,
+        ),
+        fake_env(),
+    )
+    command._update_command()
+    _ = command.future_joint_pos
+    monkeypatch.setattr(
+        OnlineMotionCommand,
+        "_has_obstacle_collision",
+        lambda self: True,
+    )
+    command._update_command()
+    assert command.collision_stop is True
+
+    command._resample_command(torch.tensor([0]))
+
+    assert command.collision_stop is False
+    assert command._collision_hold_window is None
+
+
+def test_collision_geom_pair_matches_either_contact_order() -> None:
+    contacts = torch.tensor([[5, 9], [2, 3], [7, 4]])
+    robot_ids = torch.tensor([4, 5])
+    obstacle_ids = torch.tensor([7, 9])
+
+    assert _contains_geom_pair(
+        contacts,
+        contact_count=1,
+        first_ids=robot_ids,
+        second_ids=obstacle_ids,
+    )
+    assert _contains_geom_pair(
+        contacts,
+        contact_count=3,
+        first_ids=robot_ids,
+        second_ids=obstacle_ids,
+    )
+    assert not _contains_geom_pair(
+        contacts,
+        contact_count=0,
+        first_ids=robot_ids,
+        second_ids=obstacle_ids,
+    )
+
+
+def test_collision_geom_ids_select_robot_and_named_obstacles() -> None:
+    geom_names = ["robot/torso_collision", "corridor_left_collision", "ground"]
+    body_names = ["world", "robot/torso_link", "corridor_left", "ground"]
+    model = SimpleNamespace(
+        ngeom=3,
+        geom_bodyid=np.array([1, 2, 3]),
+        geom=lambda index: SimpleNamespace(name=geom_names[index]),
+        body=lambda index: SimpleNamespace(name=body_names[index]),
+    )
+
+    robot_ids, obstacle_ids = _find_collision_geom_ids(
+        model,
+        entity_name="robot",
+        obstacle_suffix="_collision",
+        device="cpu",
+    )
+
+    torch.testing.assert_close(robot_ids, torch.tensor([0]))
+    torch.testing.assert_close(obstacle_ids, torch.tensor([1]))
+
+
 def test_online_command_exposes_startup_window_before_source_poll() -> None:
     source = QueueOnlineSource([motion_block(frames=8)])
     command = OnlineMotionCommand(
@@ -484,7 +605,9 @@ def test_online_command_replay_allows_stale_windows_at_clip_end() -> None:
 
 def test_online_command_replay_does_not_evict_preloaded_frames() -> None:
     blocks = [
-        motion_block(index=block_index * 64, frames=64, offset=float(block_index * 1000))
+        motion_block(
+            index=block_index * 64, frames=64, offset=float(block_index * 1000)
+        )
         for block_index in range(16)
     ]
     source = QueueOnlineSource(blocks)
