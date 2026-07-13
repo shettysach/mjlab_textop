@@ -79,14 +79,23 @@ def make_portrait_corridors_spec_fn(
 
         portrait_x = end_x - half_wall_thickness - 0.01
         _add_portrait(spec, name="linus", pos=(portrait_x, corridor_width, 1.25))
-        _add_portrait(spec, name="jensen", pos=(portrait_x, 0.0, 1.25))
+        _add_portrait(
+            spec,
+            name="karpathy",
+            pos=(portrait_x, 0.0, 1.25),
+            half_size=(0.85, 0.85),
+        )
         _add_portrait(spec, name="bugs", pos=(portrait_x, -corridor_width, 1.25))
 
     return add_portrait_corridors
 
 
 def _add_portrait(
-    spec: "MjSpec", *, name: str, pos: tuple[float, float, float]
+    spec: "MjSpec",
+    *,
+    name: str,
+    pos: tuple[float, float, float],
+    half_size: tuple[float, float] = (0.8, 1.1),
 ) -> None:
     texture = spec.add_texture(
         name=f"portrait_corridors_{name}_texture",
@@ -102,8 +111,7 @@ def _add_portrait(
 
     # A box wraps one texture around six faces, squeezing the portrait into
     # thin vertical strips. This single quad gives the image one direct UV map.
-    half_width = 0.8
-    half_height = 1.1
+    half_width, half_height = half_size
     mesh = spec.add_mesh(
         name=f"portrait_corridors_{name}_mesh",
         inertia=MJMESH_INERTIA_SHELL,
