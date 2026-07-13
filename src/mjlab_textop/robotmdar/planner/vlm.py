@@ -3,12 +3,12 @@ from __future__ import annotations
 import json
 import urllib.request
 from base64 import b64encode
-from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 from mjlab_textop.robotmdar.feedback import FeedbackObservation
+from mjlab_textop.robotmdar.planner.followups import FollowupCommandQueue
 
 
 class ObservationProvider(Protocol):
@@ -24,13 +24,6 @@ class VlmPromptSelection:
     prompt: str
     reasoning: str | None
     response: dict[str, Any]
-
-
-def command_followups(command: str) -> list[str]:
-    command = command.lower().strip()
-    if "left" in command or "right" in command:
-        return ["stand"]
-    return []
 
 
 class VlmPromptPlanner:
@@ -57,7 +50,7 @@ class VlmPromptPlanner:
         self._future: Future[VlmPromptSelection] | None = None
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._last_query_block: int | None = None
-        self._pending_commands: deque[str] = deque()
+        self._commands = FollowupCommandQueue()
 
     @property
     def should_stop(self) -> bool:
@@ -89,10 +82,16 @@ class VlmPromptPlanner:
 
     def choose_prompt(self, *, block_count: int) -> str:
         if self._collect_finished_request():
+            command = self._commands.next()
+            assert command is not None
+            self.current_prompt = command
+            self.current_prompt_source = "vlm"
             return self.current_prompt
 
-        if self._pending_commands:
-            self.current_prompt = self._pending_commands.popleft()
+        if self._commands:
+            command = self._commands.next()
+            assert command is not None
+            self.current_prompt = command
             self.current_prompt_source = "followup"
             return self.current_prompt
 
@@ -122,9 +121,7 @@ class VlmPromptPlanner:
         received_command = False
         try:
             selection = self._future.result()
-            self.current_prompt = selection.prompt
-            self.current_prompt_source = "vlm"
-            self._pending_commands.extend(command_followups(selection.prompt))
+            self._commands.receive(selection.prompt)
             self._pending_reasoning = selection.reasoning
             self.last_error = None
             received_command = True

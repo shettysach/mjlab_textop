@@ -3,18 +3,25 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass
 
+from mjlab_textop.robotmdar.planner.followups import FollowupCommandQueue
+
 
 @dataclass
 class PromptState:
     text: str
     stop: bool = False
     input_active: bool = False
+    revision: int = 0
 
 
 class ManualPromptPlanner:
     def __init__(self, initial_prompt: str) -> None:
         self.prompt = PromptState(text=initial_prompt)
         self._thread: threading.Thread | None = None
+        self._commands = FollowupCommandQueue()
+        self._current_prompt = initial_prompt
+        self._last_prompt_text: str | None = None
+        self._last_prompt_revision = -1
 
     @property
     def should_stop(self) -> bool:
@@ -41,7 +48,24 @@ class ManualPromptPlanner:
 
     def choose_prompt(self, *, block_count: int) -> str:
         del block_count
-        return self.prompt.text
+        if self._commands:
+            command = self._commands.next()
+            assert command is not None
+            self._current_prompt = command
+            return command
+
+        if (
+            self.prompt.revision != self._last_prompt_revision
+            or self.prompt.text != self._last_prompt_text
+        ):
+            self._last_prompt_revision = self.prompt.revision
+            self._last_prompt_text = self.prompt.text
+            self._commands.receive(self.prompt.text)
+            command = self._commands.next()
+            assert command is not None
+            self._current_prompt = command
+
+        return self._current_prompt
 
 
 def _prompt_loop(prompt: PromptState) -> None:
@@ -58,3 +82,4 @@ def _prompt_loop(prompt: PromptState) -> None:
             prompt.stop = True
         elif text:
             prompt.text = text
+            prompt.revision += 1

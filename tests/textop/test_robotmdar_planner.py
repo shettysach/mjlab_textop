@@ -146,6 +146,33 @@ def test_manual_prompt_planner_uses_current_prompt_without_starting_thread() -> 
     assert "Enter text prompt" in planner.log_suffix
 
 
+def test_manual_prompt_planner_locally_schedules_stand_after_lateral_command() -> None:
+    planner = ManualPromptPlanner("step left")
+
+    assert planner.choose_prompt(block_count=0) == "step left"
+    assert planner.choose_prompt(block_count=1) == "stand"
+    assert planner.choose_prompt(block_count=2) == "stand"
+
+    planner.prompt.text = "turn right"
+    planner.prompt.revision += 1
+
+    assert planner.choose_prompt(block_count=3) == "turn right"
+    assert planner.choose_prompt(block_count=4) == "stand"
+    assert planner.choose_prompt(block_count=5) == "stand"
+
+
+def test_manual_prompt_planner_accepts_repeated_manual_command() -> None:
+    planner = ManualPromptPlanner("step left")
+
+    assert planner.choose_prompt(block_count=0) == "step left"
+    assert planner.choose_prompt(block_count=1) == "stand"
+
+    planner.prompt.revision += 1
+
+    assert planner.choose_prompt(block_count=2) == "step left"
+    assert planner.choose_prompt(block_count=3) == "stand"
+
+
 def test_vlm_planner_queries_selector_on_cadence() -> None:
     provider = _FakeObservationProvider(_observation())
     selector = _FixedSelector("turn left")
