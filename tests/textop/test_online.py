@@ -486,10 +486,31 @@ def test_online_command_discards_motion_until_fresh_stand_block(monkeypatch) -> 
             prompt="walk forward",
         )
     )
+    monkeypatch.setattr(
+        OnlineMotionCommand,
+        "_has_obstacle_collision",
+        lambda self: True,
+    )
     command._update_command()
 
+    assert command.collision_stop is False
     assert command.current_frame == 1
     assert command.buffer.latest_index == 15
+
+    monkeypatch.setattr(
+        OnlineMotionCommand,
+        "_has_obstacle_collision",
+        lambda self: False,
+    )
+    command._update_command()
+    monkeypatch.setattr(
+        OnlineMotionCommand,
+        "_has_obstacle_collision",
+        lambda self: True,
+    )
+    command._update_command()
+
+    assert command.collision_stop is True
 
 
 def test_collision_geom_pair_matches_either_contact_order() -> None:

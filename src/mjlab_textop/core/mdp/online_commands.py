@@ -112,6 +112,7 @@ class OnlineMotionCommand(CommandTerm):
         self._future_cache: FutureWindow | None = None
         self._collision_stop = False
         self._collision_epoch = 0
+        self._collision_contact_active = False
         self._collision_hold_window: FutureWindow | None = None
         self._recovery_stand_started = False
         self._live_index_offset = 0
@@ -278,6 +279,7 @@ class OnlineMotionCommand(CommandTerm):
         self._last_stale_frame = None
         self._live_polling_paused = False
         self._collision_stop = False
+        self._collision_contact_active = False
         self._collision_hold_window = None
         self._recovery_stand_started = False
         self._reference_start_anchor_pos_w.zero_()
@@ -288,9 +290,14 @@ class OnlineMotionCommand(CommandTerm):
         if self._collision_stop:
             self._poll_collision_recovery_source()
             return
-        if self._started and self._has_obstacle_collision():
-            self._activate_collision_stop()
-            return
+        if self._started:
+            in_collision = self._has_obstacle_collision()
+            if not in_collision:
+                self._collision_contact_active = False
+            elif not self._collision_contact_active:
+                self._collision_contact_active = True
+                self._activate_collision_stop()
+                return
 
         self._poll_source()
 
