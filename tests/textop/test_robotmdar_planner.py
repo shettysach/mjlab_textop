@@ -18,6 +18,12 @@ from mjlab_textop.robotmdar.planner import (
     VlmPromptSelection,
 )
 from mjlab_textop.robotmdar.planner.followups import command_followups
+from mjlab_textop.robotmdar.runtime import (
+    DEFAULT_VLM_USER_PROMPT_FILE,
+    StreamConfig,
+    log_stream_timing,
+    read_prompt_path,
+)
 
 
 class _FakeObservationProvider:
@@ -122,7 +128,7 @@ def _observation(
 
 
 def _default_vlm_user_prompt() -> str:
-    return produce.read_prompt_path(produce.DEFAULT_VLM_USER_PROMPT_FILE)
+    return read_prompt_path(DEFAULT_VLM_USER_PROMPT_FILE)
 
 
 def test_parse_feedback_observation() -> None:
@@ -441,9 +447,11 @@ def test_producer_log_includes_vlm_prompt_source(monkeypatch) -> None:
 
     monkeypatch.setattr(produce, "_log_producer_message", messages.append)
 
-    produce._log_block_timing(
-        planner=planner,
-        args=Namespace(log_every_blocks=1),
+    log_stream_timing(
+        prompt_controller=planner,
+        cfg=StreamConfig(guidance_scale=0.0, log_every_blocks=1),
+        log_message=produce._log_producer_message,
+        prompt_source=produce._prompt_source,
         block_count=1,
         frame_index=20,
         block_frames=20,
@@ -456,9 +464,11 @@ def test_producer_log_includes_vlm_prompt_source(monkeypatch) -> None:
     assert "vlm_state=idle" in messages[0]
 
     planner.current_prompt_source = "vlm"
-    produce._log_block_timing(
-        planner=planner,
-        args=Namespace(log_every_blocks=1),
+    log_stream_timing(
+        prompt_controller=planner,
+        cfg=StreamConfig(guidance_scale=0.0, log_every_blocks=1),
+        log_message=produce._log_producer_message,
+        prompt_source=produce._prompt_source,
         block_count=2,
         frame_index=40,
         block_frames=20,

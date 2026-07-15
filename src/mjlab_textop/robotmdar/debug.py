@@ -8,12 +8,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from mjlab_textop.robotmdar.args import (
+    add_generator_arguments,
+    add_stream_arguments,
+    add_vlm_arguments,
+    validate_vlm_arguments,
+)
 from mjlab_textop.robotmdar.feedback import HttpObservationReceiver
 from mjlab_textop.robotmdar.planner.manual import PromptState
 from mjlab_textop.robotmdar.planner.vlm import OpenAIChatPromptSelector
 from mjlab_textop.robotmdar.runtime import (
-    DEFAULT_VLM_SYSTEM_PROMPT_FILE,
-    DEFAULT_VLM_USER_PROMPT_FILE,
     StreamConfig,
     make_robotmdar_generator,
     read_prompt_path,
@@ -79,47 +83,13 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Stream RobotMDAR manual prompts to MJLab and query the VLM with ?.",
     )
-    parser.add_argument("--ckpt", required=True)
-    parser.add_argument("--datadir", required=True)
-    parser.add_argument("--skeleton-asset-root", required=True)
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8765)
-    parser.add_argument("--device", default="cuda")
-    parser.add_argument("--guidance-scale", type=float, default=5.0)
+    add_generator_arguments(parser)
+    add_stream_arguments(parser)
     parser.add_argument("--prompt", default="stand")
-    parser.add_argument("--observation-listen-host", default="127.0.0.1")
-    parser.add_argument("--observation-listen-port", type=int, required=True)
-    parser.add_argument("--observation-path", default="/observation")
-    parser.add_argument("--vlm-base-url", default="http://127.0.0.1:9379")
-    parser.add_argument("--vlm-model", required=True)
-    parser.add_argument(
-        "--vlm-system-prompt",
-        type=Path,
-        default=DEFAULT_VLM_SYSTEM_PROMPT_FILE,
-    )
-    parser.add_argument(
-        "--vlm-user-prompt",
-        type=Path,
-        default=DEFAULT_VLM_USER_PROMPT_FILE,
-    )
-    parser.add_argument("--vlm-timeout-sec", type=float, default=30.0)
-    parser.add_argument("--vlm-max-tokens", type=int, default=256)
-    parser.add_argument(
-        "--vlm-history",
-        action="store_true",
-        help="Send previous VLM-selected prompts back on later VLM requests.",
-    )
+    add_vlm_arguments(parser, require_model=True, require_observation_port=True)
     parser.add_argument("--debug-dir", type=Path, default=None)
-    parser.add_argument("--log-every-blocks", type=int, default=20)
     args = parser.parse_args()
-    if args.vlm_timeout_sec <= 0:
-        raise ValueError(
-            f"--vlm-timeout-sec must be positive, got {args.vlm_timeout_sec}"
-        )
-    if args.vlm_max_tokens <= 0:
-        raise ValueError(
-            f"--vlm-max-tokens must be positive, got {args.vlm_max_tokens}"
-        )
+    validate_vlm_arguments(args, planner_name="RobotMDAR debug")
     return args
 
 
@@ -142,6 +112,10 @@ class PromptStateController:
     @property
     def log_suffix(self) -> str:
         return ""
+
+    @property
+    def recovery_epoch(self) -> int:
+        return 0
 
     def choose_prompt(self, *, block_count: int) -> str:
         del block_count

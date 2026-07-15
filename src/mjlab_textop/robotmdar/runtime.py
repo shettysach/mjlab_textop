@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from mjlab_textop.core.online.live import textop_block_to_ndjson_message
+from mjlab_textop.core.online.source import MotionBlock
 from mjlab_textop.core.robotmdar import (
     robotmdar_motion_dict_to_block,
     slice_motion_dict_tail,
@@ -32,7 +33,20 @@ class PromptController(Protocol):
     @property
     def log_suffix(self) -> str: ...
 
+    @property
+    def recovery_epoch(self) -> int: ...
+
     def choose_prompt(self, *, block_count: int) -> str: ...
+
+
+class RobotMdarGeneratorArgs(Protocol):
+    """The small CLI/configuration surface consumed by the runtime loader."""
+
+    ckpt: str | Path
+    datadir: str | Path
+    skeleton_asset_root: str | Path
+    device: str
+    guidance_scale: float
 
 
 @dataclass(frozen=True)
@@ -69,7 +83,7 @@ class RobotMdarGenerator:
         index: int,
         guidance_scale: float,
         recovery_epoch: int = 0,
-    ):
+    ) -> MotionBlock:
         future_motion, motion_dict, self.abs_pose = generate_motion_block(
             runtime=self.runtime,
             clip_model=self.clip_model,
@@ -142,7 +156,7 @@ def register_hydra_resolvers(OmegaConf) -> None:
 
 
 def make_robotmdar_generator(
-    args,
+    args: RobotMdarGeneratorArgs,
     *,
     log_dir_name: str,
 ) -> RobotMdarGenerator:
@@ -242,7 +256,7 @@ def stream_robotmdar_blocks(
             prompt=current_prompt,
             index=frame_index,
             guidance_scale=cfg.guidance_scale,
-            recovery_epoch=int(getattr(prompt_controller, "recovery_epoch", 0)),
+            recovery_epoch=prompt_controller.recovery_epoch,
         )
         conn.sendall(textop_block_to_ndjson_message(block).encode("utf-8"))
 
@@ -304,7 +318,12 @@ def read_prompt_path(path: str | Path) -> str:
     return Path(path).expanduser().read_text(encoding="utf-8")
 
 
-def _configure_robotmdar_cfg(cfg, *, args, log_dir_name: str) -> None:
+def _configure_robotmdar_cfg(
+    cfg: Any,
+    *,
+    args: RobotMdarGeneratorArgs,
+    log_dir_name: str,
+) -> None:
     cfg.device = args.device
     cfg.ckpt.dar = args.ckpt
     cfg.train.manager.device = args.device

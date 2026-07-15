@@ -27,6 +27,7 @@ from mjlab_textop.core.mdp.online_types import (
 from mjlab_textop.core.online.buffer import (
     RollingMotionBuffer,
 )
+from mjlab_textop.core.online.clock import OnlineReferenceClock
 from mjlab_textop.core.online.live import (
     SocketOnlineSource,
     SocketSourceCfg,
@@ -89,14 +90,10 @@ class OnlineMotionCommand(CommandTerm):
         self.robot = env.scene[cfg.entity_name]
         self.robot_anchor_body_index = self.robot.body_names.index(cfg.anchor_body_name)
         self.buffer = RollingMotionBuffer(device=self.device)
-        self.current_frame = int(self.cfg.start_frame)
-        self._started = False
-        self._has_started_once = False
-        self._startup_wait_steps = 0
+        self._clock = OnlineReferenceClock(int(self.cfg.start_frame))
         self._last_stale_steps = 0
         self._consecutive_stale_steps = 0
         self._last_stale_frame: int | None = None
-        self._live_polling_paused = False
         self.observation_reporter = (
             None
             if cfg.observation is None
@@ -127,6 +124,41 @@ class OnlineMotionCommand(CommandTerm):
     @property
     def command(self) -> torch.Tensor:
         return torch.cat([self.joint_pos, self.joint_vel], dim=-1)
+
+    # Keep these attributes as properties while the timing state lives in one
+    # small, independently-testable object. Several callers inspect them for
+    # diagnostics, so this preserves the existing command-term surface.
+    @property
+    def current_frame(self) -> int:
+        return self._clock.current_frame
+
+    @current_frame.setter
+    def current_frame(self, value: int) -> None:
+        self._clock.current_frame = value
+
+    @property
+    def _started(self) -> bool:
+        return self._clock.started
+
+    @_started.setter
+    def _started(self, value: bool) -> None:
+        self._clock.started = value
+
+    @property
+    def _has_started_once(self) -> bool:
+        return self._clock.has_started_once
+
+    @_has_started_once.setter
+    def _has_started_once(self, value: bool) -> None:
+        self._clock.has_started_once = value
+
+    @property
+    def _startup_wait_steps(self) -> int:
+        return self._clock.startup_wait_steps
+
+    @_startup_wait_steps.setter
+    def _startup_wait_steps(self, value: int) -> None:
+        self._clock.startup_wait_steps = value
 
     @property
     def joint_pos(self) -> torch.Tensor:
@@ -266,11 +298,10 @@ class OnlineMotionCommand(CommandTerm):
                 False,
                 recovery_epoch=self._collision_epoch,
             )
-        self._startup_wait_steps = 0
+        self._clock.reset_runtime()
         self._last_stale_steps = 0
         self._consecutive_stale_steps = 0
         self._last_stale_frame = None
-        self._live_polling_paused = False
         self._collision.reset()
         self._reference_start_anchor_pos_w.zero_()
         self._robot_start_anchor_pos_w.zero_()
@@ -309,9 +340,8 @@ class OnlineMotionCommand(CommandTerm):
                 )
             return
 
-        # V1 assumes one MJLab command update corresponds to one TextOp source
-        # frame. RobotMDAR/TextOpDeploy commonly runs at 50 Hz; add explicit
-        # source-FPS resampling before using streams at a different control rate.
+        # RobotMDAR produces the fixed 50 Hz TextOp stream. One command update
+        # therefore consumes one source frame.
         if self.cfg.source_mode == "live" and not self._can_advance_live_frame():
             return
         self.current_frame += 1
@@ -339,51 +369,30 @@ class OnlineMotionCommand(CommandTerm):
             self._clear_future_cache()
 
     def _should_poll_live_source(self) -> bool:
-        latest_index = self.buffer.latest_index
-        if latest_index is None:
-            self._live_polling_paused = False
-            return True
-
-        future_lead = latest_index - self.current_frame
-        if self._live_polling_paused:
-            if future_lead >= LIVE_BUFFER_LOW_WATERMARK_FRAMES:
-                return False
-            self._live_polling_paused = False
-        elif future_lead >= LIVE_BUFFER_HIGH_WATERMARK_FRAMES:
-            self._live_polling_paused = True
-            return False
-        return True
+        return self._clock.should_poll_live(
+            self.buffer,
+            low_watermark=LIVE_BUFFER_LOW_WATERMARK_FRAMES,
+            high_watermark=LIVE_BUFFER_HIGH_WATERMARK_FRAMES,
+        )
 
     def _startup_start_frame(self) -> int | None:
-        if self.cfg.source_mode == "live":
-            return self._initial_live_start_frame()
-        if self.buffer.can_start(self.current_frame, FUTURE_STEPS):
-            return self.current_frame
-        return None
-
-    def _initial_live_start_frame(self) -> int | None:
-        return self.buffer.earliest_start_frame(FUTURE_STEPS)
-
-    def _resync_live_start_frame(self) -> int | None:
-        return self.buffer.latest_start_frame(FUTURE_STEPS)
+        return self._clock.startup_frame(
+            self.buffer,
+            source_mode=self.cfg.source_mode,
+            future_steps=FUTURE_STEPS,
+        )
 
     def _live_start_or_resync_frame(self) -> int | None:
-        if not self._has_started_once:
-            return self._initial_live_start_frame()
-        return self._resync_live_start_frame()
+        return self._clock.resample_live_frame(
+            self.buffer,
+            future_steps=FUTURE_STEPS,
+        )
 
     def _can_advance_live_frame(self) -> bool:
-        if not self.buffer.can_start(self.current_frame, FUTURE_STEPS):
-            raise RuntimeError(
-                "Lost active live reference window: "
-                f"current={self.current_frame}, "
-                f"earliest={self.buffer.earliest_index}, "
-                f"latest={self.buffer.latest_index}, "
-                f"future_steps={FUTURE_STEPS}"
-            )
-
-        next_frame = self.current_frame + 1
-        return self.buffer.can_start(next_frame, FUTURE_STEPS)
+        return self._clock.can_advance_live(
+            self.buffer,
+            future_steps=FUTURE_STEPS,
+        )
 
     def _future_window(self) -> FutureWindow:
         if self._collision.active:
@@ -436,7 +445,7 @@ class OnlineMotionCommand(CommandTerm):
             safe_window = self._future_window()
         epoch = self._collision.activate(safe_window)
         self.buffer.clear()
-        self._live_polling_paused = False
+        self._clock.live_polling_paused = False
         self._clear_future_cache()
         if self.observation_reporter is not None:
             self.observation_reporter.publish_collision_stop(

@@ -33,6 +33,10 @@ class ManualPromptPlanner:
         return self.prompt.input_active
 
     @property
+    def recovery_epoch(self) -> int:
+        return 0
+
+    @property
     def log_suffix(self) -> str:
         return "\nEnter text prompt (or q to exit): "
 

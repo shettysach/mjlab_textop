@@ -3,8 +3,13 @@ from __future__ import annotations
 import argparse
 import socket
 import sys
-from pathlib import Path
 
+from mjlab_textop.robotmdar.args import (
+    add_generator_arguments,
+    add_stream_arguments,
+    add_vlm_arguments,
+    validate_vlm_arguments,
+)
 from mjlab_textop.robotmdar.feedback import HttpObservationReceiver
 from mjlab_textop.robotmdar.planner.manual import ManualPromptPlanner
 from mjlab_textop.robotmdar.planner.vlm import (
@@ -12,11 +17,8 @@ from mjlab_textop.robotmdar.planner.vlm import (
     VlmPromptPlanner,
 )
 from mjlab_textop.robotmdar.runtime import (
-    DEFAULT_VLM_SYSTEM_PROMPT_FILE,
-    DEFAULT_VLM_USER_PROMPT_FILE,
     PromptController,
     StreamConfig,
-    log_stream_timing,
     make_robotmdar_generator,
     read_prompt_path,
     stream_robotmdar_blocks,
@@ -66,41 +68,15 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Stream RobotMDAR text-to-motion blocks to MJLab over NDJSON TCP.",
     )
-    parser.add_argument("--ckpt", required=True)
-    parser.add_argument("--datadir", required=True)
-    parser.add_argument("--skeleton-asset-root", required=True)
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8765)
-    parser.add_argument("--device", default="cuda")
-    parser.add_argument("--guidance-scale", type=float, default=5.0)
+    add_generator_arguments(parser)
+    add_stream_arguments(parser)
     parser.add_argument(
         "--planner",
         choices=("manual", "vlm"),
         default="manual",
     )
     parser.add_argument("--prompt", default="stand")
-    parser.add_argument("--observation-listen-host", default="127.0.0.1")
-    parser.add_argument("--observation-listen-port", type=int, default=None)
-    parser.add_argument("--observation-path", default="/observation")
-    parser.add_argument("--vlm-base-url", default="http://127.0.0.1:9379")
-    parser.add_argument("--vlm-model", default=None)
-    parser.add_argument(
-        "--vlm-system-prompt",
-        type=Path,
-        default=DEFAULT_VLM_SYSTEM_PROMPT_FILE,
-    )
-    parser.add_argument(
-        "--vlm-user-prompt",
-        type=Path,
-        default=DEFAULT_VLM_USER_PROMPT_FILE,
-    )
-    parser.add_argument("--vlm-timeout-sec", type=float, default=30.0)
-    parser.add_argument("--vlm-max-tokens", type=int, default=256)
-    parser.add_argument(
-        "--vlm-history",
-        action="store_true",
-        help="Send previous VLM-selected prompts back on later VLM requests.",
-    )
+    add_vlm_arguments(parser, require_model=False, require_observation_port=False)
     parser.add_argument(
         "--vlm-reasoning",
         action="store_true",
@@ -113,12 +89,7 @@ def parse_args() -> argparse.Namespace:
         default=4,
         help="Generate each received command before activating a queued follow-up.",
     )
-    parser.add_argument("--log-every-blocks", type=int, default=20)
     args = parser.parse_args()
-    if args.planner == "vlm" and args.observation_listen_port is None:
-        raise ValueError(
-            f"--observation-listen-port is required with --planner {args.planner}"
-        )
     if args.planner == "vlm" and args.query_every_blocks <= 0:
         raise ValueError(
             f"--query-every-blocks must be positive, got {args.query_every_blocks}"
@@ -127,16 +98,8 @@ def parse_args() -> argparse.Namespace:
         raise ValueError(
             f"--command-hold-blocks must be positive, got {args.command_hold_blocks}"
         )
-    if args.vlm_timeout_sec <= 0:
-        raise ValueError(
-            f"--vlm-timeout-sec must be positive, got {args.vlm_timeout_sec}"
-        )
-    if args.vlm_max_tokens <= 0:
-        raise ValueError(
-            f"--vlm-max-tokens must be positive, got {args.vlm_max_tokens}"
-        )
-    if args.planner == "vlm" and not args.vlm_model:
-        raise ValueError(f"--vlm-model is required with --planner {args.planner}")
+    if args.planner == "vlm":
+        validate_vlm_arguments(args, planner_name=f"--planner {args.planner}")
     return args
 
 
@@ -146,34 +109,6 @@ def main() -> None:
 
 def _log_producer_message(message: str) -> None:
     print(message, file=sys.stderr, flush=True)
-
-
-def _log_block_timing(
-    *,
-    planner: PromptController,
-    args: argparse.Namespace,
-    block_count: int,
-    frame_index: int,
-    block_frames: int,
-    block_start_time: float,
-    next_send_time: float,
-    prompt: str,
-) -> float:
-    return log_stream_timing(
-        prompt_controller=planner,
-        cfg=StreamConfig(
-            guidance_scale=getattr(args, "guidance_scale", 0.0),
-            log_every_blocks=args.log_every_blocks,
-        ),
-        log_message=_log_producer_message,
-        prompt_source=_prompt_source,
-        block_count=block_count,
-        frame_index=frame_index,
-        block_frames=block_frames,
-        block_start_time=block_start_time,
-        next_send_time=next_send_time,
-        prompt=prompt,
-    )
 
 
 def _log_vlm_reasoning_if_available(

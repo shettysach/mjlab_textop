@@ -7,6 +7,7 @@ from pathlib import Path
 
 from mjlab_textop.core.robotmdar_record import save_robotmdar_raw_record
 from mjlab_textop.core.schema import TEXTOP_FPS
+from mjlab_textop.robotmdar.args import add_generator_arguments
 from mjlab_textop.robotmdar.runtime import make_robotmdar_generator
 
 
@@ -52,11 +53,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Generate a raw RobotMDAR reference record without MJLab live play.",
     )
-    parser.add_argument("--ckpt", required=True)
-    parser.add_argument("--datadir", required=True)
-    parser.add_argument("--skeleton-asset-root", required=True)
-    parser.add_argument("--device", default="cuda")
-    parser.add_argument("--guidance-scale", type=float, default=5.0)
+    add_generator_arguments(parser)
     parser.add_argument("--prompt", default="walk")
     parser.add_argument("--num-blocks", type=int, required=True)
     parser.add_argument("--output", type=Path, required=True)
