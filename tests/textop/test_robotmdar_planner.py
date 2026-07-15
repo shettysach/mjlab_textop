@@ -1,0 +1,456 @@
+from __future__ import annotations
+
+import json
+import threading
+import time
+from argparse import Namespace
+
+from mjlab_textop.robotmdar import produce
+from mjlab_textop.robotmdar.feedback import (
+    FeedbackObservation,
+    parse_feedback_observation,
+)
+from mjlab_textop.robotmdar.planner import (
+    ManualPromptPlanner,
+    OpenAIChatPromptSelector,
+    VlmPromptPlanner,
+)
+
+
+class _FakeObservationProvider:
+    def __init__(self, observation: FeedbackObservation | None = None) -> None:
+        self.observation = observation
+        self.started = False
+        self.closed = False
+
+    def start(self) -> None:
+        self.started = True
+
+    def close(self) -> None:
+        self.closed = True
+
+    def latest(self) -> FeedbackObservation | None:
+        return self.observation
+
+
+class _FakeResponse:
+    def __init__(self, payload: dict) -> None:
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        return
+
+    def read(self) -> bytes:
+        return json.dumps(self.payload).encode("utf-8")
+
+
+class _FailingSelector:
+    def __init__(self) -> None:
+        self.calls = 0
+        self.finished = threading.Event()
+
+    def choose_prompt(self, **kwargs) -> str:
+        del kwargs
+        self.calls += 1
+        self.finished.set()
+        raise TimeoutError("vlm timed out")
+
+
+class _FixedSelector:
+    def __init__(self, prompt: str) -> None:
+        self.prompt = prompt
+        self.calls = 0
+        self.finished = threading.Event()
+
+    def choose_prompt(self, **kwargs) -> str:
+        del kwargs
+        self.calls += 1
+        self.finished.set()
+        return self.prompt
+
+
+class _BlockingSelector:
+    def __init__(self, prompt: str) -> None:
+        self.prompt = prompt
+        self.calls = 0
+        self.started = threading.Event()
+        self.release = threading.Event()
+        self.finished = threading.Event()
+
+    def choose_prompt(self, **kwargs) -> str:
+        del kwargs
+        self.calls += 1
+        self.started.set()
+        self.release.wait(timeout=1)
+        self.finished.set()
+        return self.prompt
+
+
+def _wait_for(condition) -> None:
+    deadline = time.monotonic() + 1.0
+    while time.monotonic() < deadline:
+        if condition():
+            return
+        time.sleep(0.01)
+    raise AssertionError("condition did not become true")
+
+
+def _observation(
+    *,
+    consecutive_stale_steps: int = 0,
+    image_bytes: bytes | None = None,
+    image_mime_type: str | None = None,
+) -> FeedbackObservation:
+    return FeedbackObservation(
+        frame=10,
+        started=True,
+        latest_frame=18,
+        lag_frames=8,
+        buffer_frames=32,
+        stale_steps=0,
+        consecutive_stale_steps=consecutive_stale_steps,
+        robot_anchor_pos_w=(1.0, 2.0, 3.0),
+        robot_anchor_quat_w=(1.0, 0.0, 0.0, 0.0),
+        image_bytes=image_bytes,
+        image_mime_type=image_mime_type,
+    )
+
+
+def test_parse_feedback_observation() -> None:
+    observation = parse_feedback_observation(
+        {
+            "state": {
+                "frame": 10,
+                "started": True,
+                "latest_frame": 18,
+                "lag_frames": 8,
+                "buffer_frames": 32,
+                "stale_steps": 0,
+                "consecutive_stale_steps": 0,
+                "robot_anchor_pos_w": [1.0, 2.0, 3.0],
+                "robot_anchor_quat_w": [1.0, 0.0, 0.0, 0.0],
+            },
+            "image": {
+                "mime_type": "image/jpeg",
+                "data": "anBlZyBieXRlcw==",
+            },
+        }
+    )
+
+    assert observation.robot_anchor_pos_w == (1.0, 2.0, 3.0)
+    assert observation.robot_anchor_quat_w == (1.0, 0.0, 0.0, 0.0)
+    assert observation.latest_frame == 18
+    assert observation.image_bytes == b"jpeg bytes"
+    assert observation.image_mime_type == "image/jpeg"
+
+
+def test_manual_prompt_planner_uses_current_prompt_without_starting_thread() -> None:
+    planner = ManualPromptPlanner("walk forward")
+
+    assert planner.choose_prompt(block_count=0) == "walk forward"
+
+    planner.prompt.text = "turn left"
+
+    assert planner.choose_prompt(block_count=1) == "turn left"
+    assert planner.should_stop is False
+    assert planner.input_active is False
+    assert "Enter text prompt" in planner.log_suffix
+
+
+def test_vlm_planner_queries_selector_on_cadence() -> None:
+    provider = _FakeObservationProvider(_observation())
+    selector = _FixedSelector("turn left")
+    planner = VlmPromptPlanner(
+        feedback=provider,
+        selector=selector,
+        initial_prompt="walk forward",
+        query_every_blocks=2,
+    )
+
+    planner.start()
+
+    assert provider.started is True
+    assert planner.choose_prompt(block_count=0) == "walk forward"
+    assert planner.current_prompt_source == "fallback"
+    assert selector.finished.wait(timeout=1)
+    assert planner.choose_prompt(block_count=1) == "turn left"
+    assert planner.current_prompt_source == "prev"
+    assert planner.choose_prompt(block_count=2) == "turn left"
+    _wait_for(lambda: selector.calls == 2)
+
+    planner.request_stop()
+
+    assert provider.closed is True
+
+
+def test_vlm_planner_does_not_block_while_selector_runs() -> None:
+    provider = _FakeObservationProvider(_observation())
+    selector = _BlockingSelector("turn right")
+    planner = VlmPromptPlanner(
+        feedback=provider,
+        selector=selector,
+        initial_prompt="walk forward",
+        query_every_blocks=10,
+    )
+
+    assert planner.choose_prompt(block_count=0) == "walk forward"
+    assert selector.started.wait(timeout=1)
+    assert planner.log_suffix == " vlm=inflight"
+    assert planner.choose_prompt(block_count=1) == "walk forward"
+    assert selector.calls == 1
+
+    selector.release.set()
+    assert selector.finished.wait(timeout=1)
+    assert planner.choose_prompt(block_count=2) == "turn right"
+    assert planner.log_suffix == " vlm=idle"
+
+    planner.request_stop()
+
+
+def test_vlm_planner_keeps_current_prompt_on_selector_errors() -> None:
+    provider = _FakeObservationProvider(_observation())
+    selector = _FailingSelector()
+    planner = VlmPromptPlanner(
+        feedback=provider,
+        selector=selector,
+        initial_prompt="walk forward",
+        query_every_blocks=3,
+    )
+
+    assert planner.choose_prompt(block_count=0) == "walk forward"
+    assert selector.finished.wait(timeout=1)
+    assert planner.choose_prompt(block_count=1) == "walk forward"
+    assert selector.calls == 1
+    assert planner.last_error == "TimeoutError"
+    assert planner.current_prompt_source == "fallback"
+    assert planner.log_suffix == " vlm=idle vlm_error=TimeoutError"
+
+    planner.request_stop()
+
+
+def test_vlm_planner_keeps_last_good_prompt_on_empty_selector_result() -> None:
+    provider = _FakeObservationProvider(_observation())
+    selector = _FixedSelector("   ")
+    planner = VlmPromptPlanner(
+        feedback=provider,
+        selector=selector,
+        initial_prompt="walk forward",
+        query_every_blocks=2,
+    )
+
+    assert planner.choose_prompt(block_count=0) == "walk forward"
+    assert selector.finished.wait(timeout=1)
+    assert planner.choose_prompt(block_count=1) == "walk forward"
+    assert planner.last_error == "Empty"
+    assert planner.current_prompt_source == "fallback"
+    assert planner.log_suffix == " vlm=idle vlm_error=Empty"
+
+    planner.request_stop()
+
+
+def test_vlm_planner_recovers_after_empty_selector_result() -> None:
+    provider = _FakeObservationProvider(_observation())
+    selector = _FixedSelector("   ")
+    planner = VlmPromptPlanner(
+        feedback=provider,
+        selector=selector,
+        initial_prompt="stand",
+        query_every_blocks=1,
+    )
+
+    assert planner.choose_prompt(block_count=0) == "stand"
+    assert selector.finished.wait(timeout=1)
+    assert planner.choose_prompt(block_count=1) == "stand"
+
+    selector.prompt = " wave "
+    selector.finished.clear()
+    assert planner.choose_prompt(block_count=2) == "stand"
+    assert selector.finished.wait(timeout=1)
+    assert planner.choose_prompt(block_count=3) == "wave"
+    assert planner.last_error is None
+    assert planner.current_prompt_source == "prev"
+
+    planner.request_stop()
+
+
+def test_producer_log_includes_vlm_prompt_source(monkeypatch) -> None:
+    messages = []
+    planner = VlmPromptPlanner(
+        feedback=_FakeObservationProvider(_observation()),
+        selector=_FixedSelector("wave"),
+        initial_prompt="stand",
+        query_every_blocks=1,
+    )
+
+    monkeypatch.setattr(produce, "_log_producer_message", messages.append)
+
+    produce._log_block_timing(
+        planner=planner,
+        args=Namespace(fps=50.0, log_every_blocks=1),
+        block_count=1,
+        frame_index=20,
+        block_frames=20,
+        block_start_time=time.monotonic(),
+        next_send_time=time.monotonic(),
+        prompt="stand",
+    )
+
+    assert "prompt_source=fallback" in messages[0]
+
+    planner.current_prompt_source = "vlm"
+    produce._log_block_timing(
+        planner=planner,
+        args=Namespace(fps=50.0, log_every_blocks=1),
+        block_count=2,
+        frame_index=40,
+        block_frames=20,
+        block_start_time=time.monotonic(),
+        next_send_time=time.monotonic(),
+        prompt="wave",
+    )
+
+    assert "prompt_source=vlm" in messages[1]
+
+    planner.request_stop()
+
+
+def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> None:
+    posted = {}
+
+    def fake_urlopen(request, timeout):
+        posted["url"] = request.full_url
+        posted["timeout"] = timeout
+        posted["payload"] = json.loads(request.data.decode("utf-8"))
+        posted["content_type"] = request.headers["Content-type"]
+        return _FakeResponse(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "wave",
+                        }
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr(
+        "mjlab_textop.robotmdar.planner.vlm.urllib.request.urlopen",
+        fake_urlopen,
+    )
+    selector = OpenAIChatPromptSelector(
+        base_url="http://127.0.0.1:9379",
+        model="gemma-4-e2b-it",
+        system_prompt="You are a motion planner.",
+        timeout_sec=1.5,
+        max_completion_tokens=16,
+    )
+
+    prompt = selector.choose_prompt(
+        observation=_observation(),
+    )
+
+    assert prompt == "wave"
+    assert posted["url"] == "http://127.0.0.1:9379/v1/chat/completions"
+    assert posted["timeout"] == 1.5
+    assert posted["content_type"] == "application/json"
+    assert posted["payload"]["model"] == "gemma-4-e2b-it"
+    assert posted["payload"]["max_completion_tokens"] == 16
+    assert posted["payload"]["temperature"] == 0
+    assert posted["payload"]["messages"][0]["role"] == "system"
+    assert posted["payload"]["messages"][0]["content"][0]["text"] == (
+        "You are a motion planner."
+    )
+    content = posted["payload"]["messages"][1]["content"]
+    assert content[0]["type"] == "text"
+    assert "Example motion commands" in content[0]["text"]
+    assert "stand" in content[0]["text"]
+    assert "Return one command as text" in content[0]["text"]
+    assert '"frame":10' in content[0]["text"]
+    assert '"latest_frame":18' in content[0]["text"]
+    assert '"lag_frames":8' in content[0]["text"]
+    assert '"robot_anchor_pos_w":[1.0,2.0,3.0]' in content[0]["text"]
+    assert '"has_image":false' in content[0]["text"]
+    assert len(content) == 1
+
+
+def test_http_vlm_prompt_selector_posts_image_from_observation_bytes(
+    monkeypatch,
+) -> None:
+    posted = {}
+
+    def fake_urlopen(request, timeout):
+        del timeout
+        posted["payload"] = json.loads(request.data.decode("utf-8"))
+        return _FakeResponse(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "punch",
+                        }
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr(
+        "mjlab_textop.robotmdar.planner.vlm.urllib.request.urlopen",
+        fake_urlopen,
+    )
+    selector = OpenAIChatPromptSelector(
+        base_url="http://127.0.0.1:9379",
+        model="gemma-4-e2b-it",
+    )
+
+    prompt = selector.choose_prompt(
+        observation=_observation(
+            image_bytes=b"jpeg bytes",
+            image_mime_type="image/jpeg",
+        ),
+    )
+
+    content = posted["payload"]["messages"][0]["content"]
+    assert prompt == "punch"
+    assert content[0]["type"] == "text"
+    assert '"has_image":true' in content[0]["text"]
+    assert '"has_image":true' in content[0]["text"]
+    assert content[1] == {
+        "type": "image_url",
+        "image_url": {"url": "data:image/jpeg;base64,anBlZyBieXRlcw=="},
+    }
+
+
+def test_http_vlm_prompt_selector_returns_raw_response(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        del request, timeout
+        return _FakeResponse(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": 'STOP. Clear location near pose.g39g}<|"|>',
+                        }
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr(
+        "mjlab_textop.robotmdar.planner.vlm.urllib.request.urlopen",
+        fake_urlopen,
+    )
+    selector = OpenAIChatPromptSelector(
+        base_url="http://127.0.0.1:9379",
+        model="gemma-4-e2b-it",
+    )
+
+    assert (
+        selector.choose_prompt(
+            observation=_observation(),
+        )
+        == 'STOP. Clear location near pose.g39g}<|"|>'
+    )

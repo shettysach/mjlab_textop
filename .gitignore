@@ -1,0 +1,14 @@
+.envrc
+.env
+
+.direnv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+
+TASK.md
+PLAN.md
+UPDATED.md
+log
