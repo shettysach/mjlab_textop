@@ -480,7 +480,7 @@ def use_online_textop_motion_command(
     debug_vis: bool | None = None,
     observation: OnlineObservationCfg | None = None,
     collision_stop_geom_suffix: str | None = "_collision",
-) -> None:
+) -> OnlineMotionCommandCfg:
     motion_cfg = env_cfg.commands[command_name]
     entity_name = motion_cfg.entity_name
     anchor_body_name = motion_cfg.anchor_body_name
@@ -489,7 +489,7 @@ def use_online_textop_motion_command(
     if source is None and source_mode == "replay":
         source = QueueOnlineSource()
 
-    env_cfg.commands[command_name] = OnlineMotionCommandCfg(
+    online_cfg = OnlineMotionCommandCfg(
         entity_name=entity_name,
         anchor_body_name=anchor_body_name,
         source=source,
@@ -500,3 +500,5 @@ def use_online_textop_motion_command(
         collision_stop_geom_suffix=collision_stop_geom_suffix,
         debug_vis=debug_vis,
     )
+    env_cfg.commands[command_name] = online_cfg
+    return online_cfg

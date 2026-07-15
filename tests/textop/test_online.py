@@ -1341,8 +1341,9 @@ def test_use_online_textop_motion_command_preserves_injected_source() -> None:
         }
     )
 
-    use_online_textop_motion_command(env_cfg, source=source)
+    online_cfg = use_online_textop_motion_command(env_cfg, source=source)
 
+    assert online_cfg is env_cfg.commands["motion"]
     assert env_cfg.commands["motion"].source is source
     assert env_cfg.commands["motion"].source_mode == "live"
 

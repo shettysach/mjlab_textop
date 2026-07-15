@@ -1,5 +1,3 @@
-# ty:ignore[unresolved-import]
-
 from __future__ import annotations
 
 import socket
@@ -115,15 +113,21 @@ class StreamConfig:
 def load_robotmdar_runtime() -> RobotMdarRuntime:
     try:
         import torch
-        from hydra.utils import instantiate
-        from omegaconf import OmegaConf
-        from robotmdar.dtype import seed
-        from robotmdar.dtype.motion import get_zero_abs_pose, get_zero_feature
-        from robotmdar.eval.generate_dar import (
+        from hydra.utils import instantiate  # ty:ignore[unresolved-import]
+        from omegaconf import OmegaConf  # ty:ignore[unresolved-import]
+        from robotmdar.dtype import seed  # ty:ignore[unresolved-import]
+        from robotmdar.dtype.motion import (  # ty:ignore[unresolved-import]
+            get_zero_abs_pose,
+            get_zero_feature,
+        )
+        from robotmdar.eval.generate_dar import (  # ty:ignore[unresolved-import]
             ClassifierFreeWrapper,
             generate_next_motion,
         )
-        from robotmdar.model.clip import encode_text, load_and_freeze_clip
+        from robotmdar.model.clip import (  # ty:ignore[unresolved-import]
+            encode_text,
+            load_and_freeze_clip,
+        )
     except ImportError as exc:
         raise ImportError(
             "RobotMDAR commands must be run in the TextOp/RobotMDAR environment."

@@ -45,7 +45,7 @@ def make_online_textop_g1_env_cfg(
 ):
     cfg = unitree_g1_flat_tracking_env_cfg(play=play)
 
-    use_online_textop_motion_command(
+    motion_cfg = use_online_textop_motion_command(
         cfg,
         command_name="motion",
         source=source,
@@ -55,7 +55,7 @@ def make_online_textop_g1_env_cfg(
         debug_vis=reference_debug_vis,
         observation=observation,
     )
-    cfg.commands["motion"].anchor_body_name = "pelvis"  # ty:ignore[unresolved-attribute]
+    motion_cfg.anchor_body_name = "pelvis"
     cfg.sim.mujoco.timestep = TEXTOP_DEPLOY_SIM_TIMESTEP
     cfg.decimation = TEXTOP_DEPLOY_DECIMATION
 
