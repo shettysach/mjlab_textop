@@ -5,7 +5,10 @@ from pathlib import Path
 
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
-from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
+from mjlab_textop.core.onnx_policy import (
+    OnnxExecutionProvider,
+    OnnxPolicyRunner,
+)
 from mjlab_textop.tasks.registration import PolicyRunnerCls
 
 
@@ -21,11 +24,13 @@ def verify_resolved(resolved: Path, label: str) -> Path:
 class ResolvedPolicy:
     runner_cls: PolicyRunnerCls
     file: Path
+    onnx_provider: OnnxExecutionProvider = "cpu"
 
 
 def resolve_policy(
     checkpoint_file: str | Path | None,
     onnx_file: str | Path | None,
+    onnx_provider: OnnxExecutionProvider = "cpu",
 ) -> ResolvedPolicy:
     if checkpoint_file is not None and onnx_file is not None:
         raise ValueError("Pass exactly one of --checkpoint-file or --onnx-file")
@@ -46,6 +51,7 @@ def resolve_policy(
                 Path(onnx_file).expanduser().resolve(),
                 "ONNX policy file",
             ),
+            onnx_provider=onnx_provider,
         )
 
     raise ValueError("Pass exactly one of --checkpoint-file or --onnx-file")

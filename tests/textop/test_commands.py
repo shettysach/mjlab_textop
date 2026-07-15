@@ -65,6 +65,21 @@ def test_resolve_policy_accepts_onnx_file(tmp_path) -> None:
     assert policy.file == onnx_file.resolve()
 
 
+def test_resolve_policy_selects_cuda_onnx_provider(tmp_path) -> None:
+    onnx_file = tmp_path / "latest.onnx"
+    onnx_file.write_text("onnx")
+
+    policy = resolve_policy(
+        checkpoint_file=None,
+        onnx_file=str(onnx_file),
+        onnx_provider="cuda",
+    )
+
+    assert policy.runner_cls is OnnxPolicyRunner
+    assert policy.onnx_provider == "cuda"
+    assert policy.file == onnx_file.resolve()
+
+
 def test_resolve_policy_rejects_missing_policy() -> None:
     with pytest.raises(ValueError, match="exactly one"):
         resolve_policy(checkpoint_file=None, onnx_file=None)

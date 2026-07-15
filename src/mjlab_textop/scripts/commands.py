@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 import tyro
 from mjlab.scripts.play import PlayConfig, run_play
@@ -35,6 +36,7 @@ class PlayLiveCommand:
     task: TextOpTask = "default"
     checkpoint_file: str | None = None
     onnx_file: str | None = None
+    onnx_provider: Literal["cpu", "cuda"] = "cpu"
     host: str = "127.0.0.1"
     port: int = 8765
     device: str = "cuda:0"
@@ -65,6 +67,7 @@ def play_live_textop_motion(
     task_name = register_task(
         cfg.task,
         runner_cls=policy.runner_cls,
+        onnx_provider=policy.onnx_provider,
         live_source_cfg=SocketSourceCfg(
             host=cfg.host,
             port=cfg.port,
@@ -118,6 +121,7 @@ class PlayOnlineCommand:
     motion_file: str = field(default=tyro.MISSING)
     checkpoint_file: str | None = None
     onnx_file: str | None = None
+    onnx_provider: Literal["cpu", "cuda"] = "cpu"
     device: str = "cuda:0"
     num_envs: int = 1
     block_size: int = 8
@@ -134,6 +138,7 @@ def play_online_textop_motion(
     task_name = register_task(
         "default",
         runner_cls=policy.runner_cls,
+        onnx_provider=policy.onnx_provider,
         source=source,
         source_mode="replay",
         num_envs=cfg.num_envs,

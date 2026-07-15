@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
-from mjlab.tasks.registry import load_env_cfg, load_runner_cls
+from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
 
 from mjlab_textop.core.feedback.observation import OnlineObservationCfg
 from mjlab_textop.core.mdp.offline_commands import OfflineMotionCommandCfg
@@ -98,6 +98,19 @@ def test_online_textop_onnx_replay_task_uses_replay_source_mode() -> None:
 
     assert env_cfg.commands["motion"].source_mode == "replay"
     assert load_runner_cls(task_name) is OnnxPolicyRunner
+
+
+def test_online_textop_onnx_task_carries_cuda_provider_in_runner_cfg() -> None:
+    task_name = register_task(
+        "default",
+        runner_cls=OnnxPolicyRunner,
+        onnx_provider="cuda",
+        source=QueueOnlineSource(),
+        source_mode="replay",
+    )
+
+    assert load_runner_cls(task_name) is OnnxPolicyRunner
+    assert load_rl_cfg(task_name).onnx_execution_provider == "cuda"
 
 
 def test_online_textop_replay_task_can_disable_reference_reset() -> None:
