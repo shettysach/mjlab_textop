@@ -116,7 +116,7 @@ def _log_vlm_reasoning_if_available(
     planner: PromptController,
     args: argparse.Namespace,
 ) -> None:
-    if not getattr(args, "vlm_reasoning", False):
+    if not args.vlm_reasoning:
         return
     if not isinstance(planner, VlmPromptPlanner):
         return

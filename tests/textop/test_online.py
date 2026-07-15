@@ -1054,6 +1054,7 @@ def test_online_observation_reporter_uses_observation_camera(monkeypatch) -> Non
             data=object(),
             expanded_fields=set(),
         ),
+        update_visualizers=lambda visualizer: None,
     )
     reporter = OnlineObservationReporter(
         OnlineObservationCfg(camera=observation_camera),
@@ -1332,7 +1333,11 @@ def test_use_online_textop_motion_command_preserves_injected_source() -> None:
     source = QueueOnlineSource([motion_block(frames=8)])
     env_cfg = SimpleNamespace(
         commands={
-            "motion": SimpleNamespace(entity_name="robot", anchor_body_name="pelvis")
+            "motion": SimpleNamespace(
+                entity_name="robot",
+                anchor_body_name="pelvis",
+                debug_vis=False,
+            )
         }
     )
 
@@ -1377,7 +1382,11 @@ def test_use_online_textop_motion_command_can_override_debug_vis() -> None:
 def test_use_online_textop_motion_command_can_disable_reference_reset() -> None:
     env_cfg = SimpleNamespace(
         commands={
-            "motion": SimpleNamespace(entity_name="robot", anchor_body_name="pelvis")
+            "motion": SimpleNamespace(
+                entity_name="robot",
+                anchor_body_name="pelvis",
+                debug_vis=False,
+            )
         }
     )
 

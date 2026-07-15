@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import Any
 
+import numpy as np
 import torch
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.utils.lab_api.math import euler_xyz_from_quat
@@ -52,7 +52,7 @@ class OnlineObservationReporter:
             self._last_publish_frame = current_frame
             return
 
-        rendered_image = _copy_rendered_image(self._render_image())
+        rendered_image = self._render_image().copy()
         self._publish_future = self._publish_executor.submit(
             self._encode_and_publish,
             publisher,
@@ -63,7 +63,7 @@ class OnlineObservationReporter:
     def _encode_and_publish(
         self,
         publisher: ObservationPublisher,
-        rendered_image: Any,
+        rendered_image: np.ndarray,
     ) -> None:
         data = encode_render_image_jpeg(rendered_image)
         publisher.publish(
@@ -124,7 +124,7 @@ class OnlineObservationReporter:
                 self._image_renderer.close()
                 self._image_renderer = None
 
-    def _render_image(self):
+    def _render_image(self) -> np.ndarray:
         renderer = self._image_renderer
         env = self.env
         if renderer is None:
@@ -138,11 +138,8 @@ class OnlineObservationReporter:
             renderer.initialize()
             self._image_renderer = renderer
 
-        debug_callback = (
-            env.update_visualizers if hasattr(env, "update_visualizers") else None
-        )
         self._sync_camera_orientation(renderer)
-        renderer.update(env.sim.data, debug_vis_callback=debug_callback)
+        renderer.update(env.sim.data, debug_vis_callback=env.update_visualizers)
         return renderer.render()
 
     def _sync_camera_orientation(self, renderer: OffscreenRenderer) -> None:
@@ -166,10 +163,3 @@ def _body_yaw_degrees(
     quat = robot.data.body_link_quat_w[int(camera_cfg.env_idx), body_index]
     _, _, yaw = euler_xyz_from_quat(quat.reshape(1, 4))
     return float(torch.rad2deg(yaw).item())
-
-
-def _copy_rendered_image(image: Any) -> Any:
-    copy = getattr(image, "copy", None)
-    if callable(copy):
-        return copy()
-    return image

@@ -482,10 +482,10 @@ def use_online_textop_motion_command(
     collision_stop_geom_suffix: str | None = "_collision",
 ) -> None:
     motion_cfg = env_cfg.commands[command_name]
-    entity_name = getattr(motion_cfg, "entity_name", "robot")
-    anchor_body_name = getattr(motion_cfg, "anchor_body_name", "pelvis")
+    entity_name = motion_cfg.entity_name
+    anchor_body_name = motion_cfg.anchor_body_name
     if debug_vis is None:
-        debug_vis = bool(getattr(motion_cfg, "debug_vis", False))
+        debug_vis = motion_cfg.debug_vis
     if source is None and source_mode == "replay":
         source = QueueOnlineSource()
 

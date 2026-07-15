@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
+import torch
 
 from mjlab_textop.core.motion import (
     reindex_mjlab_g1_joints_to_textop,
@@ -96,7 +97,7 @@ def slice_motion_dict_tail(
 ) -> dict[str, Any]:
     result = {}
     for key, value in motion_dict.items():
-        if hasattr(value, "shape") and len(value.shape) >= 2:
+        if isinstance(value, (np.ndarray, torch.Tensor)) and value.ndim >= 2:
             result[key] = value[:, -frames:]
         else:
             result[key] = value

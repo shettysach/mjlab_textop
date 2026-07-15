@@ -63,8 +63,7 @@ def normalize(
     robot: Entity = scene["robot"]
     robot_joint_idxs = robot.find_joints(MJLAB_G1_JOINT_NAMES, preserve_order=True)[0]
 
-    log: dict[str, list[np.ndarray] | list[float] | np.ndarray] = {
-        "fps": [record.fps],
+    log: dict[str, list[np.ndarray]] = {
         "joint_pos": [],
         "joint_vel": [],
         "body_pos_w": [],
@@ -104,18 +103,17 @@ def normalize(
 
         _append_frame(log, robot)
 
-    for key in (
-        "joint_pos",
-        "joint_vel",
-        "body_pos_w",
-        "body_quat_w",
-        "body_lin_vel_w",
-        "body_ang_vel_w",
-    ):
-        log[key] = np.stack(log[key], axis=0)  # ty:ignore[no-matching-overload]
-
     output_motion_file.parent.mkdir(parents=True, exist_ok=True)
-    np.savez(output_motion_file, **log)  # ty:ignore[invalid-argument-type]
+    np.savez(
+        output_motion_file,
+        fps=np.array([record.fps], dtype=np.float32),
+        joint_pos=np.stack(log["joint_pos"], axis=0),
+        joint_vel=np.stack(log["joint_vel"], axis=0),
+        body_pos_w=np.stack(log["body_pos_w"], axis=0),
+        body_quat_w=np.stack(log["body_quat_w"], axis=0),
+        body_lin_vel_w=np.stack(log["body_lin_vel_w"], axis=0),
+        body_ang_vel_w=np.stack(log["body_ang_vel_w"], axis=0),
+    )
     _validate_normalized_output(output_motion_file)
     print(f"Saved MJLab-native RobotMDAR motion to {output_motion_file}")
     print(f"Frames: {frame_count}, fps: {record.fps:g}")
@@ -123,15 +121,8 @@ def normalize(
 
 
 def _append_frame(
-    log: dict[str, list[np.ndarray] | list[float] | np.ndarray], robot: Entity
+    log: dict[str, list[np.ndarray]], robot: Entity
 ) -> None:
-    assert isinstance(log["joint_pos"], list)
-    assert isinstance(log["joint_vel"], list)
-    assert isinstance(log["body_pos_w"], list)
-    assert isinstance(log["body_quat_w"], list)
-    assert isinstance(log["body_lin_vel_w"], list)
-    assert isinstance(log["body_ang_vel_w"], list)
-
     log["joint_pos"].append(robot.data.joint_pos[0, :].cpu().numpy().copy())
     log["joint_vel"].append(robot.data.joint_vel[0, :].cpu().numpy().copy())
     log["body_pos_w"].append(robot.data.body_link_pos_w[0, :].cpu().numpy().copy())

@@ -43,6 +43,8 @@ def fake_env(
     robot_anchor_quat: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
     step_dt: float = 0.02,
 ):
+    geom_names = ("robot/visual", "ground")
+    body_names = ("world", "robot/pelvis")
     body_pos = torch.tensor([[robot_anchor_pos]], dtype=torch.float32).repeat(
         num_envs, 1, 1
     )
@@ -92,8 +94,12 @@ def fake_env(
                 geom_contype=np.array([0, 1], dtype=np.int32),
                 geom_conaffinity=np.array([0, 1], dtype=np.int32),
                 geom_rgba=np.ones((2, 4), dtype=np.float32),
+                geom_bodyid=np.array([1, 0], dtype=np.int32),
+                geom=lambda index: SimpleNamespace(name=geom_names[index]),
+                body=lambda index: SimpleNamespace(name=body_names[index]),
             )
         ),
+        update_visualizers=lambda visualizer: None,
     )
 
 
