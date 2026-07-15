@@ -1,15 +1,20 @@
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 import torch
+from tensordict import TensorDict
 
+import mjlab_textop.core.onnx_policy as onnx_policy
 from mjlab_textop.core.onnx_policy import OnnxPolicy, OnnxPolicyRunner
 from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
+
+
+def _observations(actor: torch.Tensor) -> TensorDict:
+    return TensorDict({"actor": actor}, batch_size=[actor.shape[0]])
 
 
 class _FakeSession:
@@ -75,14 +80,6 @@ class _FakeSessionOptions:
         self.entries[name] = value
 
 
-def test_importing_policy_module_does_not_load_onnxruntime(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delitem(sys.modules, "onnxruntime", raising=False)
-
-    assert "onnxruntime" not in sys.modules
-
-
 def _install_fake_onnxruntime(
     monkeypatch: pytest.MonkeyPatch,
     *,
@@ -94,7 +91,7 @@ def _install_fake_onnxruntime(
         get_available_providers=lambda: available_providers
         or ["CUDAExecutionProvider", "CPUExecutionProvider"],
     )
-    monkeypatch.setitem(sys.modules, "onnxruntime", fake_ort)
+    monkeypatch.setattr(onnx_policy, "ort", fake_ort)
 
 
 def test_textop_onnx_policy_reindexes_action_to_mjlab_order(
@@ -104,7 +101,7 @@ def test_textop_onnx_policy_reindexes_action_to_mjlab_order(
     policy = OnnxPolicy(Path("latest.onnx"))
     obs = torch.zeros(2, 431)
 
-    action = policy(obs)
+    action = policy(_observations(obs))
 
     expected_one = torch.arange(29, dtype=torch.float32)[
         list(ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)
@@ -215,13 +212,13 @@ def test_cuda_run_binds_torch_buffers_and_reuses_output() -> None:
     assert policy._binding.outputs[0]["buffer_ptr"] == first.data_ptr()
 
 
-def test_textop_onnx_policy_accepts_actor_observation_dict(
+def test_textop_onnx_policy_accepts_actor_observation_group(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install_fake_onnxruntime(monkeypatch)
     policy = OnnxPolicy(Path("latest.onnx"))
 
-    action = policy({"actor": torch.zeros(1, 431)})
+    action = policy(_observations(torch.zeros(1, 431)))
 
     assert action.shape == (1, 29)
 
@@ -233,7 +230,7 @@ def test_textop_onnx_policy_rejects_unbatched_obs(
     policy = OnnxPolicy(Path("latest.onnx"))
 
     with pytest.raises(RuntimeError, match=r"\[N, 431\]"):
-        policy(torch.zeros(431))
+        policy(TensorDict({"actor": torch.zeros(431)}, batch_size=[]))
 
 
 def test_textop_onnx_policy_rejects_wrong_obs_dim(
@@ -243,7 +240,7 @@ def test_textop_onnx_policy_rejects_wrong_obs_dim(
     policy = OnnxPolicy(Path("latest.onnx"))
 
     with pytest.raises(RuntimeError, match="Expected ONNX obs dim 431"):
-        policy(torch.zeros(1, 430))
+        policy(_observations(torch.zeros(1, 430)))
 
 
 def test_textop_onnx_runner_loads_inference_policy(
@@ -259,7 +256,7 @@ def test_textop_onnx_runner_loads_inference_policy(
     policy = runner.get_inference_policy(device="cpu")
 
     assert isinstance(policy, OnnxPolicy)
-    assert policy({"actor": torch.zeros(1, 431)}).shape == (1, 29)
+    assert policy(_observations(torch.zeros(1, 431))).shape == (1, 29)
 
 
 def test_onnx_runner_reads_execution_provider_from_config() -> None:

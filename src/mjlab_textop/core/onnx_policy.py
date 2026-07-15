@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import importlib
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import numpy as np
+import onnxruntime as ort
 import torch
+from tensordict import TensorDict
 
 from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
 
@@ -23,11 +24,9 @@ class OnnxPolicy:
         execution_provider: OnnxExecutionProvider = "cpu",
     ) -> None:
         self.execution_provider = execution_provider
-        ort = _load_onnxruntime()
 
         if execution_provider == "cuda":
             self.device, self.device_id, self._stream = _resolve_cuda_device(
-                ort,
                 torch.device(device),
             )
             session_options = ort.SessionOptions()
@@ -61,33 +60,17 @@ class OnnxPolicy:
         self._output: torch.Tensor | None = None
         self._textop_to_mjlab: dict[torch.device, torch.Tensor] = {}
 
-    def __call__(self, obs: torch.Tensor | Any) -> torch.Tensor:
-        obs = _actor_obs(obs)
-        if obs.ndim != 2:
-            raise RuntimeError(
-                f"Expected batched ONNX obs shaped [N, 431], got {obs.shape}"
-            )
-        if obs.shape[-1] != 431:
-            raise RuntimeError(f"Expected ONNX obs dim 431, got {obs.shape[-1]}")
-
+    def __call__(self, obs: TensorDict) -> torch.Tensor:
+        actor_obs = cast(torch.Tensor, obs["actor"])
         action_textop = (
-            self._run_cuda(obs)
+            self._run_cuda(actor_obs)
             if self.execution_provider == "cuda"
-            else self._run_cpu(obs)
+            else self._run_cpu(actor_obs)
         )
         action_mjlab = action_textop.index_select(
-            -1,
-            self._joint_order_index(action_textop.device),
+            -1, self._joint_order_index(action_textop.device)
         )
 
-        if action_mjlab.ndim != 2:
-            raise RuntimeError(
-                f"Expected batched ONNX action shaped [N, 29], got {action_mjlab.shape}"
-            )
-        if action_mjlab.shape[-1] != 29:
-            raise RuntimeError(
-                f"Expected ONNX action dim 29, got {action_mjlab.shape[-1]}"
-            )
         return action_mjlab
 
     def _run_cpu(self, obs: torch.Tensor) -> torch.Tensor:
@@ -178,7 +161,6 @@ class OnnxPolicyRunner:
 
 
 def _resolve_cuda_device(
-    ort: Any,
     requested_device: torch.device,
 ) -> tuple[torch.device, int, Any]:
     if requested_device.type != "cuda":
@@ -187,6 +169,7 @@ def _resolve_cuda_device(
         )
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA ONNX execution requested, but Torch has no CUDA")
+
     if "CUDAExecutionProvider" not in ort.get_available_providers():
         raise RuntimeError(
             "CUDA ONNX execution requested, but ONNX Runtime has no "
@@ -200,32 +183,3 @@ def _resolve_cuda_device(
     )
     device = torch.device("cuda", device_id)
     return device, device_id, torch.cuda.current_stream(device_id)
-
-
-def _actor_obs(obs: torch.Tensor | Any) -> torch.Tensor:
-    if isinstance(obs, torch.Tensor):
-        return obs
-
-    try:
-        actor_obs = obs["actor"]
-    except (KeyError, TypeError):
-        raise RuntimeError(
-            "Expected observation to be a tensor or contain an 'actor' tensor"
-        ) from None
-
-    if not isinstance(actor_obs, torch.Tensor):
-        raise RuntimeError(
-            f"Expected observation to be a tensor, got {type(actor_obs).__name__}"
-        )
-    return actor_obs
-
-
-def _load_onnxruntime() -> Any:
-    """Load the optional runtime only when an ONNX policy is constructed."""
-    try:
-        return importlib.import_module("onnxruntime")
-    except ImportError as exc:
-        raise ImportError(
-            "ONNX policy execution requires a working onnxruntime installation. "
-            "Task configuration and non-ONNX code can run without it."
-        ) from exc
