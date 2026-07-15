@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import dataclass
+from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 import torch
@@ -16,6 +19,12 @@ from mjlab_textop.core.feedback.observation import (
     OnlineObservationState,
     encode_render_image_jpeg,
 )
+
+
+@dataclass(frozen=True)
+class _RenderSnapshot:
+    data: Any
+    yaw_degrees: float | None
 
 
 class OnlineObservationReporter:
@@ -52,19 +61,20 @@ class OnlineObservationReporter:
             self._last_publish_frame = current_frame
             return
 
-        rendered_image = self._render_image().copy()
+        snapshot = self._capture_render_snapshot()
         self._publish_future = self._publish_executor.submit(
-            self._encode_and_publish,
+            self._render_and_publish,
             publisher,
-            rendered_image,
+            snapshot,
         )
         self._last_publish_frame = current_frame
 
-    def _encode_and_publish(
+    def _render_and_publish(
         self,
         publisher: ObservationPublisher,
-        rendered_image: np.ndarray,
+        snapshot: _RenderSnapshot,
     ) -> None:
+        rendered_image = self._render_image(snapshot)
         data = encode_render_image_jpeg(rendered_image)
         publisher.publish(
             image=ObservationImage(
@@ -116,15 +126,29 @@ class OnlineObservationReporter:
             return
         self._closed = True
         try:
-            self._publish_executor.shutdown(wait=True, cancel_futures=True)
+            self._publish_executor.submit(self._close_renderer)
+            self._publish_executor.shutdown(wait=True)
             self._collect_publish_result()
             self._collect_event_result()
         finally:
-            if self._image_renderer is not None:
-                self._image_renderer.close()
-                self._image_renderer = None
+            self._close_renderer()
 
-    def _render_image(self) -> np.ndarray:
+    def _capture_render_snapshot(self) -> _RenderSnapshot:
+        """Copy the small dynamic state while the simulation thread is paused."""
+        data = self.env.sim.data
+        snapshot_data = SimpleNamespace(
+            nworld=int(data.nworld),
+            qpos=_copy_tensor_to_cpu(data.qpos),
+            qvel=_copy_tensor_to_cpu(data.qvel),
+            mocap_pos=_copy_tensor_to_cpu(data.mocap_pos),
+            mocap_quat=_copy_tensor_to_cpu(data.mocap_quat),
+        )
+        return _RenderSnapshot(
+            data=snapshot_data,
+            yaw_degrees=_body_yaw_degrees(self.env, self.cfg.camera),
+        )
+
+    def _render_image(self, snapshot: _RenderSnapshot) -> np.ndarray:
         renderer = self._image_renderer
         env = self.env
         if renderer is None:
@@ -138,15 +162,19 @@ class OnlineObservationReporter:
             renderer.initialize()
             self._image_renderer = renderer
 
-        self._sync_camera_orientation(renderer)
-        renderer.update(env.sim.data, debug_vis_callback=env.update_visualizers)
+        if snapshot.yaw_degrees is not None:
+            renderer._cam.azimuth = self.cfg.camera.azimuth + snapshot.yaw_degrees
+        renderer.update(snapshot.data, debug_vis_callback=env.update_visualizers)
         return renderer.render()
 
-    def _sync_camera_orientation(self, renderer: OffscreenRenderer) -> None:
-        yaw_degrees = _body_yaw_degrees(self.env, self.cfg.camera)
-        if yaw_degrees is None:
-            return
-        renderer._cam.azimuth = self.cfg.camera.azimuth + yaw_degrees
+    def _close_renderer(self) -> None:
+        if self._image_renderer is not None:
+            self._image_renderer.close()
+            self._image_renderer = None
+
+
+def _copy_tensor_to_cpu(value: Any) -> torch.Tensor:
+    return value.detach().to(device="cpu", copy=True)
 
 
 def _body_yaw_degrees(

@@ -47,10 +47,6 @@ class OnnxPolicy:
                     )
                 ],
             )
-            if "CUDAExecutionProvider" not in self.session.get_providers():
-                raise RuntimeError(
-                    "ONNX Runtime did not activate CUDAExecutionProvider for the policy"
-                )
             self._binding = self.session.io_binding()
         else:
             self.device = torch.device("cpu")

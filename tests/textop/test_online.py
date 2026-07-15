@@ -830,7 +830,11 @@ def test_online_command_publishes_observations_with_images_on_interval(
     publisher = _RecordingObservationPublisher()
     monkeypatch.setattr(
         "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._render_image",
-        lambda self: np.zeros((1, 1, 3), dtype=np.uint8),
+        lambda self, snapshot: np.zeros((1, 1, 3), dtype=np.uint8),
+    )
+    monkeypatch.setattr(
+        "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._capture_render_snapshot",
+        lambda self: object(),
     )
     monkeypatch.setattr(
         "mjlab_textop.core.feedback.online_reporter.encode_render_image_jpeg",
@@ -913,13 +917,17 @@ def test_online_observation_reporter_drops_observation_while_publish_inflight(
 
     monkeypatch.setattr(
         "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._render_image",
-        lambda self: (
+        lambda self, snapshot: (
             render_calls.append(len(render_calls))
             or np.zeros(
                 (1, 1, 3),
                 dtype=np.uint8,
             )
         ),
+    )
+    monkeypatch.setattr(
+        "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._capture_render_snapshot",
+        lambda self: object(),
     )
     monkeypatch.setattr(
         "mjlab_textop.core.feedback.online_reporter.encode_render_image_jpeg",
@@ -948,6 +956,40 @@ def test_online_observation_reporter_drops_observation_while_publish_inflight(
 
     assert len(render_calls) == 2
     assert publisher.publish_count == 2
+
+
+def test_online_observation_reporter_renders_off_simulation_thread(
+    monkeypatch,
+) -> None:
+    publisher = _RecordingObservationPublisher()
+    render_thread_ids = []
+    simulation_thread_id = threading.get_ident()
+    monkeypatch.setattr(
+        "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._capture_render_snapshot",
+        lambda self: object(),
+    )
+    monkeypatch.setattr(
+        "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._render_image",
+        lambda self, snapshot: (
+            render_thread_ids.append(threading.get_ident())
+            or np.zeros((1, 1, 3), dtype=np.uint8)
+        ),
+    )
+    monkeypatch.setattr(
+        "mjlab_textop.core.feedback.online_reporter.encode_render_image_jpeg",
+        lambda image: b"jpeg",
+    )
+    reporter = OnlineObservationReporter(
+        OnlineObservationCfg(publisher=publisher),
+        fake_env(),
+    )
+
+    reporter.maybe_publish(_observation_state(frame=0))
+    _wait_for_reporter_publish(reporter)
+
+    assert render_thread_ids
+    assert render_thread_ids[0] != simulation_thread_id
+    reporter.close()
 
 
 def test_online_observation_reporter_close_is_idempotent() -> None:
@@ -1061,7 +1103,9 @@ def test_online_observation_reporter_uses_observation_camera(monkeypatch) -> Non
         env,
     )
 
-    assert reporter._render_image() == "rendered"
+    snapshot = SimpleNamespace(data=object(), yaw_degrees=90.0)
+
+    assert reporter._render_image(snapshot) == "rendered"
     assert calls["cfg"] is observation_camera
     assert calls["cfg"] is not env_viewer_camera
     assert calls["initialized"] is True
