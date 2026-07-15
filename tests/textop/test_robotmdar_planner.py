@@ -8,6 +8,7 @@ from argparse import Namespace
 from mjlab_textop.robotmdar import produce
 from mjlab_textop.robotmdar.feedback import (
     FeedbackObservation,
+    HttpObservationReceiver,
     parse_feedback_observation,
 )
 from mjlab_textop.robotmdar.planner import (
@@ -16,6 +17,7 @@ from mjlab_textop.robotmdar.planner import (
     VlmPromptPlanner,
     VlmPromptSelection,
 )
+from mjlab_textop.robotmdar.planner.followups import command_followups
 
 
 class _FakeObservationProvider:
@@ -148,6 +150,27 @@ def test_parse_collision_feedback_without_image() -> None:
     assert observation.recovery_epoch == 7
 
 
+def test_observation_receiver_merges_images_without_clearing_collision() -> None:
+    receiver = HttpObservationReceiver(port=8766)
+
+    receiver.handle_post(b'{"collision_stop":true,"recovery_epoch":7}')
+    receiver.handle_post(b'{"image":{"mime_type":"image/jpeg","data":"anBlZw=="}}')
+
+    observation = receiver.latest()
+    assert observation is not None
+    assert observation.image_bytes == b"jpeg"
+    assert observation.collision_stop is True
+    assert observation.recovery_epoch == 7
+
+    receiver.handle_post(b'{"collision_stop":false,"recovery_epoch":7}')
+
+    observation = receiver.latest()
+    assert observation is not None
+    assert observation.image_bytes == b"jpeg"
+    assert observation.collision_stop is False
+    assert observation.recovery_epoch == 7
+
+
 def test_manual_prompt_planner_uses_current_prompt_without_starting_thread() -> None:
     planner = ManualPromptPlanner("walk forward")
 
@@ -186,6 +209,13 @@ def test_manual_prompt_planner_accepts_repeated_manual_command() -> None:
 
     assert planner.choose_prompt(block_count=2) == "step left"
     assert planner.choose_prompt(block_count=3) == "stand"
+
+
+def test_command_followups_match_direction_words_only() -> None:
+    assert command_followups("turn RIGHT") == ["stand"]
+    assert command_followups("bright light") == []
+    assert command_followups("move upright") == []
+    assert command_followups("leftover motion") == []
 
 
 def test_vlm_planner_queries_selector_on_cadence() -> None:
@@ -318,7 +348,10 @@ def test_vlm_planner_keeps_current_prompt_on_selector_errors() -> None:
     assert selector.calls == 1
     assert planner.last_error == "TimeoutError: vlm timed out"
     assert planner.current_prompt_source == "initial"
-    assert planner.log_suffix == " vlm_state=idle vlm_last_query_block=0 vlm_last_error='TimeoutError: vlm timed out'"
+    assert (
+        planner.log_suffix
+        == " vlm_state=idle vlm_last_query_block=0 vlm_last_error='TimeoutError: vlm timed out'"
+    )
 
     planner.request_stop()
 
@@ -520,6 +553,7 @@ def test_http_vlm_prompt_selector_posts_image_from_observation_bytes(
     selector = OpenAIChatPromptSelector(
         base_url="http://127.0.0.1:9379",
         model="gemma-4-e2b-it",
+        system_prompt="You are a motion planner.",
         user_prompt=_default_vlm_user_prompt(),
     )
 
@@ -530,7 +564,7 @@ def test_http_vlm_prompt_selector_posts_image_from_observation_bytes(
         ),
     )
 
-    content = posted["payload"]["messages"][0]["content"]
+    content = posted["payload"]["messages"][1]["content"]
     assert prompt == "punch"
     assert content[0]["type"] == "text"
     assert content[0]["text"] == _default_vlm_user_prompt()
@@ -574,10 +608,11 @@ def test_http_vlm_prompt_selector_can_send_prompt_history(monkeypatch) -> None:
         "user",
     ]
     assert [message["role"] for message in posted[1]["messages"]] == [
+        "system",
         "assistant",
         "user",
     ]
-    assert posted[1]["messages"][0] == {
+    assert posted[1]["messages"][1] == {
         "role": "assistant",
         "content": [{"type": "text", "text": "walk"}],
     }
@@ -605,6 +640,7 @@ def test_http_vlm_prompt_selector_returns_raw_response(monkeypatch) -> None:
     selector = OpenAIChatPromptSelector(
         base_url="http://127.0.0.1:9379",
         model="gemma-4-e2b-it",
+        system_prompt="You are a motion planner.",
         user_prompt=_default_vlm_user_prompt(),
     )
 
@@ -639,6 +675,7 @@ def test_http_vlm_prompt_selector_returns_debug_reasoning(monkeypatch) -> None:
     selector = OpenAIChatPromptSelector(
         base_url="http://127.0.0.1:9379",
         model="gemma-4-e2b-it",
+        system_prompt="You are a motion planner.",
         user_prompt=_default_vlm_user_prompt(),
     )
 
@@ -670,6 +707,7 @@ def test_http_vlm_prompt_selector_returns_choice_reasoning(monkeypatch) -> None:
     selector = OpenAIChatPromptSelector(
         base_url="http://127.0.0.1:9379",
         model="gemma-4-e2b-it",
+        system_prompt="You are a motion planner.",
         user_prompt=_default_vlm_user_prompt(),
     )
 
@@ -700,6 +738,7 @@ def test_make_prompt_planner_reads_vlm_prompt_files(tmp_path) -> None:
             vlm_max_tokens=128,
             vlm_history=True,
             query_every_blocks=4,
+            command_hold_blocks=4,
         )
     )
 

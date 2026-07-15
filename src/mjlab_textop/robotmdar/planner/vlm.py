@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from mjlab_textop.robotmdar.feedback import FeedbackObservation
-from mjlab_textop.robotmdar.planner.followups import FollowupCommandQueue
+from mjlab_textop.robotmdar.planner.followups import CommandSequencer
 
 
 class ObservationProvider(Protocol):
@@ -40,16 +40,11 @@ class VlmPromptPlanner:
             raise ValueError(
                 f"query_every_blocks must be positive, got {query_every_blocks}"
             )
-        if command_hold_blocks <= 0:
-            raise ValueError(
-                f"command_hold_blocks must be positive, got {command_hold_blocks}"
-            )
         self.feedback = feedback
         self.selector = selector
         self.current_prompt = initial_prompt
         self.current_prompt_source = "initial"
         self.query_every_blocks = query_every_blocks
-        self.command_hold_blocks = command_hold_blocks
         self.last_error: str | None = None
         self._pending_reasoning: str | None = None
         self._stop = False
@@ -60,8 +55,9 @@ class VlmPromptPlanner:
         self._recovery_epoch = 0
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._last_query_block: int | None = None
-        self._commands = FollowupCommandQueue()
-        self._command_started_block: int | None = None
+        self._sequencer = CommandSequencer(
+            initial_prompt, hold_blocks=command_hold_blocks
+        )
 
     @property
     def should_stop(self) -> bool:
@@ -102,25 +98,22 @@ class VlmPromptPlanner:
             return self.current_prompt
         if self._collision_recovery:
             self._collision_recovery = False
-            self.current_prompt_source = "collision_recovery"
-            self._command_started_block = None
+            self._sequencer.release()
             self._last_query_block = None
 
         if self._collect_finished_request():
-            return self._activate_next_command(source="vlm", block_count=block_count)
-
-        if (
-            self._command_started_block is not None
-            and block_count - self._command_started_block < self.command_hold_blocks
-        ):
-            return self.current_prompt
-
-        if self._commands:
-            return self._activate_next_command(
-                source="followup", block_count=block_count
+            command = self._sequencer.activate(
+                self.current_prompt,
+                source="vlm",
+                block_count=block_count,
             )
+            return self._set_current(command.text, command.source)
 
-        self._command_started_block = None
+        command, changed = self._sequencer.advance(block_count)
+        if changed:
+            return self._set_current(command.text, command.source)
+        if self._sequencer.busy:
+            return self.current_prompt
 
         if (
             not self._stop
@@ -140,22 +133,17 @@ class VlmPromptPlanner:
         if not self._collision_recovery:
             self._collision_recovery = True
             self._selection_epoch += 1
-            self._commands.clear()
-            self._command_started_block = None
             if self._future is not None and self._future.cancel():
                 self._future = None
                 self._future_epoch = None
         self._recovery_epoch = recovery_epoch
-        self.current_prompt = "stand"
-        self.current_prompt_source = "collision_recovery"
+        command = self._sequencer.override("stand", source="collision_recovery")
+        self._set_current(command.text, command.source)
 
-    def _activate_next_command(self, *, source: str, block_count: int) -> str:
-        command = self._commands.next()
-        assert command is not None
-        self.current_prompt = command
+    def _set_current(self, prompt: str, source: str) -> str:
+        self.current_prompt = prompt
         self.current_prompt_source = source
-        self._command_started_block = block_count
-        return command
+        return prompt
 
     def consume_pending_reasoning(self) -> str | None:
         reasoning = self._pending_reasoning
@@ -170,7 +158,7 @@ class VlmPromptPlanner:
         try:
             selection = self._future.result()
             if self._future_epoch == self._selection_epoch:
-                self._commands.receive(selection.prompt)
+                self.current_prompt = selection.prompt
                 self._pending_reasoning = selection.reasoning
                 received_command = True
             self.last_error = None

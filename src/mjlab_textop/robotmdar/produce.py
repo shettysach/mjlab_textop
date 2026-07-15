@@ -224,11 +224,11 @@ def make_prompt_planner(
             selector=selector,
             initial_prompt=args.prompt,
             query_every_blocks=args.query_every_blocks,
-            command_hold_blocks=getattr(args, "command_hold_blocks", 4),
+            command_hold_blocks=args.command_hold_blocks,
         )
     return ManualPromptPlanner(
         args.prompt,
-        command_hold_blocks=getattr(args, "command_hold_blocks", 4),
+        command_hold_blocks=args.command_hold_blocks,
     )
 
 

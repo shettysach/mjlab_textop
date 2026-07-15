@@ -40,6 +40,16 @@ def validate_motion_block(block: MotionBlock) -> MotionBlock:
 
     if block.index < 0:
         raise ValueError(f"Block index must be non-negative, got {block.index}")
+    if block.prompt is not None and (
+        not isinstance(block.prompt, str) or not block.prompt.strip()
+    ):
+        raise ValueError("Block prompt must be a non-empty string or None")
+    if (
+        not isinstance(block.recovery_epoch, int)
+        or isinstance(block.recovery_epoch, bool)
+        or block.recovery_epoch < 0
+    ):
+        raise ValueError("Block recovery_epoch must be a non-negative integer")
     for name, value in (
         ("joint_vel", joint_vel),
         ("anchor_pos_w", anchor_pos_w),

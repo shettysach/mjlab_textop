@@ -63,12 +63,12 @@ class HttpObservationReceiver:
 
     def handle_post(self, body: bytes) -> None:
         try:
-            observation = parse_feedback_observation(body)
+            message = parse_feedback_message(body)
         except (TypeError, ValueError, json.JSONDecodeError) as exc:
             self.last_error = str(exc)
             raise
         with self._lock:
-            self._latest = observation
+            self._latest = merge_feedback_message(self._latest, message)
 
     def _make_server(self) -> ThreadingHTTPServer:
         receiver = self
@@ -97,6 +97,13 @@ class HttpObservationReceiver:
 def parse_feedback_observation(
     message: bytes | str | dict[str, Any],
 ) -> FeedbackObservation:
+    parsed = parse_feedback_message(message)
+    return merge_feedback_message(None, parsed)
+
+
+def parse_feedback_message(
+    message: bytes | str | dict[str, Any],
+) -> dict[str, Any]:
     if isinstance(message, bytes):
         message = message.decode("utf-8")
     if isinstance(message, str):
@@ -104,13 +111,45 @@ def parse_feedback_observation(
     if not isinstance(message, dict):
         raise ValueError("Feedback observation must be a JSON object")
 
-    image = _parse_image(message.get("image"))
+    parsed: dict[str, Any] = {}
+    if "image" in message:
+        parsed["image"] = _parse_image(message["image"])
+    if "collision_stop" in message:
+        collision_stop = message["collision_stop"]
+        if not isinstance(collision_stop, bool):
+            raise ValueError("Feedback collision_stop must be a boolean")
+        parsed["collision_stop"] = collision_stop
+    if "recovery_epoch" in message:
+        recovery_epoch = message["recovery_epoch"]
+        if not isinstance(recovery_epoch, int) or isinstance(recovery_epoch, bool):
+            raise ValueError("Feedback recovery_epoch must be an integer")
+        if recovery_epoch < 0:
+            raise ValueError("Feedback recovery_epoch must be non-negative")
+        parsed["recovery_epoch"] = recovery_epoch
+    if not parsed:
+        raise ValueError(
+            "Feedback observation must contain an image or collision state"
+        )
+    return parsed
+
+
+def merge_feedback_message(
+    previous: FeedbackObservation | None,
+    message: dict[str, Any],
+) -> FeedbackObservation:
+    previous = previous or FeedbackObservation()
+    image = message.get("image") if "image" in message else None
+    image_bytes = previous.image_bytes
+    image_mime_type = previous.image_mime_type
+    if "image" in message:
+        image_bytes = None if image is None else image["data"]
+        image_mime_type = None if image is None else image["mime_type"]
 
     return FeedbackObservation(
-        image_bytes=None if image is None else image["data"],
-        image_mime_type=None if image is None else image["mime_type"],
-        collision_stop=bool(message.get("collision_stop", False)),
-        recovery_epoch=int(message.get("recovery_epoch", 0)),
+        image_bytes=image_bytes,
+        image_mime_type=image_mime_type,
+        collision_stop=message.get("collision_stop", previous.collision_stop),
+        recovery_epoch=message.get("recovery_epoch", previous.recovery_epoch),
     )
 
 

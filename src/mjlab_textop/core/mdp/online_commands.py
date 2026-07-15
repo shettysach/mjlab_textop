@@ -13,6 +13,10 @@ from mjlab_textop.core.feedback.observation import (
     OnlineObservationState,
 )
 from mjlab_textop.core.feedback.online_reporter import OnlineObservationReporter
+from mjlab_textop.core.mdp.collision_recovery import (
+    CollisionDetector,
+    CollisionRecovery,
+)
 from mjlab_textop.core.mdp.online_reference_debug import OnlineReferenceGhost
 from mjlab_textop.core.mdp.online_types import (
     ONLINE_METRIC_NAMES,
@@ -110,16 +114,9 @@ class OnlineMotionCommand(CommandTerm):
         )
         self._future_cache_frame: int | None = None
         self._future_cache: FutureWindow | None = None
-        self._collision_stop = False
-        self._collision_epoch = 0
-        self._collision_contact_active = False
-        self._collision_hold_window: FutureWindow | None = None
-        self._recovery_stand_started = False
+        self._collision = CollisionRecovery()
         self._live_index_offset = 0
-        (
-            self._robot_collision_geom_ids,
-            self._obstacle_collision_geom_ids,
-        ) = _find_collision_geom_ids(
+        self._collision_detector = CollisionDetector(
             env.sim.mj_model,
             entity_name=cfg.entity_name,
             obstacle_suffix=cfg.collision_stop_geom_suffix,
@@ -174,7 +171,15 @@ class OnlineMotionCommand(CommandTerm):
 
     @property
     def collision_stop(self) -> bool:
-        return self._collision_stop
+        return self._collision.active
+
+    @property
+    def _collision_epoch(self) -> int:
+        return self._collision.epoch
+
+    @property
+    def _collision_hold_window(self) -> FutureWindow | None:
+        return self._collision.hold_window
 
     def _init_metrics(self) -> None:
         for name in ONLINE_METRIC_NAMES:
@@ -199,7 +204,7 @@ class OnlineMotionCommand(CommandTerm):
         )
         self._set_metric("online_lag_frames", lag_frames)
         self._set_metric("online_started", self._started)
-        self._set_metric("online_collision_stop", self._collision_stop)
+        self._set_metric("online_collision_stop", self._collision.active)
         diagnostics = getattr(self.source, "diagnostics", None)
         if diagnostics is not None:
             self._set_metric(
@@ -268,7 +273,7 @@ class OnlineMotionCommand(CommandTerm):
             return
 
     def _reset_runtime_counters(self) -> None:
-        if self._collision_stop and self.observation_reporter is not None:
+        if self._collision.active and self.observation_reporter is not None:
             self.observation_reporter.publish_collision_stop(
                 False,
                 recovery_epoch=self._collision_epoch,
@@ -278,24 +283,18 @@ class OnlineMotionCommand(CommandTerm):
         self._consecutive_stale_steps = 0
         self._last_stale_frame = None
         self._live_polling_paused = False
-        self._collision_stop = False
-        self._collision_contact_active = False
-        self._collision_hold_window = None
-        self._recovery_stand_started = False
+        self._collision.reset()
         self._reference_start_anchor_pos_w.zero_()
         self._robot_start_anchor_pos_w.zero_()
         self._clear_future_cache()
 
     def _update_command(self) -> None:
-        if self._collision_stop:
+        if self._collision.active:
             self._poll_collision_recovery_source()
             return
         if self._started:
             in_collision = self._has_obstacle_collision()
-            if not in_collision:
-                self._collision_contact_active = False
-            elif not self._collision_contact_active:
-                self._collision_contact_active = True
+            if self._collision.collision_edge(in_collision):
                 self._activate_collision_stop()
                 return
 
@@ -399,9 +398,9 @@ class OnlineMotionCommand(CommandTerm):
         return self.buffer.can_start(next_frame, self.cfg.future_steps)
 
     def _future_window(self) -> FutureWindow:
-        if self._collision_stop:
-            assert self._collision_hold_window is not None
-            return self._collision_hold_window
+        if self._collision.active:
+            assert self._collision.hold_window is not None
+            return self._collision.hold_window
         if not self._started:
             return self._startup_future_window()
         if (
@@ -439,28 +438,9 @@ class OnlineMotionCommand(CommandTerm):
         return window
 
     def _has_obstacle_collision(self) -> bool:
-        if (
-            self._robot_collision_geom_ids.numel() == 0
-            or self._obstacle_collision_geom_ids.numel() == 0
-        ):
+        if not self._collision_detector.enabled:
             return False
-
-        sim_data = self._env.sim.data
-        contact = getattr(sim_data, "contact", None)
-        nacon = getattr(sim_data, "nacon", None)
-        if contact is None or nacon is None:
-            return False
-
-        contact_geom = getattr(contact, "geom", None)
-        if contact_geom is None:
-            return False
-        contact_count = int(nacon[0].item())
-        return _contains_geom_pair(
-            contact_geom,
-            contact_count=contact_count,
-            first_ids=self._robot_collision_geom_ids,
-            second_ids=self._obstacle_collision_geom_ids,
-        )
+        return self._collision_detector.has_collision(self._env.sim.data)
 
     def _activate_collision_stop(self) -> None:
         safe_window = self._future_cache
@@ -468,17 +448,14 @@ class OnlineMotionCommand(CommandTerm):
             # The current frame is the reference used during the step in which
             # contact occurred. It is therefore the latest pre-collision target.
             safe_window = self._future_window()
-        self._collision_hold_window = _make_stationary_window(safe_window)
-        self._collision_stop = True
-        self._collision_epoch += 1
-        self._recovery_stand_started = False
+        epoch = self._collision.activate(safe_window)
         self.buffer.clear()
         self._live_polling_paused = False
         self._clear_future_cache()
         if self.observation_reporter is not None:
             self.observation_reporter.publish_collision_stop(
                 True,
-                recovery_epoch=self._collision_epoch,
+                recovery_epoch=epoch,
             )
 
     def _poll_collision_recovery_source(self) -> None:
@@ -486,25 +463,19 @@ class OnlineMotionCommand(CommandTerm):
             block = self.source.poll()
             if block is None:
                 return
-            if (
-                block.prompt is None
-                or block.prompt.strip().lower() != "stand"
-                or block.recovery_epoch != self._collision_epoch
-            ):
+            if not self._collision.accepts(block):
                 continue
 
-            if not self._recovery_stand_started:
+            if not self._collision.buffering:
                 self._live_index_offset = self.current_frame - block.index
-                self._recovery_stand_started = True
+                self._collision.buffering = True
             block = replace(block, index=block.index + self._live_index_offset)
             self.buffer.append_block(block)
             if not self.buffer.can_start(self.current_frame, self.cfg.future_steps):
                 continue
 
             self._align_reference_anchor()
-            self._collision_stop = False
-            self._collision_hold_window = None
-            self._recovery_stand_started = False
+            self._collision.complete()
             if self.observation_reporter is not None:
                 self.observation_reporter.publish_collision_stop(
                     False,
@@ -657,75 +628,4 @@ def use_online_textop_motion_command(
         observation=observation,
         collision_stop_geom_suffix=collision_stop_geom_suffix,
         debug_vis=debug_vis,
-    )
-
-
-def _make_stationary_window(window: FutureWindow) -> FutureWindow:
-    future_steps = window.joint_pos.shape[0]
-    return FutureWindow(
-        joint_pos=window.joint_pos[0].repeat(future_steps, 1),
-        joint_vel=torch.zeros_like(window.joint_vel),
-        anchor_pos_w=window.anchor_pos_w[0].repeat(future_steps, 1),
-        anchor_quat_w=window.anchor_quat_w[0].repeat(future_steps, 1),
-        stale_steps=0,
-    )
-
-
-def _contains_geom_pair(
-    contact_geom: torch.Tensor,
-    *,
-    contact_count: int,
-    first_ids: torch.Tensor,
-    second_ids: torch.Tensor,
-) -> bool:
-    if contact_count <= 0:
-        return False
-    pairs = contact_geom[:contact_count].to(dtype=torch.long)
-    first_matches = torch.isin(pairs[:, 0], first_ids) & torch.isin(
-        pairs[:, 1], second_ids
-    )
-    reverse_matches = torch.isin(pairs[:, 1], first_ids) & torch.isin(
-        pairs[:, 0], second_ids
-    )
-    return bool(torch.any(first_matches | reverse_matches).item())
-
-
-def _find_collision_geom_ids(
-    model,
-    *,
-    entity_name: str,
-    obstacle_suffix: str | None,
-    device: torch.device | str,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    if obstacle_suffix is None:
-        empty = torch.empty(0, dtype=torch.long, device=device)
-        return empty, empty
-
-    robot_prefix = f"{entity_name}/"
-    robot_ids: list[int] = []
-    obstacle_ids: list[int] = []
-    geom_lookup = getattr(model, "geom", None)
-    body_lookup = getattr(model, "body", None)
-    geom_bodyid = getattr(model, "geom_bodyid", None)
-    if not callable(geom_lookup):
-        empty = torch.empty(0, dtype=torch.long, device=device)
-        return empty, empty
-
-    for geom_id in range(int(model.ngeom)):
-        geom_name = geom_lookup(geom_id).name or ""
-        body_name = ""
-        if callable(body_lookup) and geom_bodyid is not None:
-            body_id = int(geom_bodyid[geom_id])
-            body_name = body_lookup(body_id).name or ""
-        is_robot_geom = geom_name.startswith(robot_prefix) or body_name.startswith(
-            robot_prefix
-        )
-        if is_robot_geom:
-            robot_ids.append(geom_id)
-        if not is_robot_geom and geom_name.endswith(obstacle_suffix):
-            obstacle_ids.append(geom_id)
-
-    return (
-        torch.tensor(robot_ids, dtype=torch.long, device=device),
-        torch.tensor(obstacle_ids, dtype=torch.long, device=device),
     )

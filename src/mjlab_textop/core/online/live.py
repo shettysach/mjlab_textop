@@ -81,7 +81,7 @@ def parse_textop_block_message(
             anchor_pos_w=np.asarray(data["anchor_pos_w"]),
             anchor_quat_w=np.asarray(data["anchor_quat_w"]),
             prompt=None if data.get("prompt") is None else str(data["prompt"]),
-            recovery_epoch=int(data.get("recovery_epoch", 0)),
+            recovery_epoch=data.get("recovery_epoch", 0),
         )
     )
     return block, float(data.get("fps", default_fps))

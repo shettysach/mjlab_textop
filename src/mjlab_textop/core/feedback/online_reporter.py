@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any
 
@@ -30,7 +31,7 @@ class OnlineObservationReporter:
         self._image_renderer: OffscreenRenderer | None = None
         self._publish_executor = ThreadPoolExecutor(max_workers=1)
         self._publish_future: Future[None] | None = None
-        self._event_future: Future[None] | None = None
+        self._event_futures: deque[Future[None]] = deque()
         self.last_publish_error: str | None = None
 
     def maybe_publish(self, state: OnlineObservationState) -> None:
@@ -73,12 +74,19 @@ class OnlineObservationReporter:
         if self.publisher is None:
             return
         self._collect_event_result()
-        self._event_future = self._publish_executor.submit(
-            self.publisher.publish,
-            image=None,
-            collision_stop=active,
-            recovery_epoch=recovery_epoch,
+        self._event_futures.append(
+            self._publish_executor.submit(
+                self.publisher.publish,
+                image=None,
+                collision_stop=active,
+                recovery_epoch=recovery_epoch,
+            )
         )
+
+    @property
+    def _event_future(self) -> Future[None] | None:
+        """Most recently queued event, retained for diagnostics."""
+        return self._event_futures[-1] if self._event_futures else None
 
     def _collect_publish_result(self) -> None:
         if self._publish_future is None or not self._publish_future.done():
@@ -92,22 +100,13 @@ class OnlineObservationReporter:
             self._publish_future = None
 
     def _collect_event_result(self) -> None:
-        if self._event_future is None or not self._event_future.done():
-            return
-        try:
-            self._event_future.result()
-            self.last_publish_error = None
-        except Exception as exc:
-            self.last_publish_error = f"{type(exc).__name__}: {exc}"
-        finally:
-            self._event_future = None
-
-    def _render_observation_image(self) -> ObservationImage:
-        data = encode_render_image_jpeg(_copy_rendered_image(self._render_image()))
-        return ObservationImage(
-            data=data,
-            mime_type="image/jpeg",
-        )
+        while self._event_futures and self._event_futures[0].done():
+            future = self._event_futures.popleft()
+            try:
+                future.result()
+                self.last_publish_error = None
+            except Exception as exc:
+                self.last_publish_error = f"{type(exc).__name__}: {exc}"
 
     def _render_image(self):
         renderer = self._image_renderer

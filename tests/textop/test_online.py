@@ -15,12 +15,16 @@ from mjlab_textop.core.feedback.observation import (
     OnlineObservationState,
     make_torso_observation_camera,
 )
+from mjlab_textop.core.mdp.collision_recovery import (
+    contains_geom_pair as _contains_geom_pair,
+)
+from mjlab_textop.core.mdp.collision_recovery import (
+    find_collision_geom_ids as _find_collision_geom_ids,
+)
 from mjlab_textop.core.mdp.online_commands import (
     OnlineMotionCommand,
     OnlineMotionCommandCfg,
     OnlineObservationReporter,
-    _contains_geom_pair,
-    _find_collision_geom_ids,
     use_online_textop_motion_command,
 )
 from mjlab_textop.core.online.buffer import (
@@ -925,6 +929,23 @@ def test_online_observation_reporter_publishes_collision_event() -> None:
     assert publisher.collision_events == [(True, 7)]
 
 
+def test_online_observation_reporter_tracks_ordered_collision_events() -> None:
+    publisher = _RecordingObservationPublisher()
+    reporter = OnlineObservationReporter(
+        OnlineObservationCfg(publisher=publisher),
+        fake_env(),
+    )
+
+    reporter.publish_collision_stop(True, recovery_epoch=7)
+    reporter.publish_collision_stop(False, recovery_epoch=7)
+
+    assert reporter._event_future is not None
+    reporter._event_future.result(timeout=1.0)
+    reporter._collect_event_result()
+    assert publisher.collision_events == [(True, 7), (False, 7)]
+    assert not reporter._event_futures
+
+
 def test_online_observation_reporter_drops_observation_while_publish_inflight(
     monkeypatch,
 ) -> None:
@@ -935,9 +956,12 @@ def test_online_observation_reporter_drops_observation_while_publish_inflight(
 
     monkeypatch.setattr(
         "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._render_image",
-        lambda self: render_calls.append(len(render_calls)) or np.zeros(
-            (1, 1, 3),
-            dtype=np.uint8,
+        lambda self: (
+            render_calls.append(len(render_calls))
+            or np.zeros(
+                (1, 1, 3),
+                dtype=np.uint8,
+            )
         ),
     )
     monkeypatch.setattr(
@@ -1295,11 +1319,11 @@ def test_online_command_live_polling_uses_hysteresis() -> None:
         OnlineMotionCommandCfg(source=QueueOnlineSource(), source_mode="live"),
         fake_env(),
     )
-    command.buffer.append_block(motion_block(index=0, frames=151))
+    command.buffer.append_block(motion_block(index=0, frames=351))
 
     assert command._should_poll_live_source() is False
 
-    command.current_frame = 101
+    command.current_frame = 201
 
     assert command._should_poll_live_source() is True
 
