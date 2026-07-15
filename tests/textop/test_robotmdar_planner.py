@@ -443,7 +443,7 @@ def test_producer_log_includes_vlm_prompt_source(monkeypatch) -> None:
 
     produce._log_block_timing(
         planner=planner,
-        args=Namespace(fps=50.0, log_every_blocks=1),
+        args=Namespace(log_every_blocks=1),
         block_count=1,
         frame_index=20,
         block_frames=20,
@@ -458,7 +458,7 @@ def test_producer_log_includes_vlm_prompt_source(monkeypatch) -> None:
     planner.current_prompt_source = "vlm"
     produce._log_block_timing(
         planner=planner,
-        args=Namespace(fps=50.0, log_every_blocks=1),
+        args=Namespace(log_every_blocks=1),
         block_count=2,
         frame_index=40,
         block_frames=20,

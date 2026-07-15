@@ -39,7 +39,6 @@ def test_straight_play_task_uses_onnx_runner(tmp_path) -> None:
         "straight",
         runner_cls=OnnxPolicyRunner,
         source_mode="live",
-        future_steps=2,
         num_envs=1,
     )
 

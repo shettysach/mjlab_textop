@@ -87,12 +87,9 @@ class QueueOnlineSource:
     def __init__(
         self,
         blocks: list[MotionBlock] | None = None,
-        *,
-        fps: float | None = None,
     ) -> None:
         self._initial_blocks = tuple(blocks or [])
         self._blocks: deque[MotionBlock] = deque(self._initial_blocks)
-        self.fps = fps
 
     def append(self, block: MotionBlock) -> None:
         self._blocks.append(block)

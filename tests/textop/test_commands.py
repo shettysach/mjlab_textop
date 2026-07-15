@@ -29,7 +29,6 @@ def test_make_future_time_steps_clamps_at_end() -> None:
 
     future = make_future_time_steps(
         time_steps,
-        future_steps=5,
         time_step_total=10,
     )
 
@@ -315,30 +314,6 @@ def _fake_register_task(calls: dict, kwargs: dict) -> str:
     return "task"
 
 
-def test_textop_motion_command_cfg_rejects_invalid_future_steps() -> None:
-    with pytest.raises(ValueError, match="future_steps must be positive"):
-        OfflineMotionCommandCfg(
-            resampling_time_range=(1.0e9, 1.0e9),
-            motion_file="/tmp/motion.npz",
-            anchor_body_name="pelvis",
-            body_names=("pelvis",),
-            entity_name="robot",
-            future_steps=0,
-        )
-
-
-def test_online_textop_motion_command_cfg_rejects_invalid_future_steps() -> None:
-    from mjlab_textop.core.mdp.online_commands import OnlineMotionCommandCfg
-
-    with pytest.raises(ValueError, match="future_steps must be positive"):
-        OnlineMotionCommandCfg(
-            resampling_time_range=(1.0e9, 1.0e9),
-            entity_name="robot",
-            anchor_body_name="pelvis",
-            future_steps=0,
-        )
-
-
 def test_textop_motion_command_cfg_is_motion_command_cfg() -> None:
     assert issubclass(OfflineMotionCommandCfg, MotionCommandCfg)
     assert issubclass(OfflineMotionCommand, MotionCommand)
@@ -355,7 +330,7 @@ def test_textop_motion_command_cfg_from_copies_motion_cfg_fields() -> None:
         sampling_mode="start",
     )
 
-    textop_cfg = textop_motion_command_cfg_from(cfg, future_steps=7)
+    textop_cfg = textop_motion_command_cfg_from(cfg)
 
     assert isinstance(textop_cfg, OfflineMotionCommandCfg)
     assert textop_cfg.motion_file == cfg.motion_file
@@ -364,7 +339,6 @@ def test_textop_motion_command_cfg_from_copies_motion_cfg_fields() -> None:
     assert textop_cfg.entity_name == cfg.entity_name
     assert textop_cfg.pose_range == cfg.pose_range
     assert textop_cfg.sampling_mode == "start"
-    assert textop_cfg.future_steps == 7
 
     cfg.pose_range["x"] = (-1.0, 1.0)
     assert textop_cfg.pose_range["x"] == (-0.1, 0.1)
@@ -380,10 +354,9 @@ def test_use_textop_motion_command_replaces_motion_cfg() -> None:
     )
     env_cfg = SimpleNamespace(commands={"motion": cfg})
 
-    use_textop_motion_command(env_cfg, future_steps=3)
+    use_textop_motion_command(env_cfg)
 
     assert isinstance(env_cfg.commands["motion"], OfflineMotionCommandCfg)
-    assert env_cfg.commands["motion"].future_steps == 3
 
 
 def test_use_textop_motion_command_rejects_non_motion_cfg() -> None:
@@ -401,7 +374,6 @@ def test_textop_motion_command_future_reference_properties() -> None:
         anchor_body_name="pelvis",
         body_names=("pelvis", "torso_link"),
         entity_name="robot",
-        future_steps=5,
     )
     command.time_steps = torch.tensor([0, 3], dtype=torch.long)
     command.motion_anchor_body_index = 1

@@ -4,6 +4,7 @@ from typing import Literal
 
 from mjlab.envs.mdp.observations import projected_gravity
 from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
+from mjlab.managers.recorder_manager import RecorderTermCfg
 from mjlab.tasks.tracking.config.g1.env_cfgs import unitree_g1_flat_tracking_env_cfg
 
 from mjlab_textop.core.feedback.observation import OnlineObservationCfg
@@ -15,13 +16,13 @@ from mjlab_textop.core.mdp.observations import (
     joint_vel_rel_textop_order,
     last_action_textop_order,
 )
+from mjlab_textop.core.mdp.online_cleanup import OnlineTextOpCleanup
 from mjlab_textop.core.mdp.online_commands import (
     OnlineSourceMode,
     use_online_textop_motion_command,
 )
 from mjlab_textop.core.online.live import SocketSourceCfg
 from mjlab_textop.core.online.source import OnlineSource
-from mjlab_textop.core.schema import FUTURE_STEPS
 from mjlab_textop.tasks.textop_tracking.env_cfg import (
     configure_textop_actor_observations,
     configure_textop_critic_observations,
@@ -34,7 +35,6 @@ TEXTOP_DEPLOY_DECIMATION = 10
 def make_online_textop_g1_env_cfg(
     *,
     play: bool = True,
-    future_steps: int = FUTURE_STEPS,
     source: OnlineSource | None = None,
     live_source_cfg: SocketSourceCfg | None = None,
     source_mode: OnlineSourceMode = "live",
@@ -48,7 +48,6 @@ def make_online_textop_g1_env_cfg(
     use_online_textop_motion_command(
         cfg,
         command_name="motion",
-        future_steps=future_steps,
         source=source,
         live_source_cfg=live_source_cfg,
         source_mode=source_mode,
@@ -68,6 +67,10 @@ def make_online_textop_g1_env_cfg(
         configure_textop_critic_observations(cfg)
 
     configure_online_textop_tracking_terms(cfg)
+    cfg.recorders["online_textop_cleanup"] = RecorderTermCfg(
+        func=OnlineTextOpCleanup,
+        params={"command_name": "motion"},
+    )
 
     return cfg
 

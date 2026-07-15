@@ -22,11 +22,10 @@ def test_textop_block_ndjson_round_trip() -> None:
         recovery_epoch=3,
     )
 
-    parsed, fps = parse_textop_block_message(
-        textop_block_to_ndjson_message(block, fps=50.0)
-    )
+    message = textop_block_to_ndjson_message(block)
+    parsed = parse_textop_block_message(message)
 
-    assert fps == 50.0
+    assert '"fps"' not in message
     assert parsed.index == 100
     assert parsed.prompt == "stand"
     assert parsed.recovery_epoch == 3

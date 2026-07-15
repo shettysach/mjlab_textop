@@ -15,6 +15,7 @@ from mjlab_textop.core.robotmdar import (
     robotmdar_motion_dict_to_block,
     slice_motion_dict_tail,
 )
+from mjlab_textop.core.schema import TEXTOP_FPS
 
 PROMPT_DIR = Path(__file__).resolve().parents[3] / "prompt"
 DEFAULT_VLM_SYSTEM_PROMPT_FILE = PROMPT_DIR / "SYSTEM.md"
@@ -93,7 +94,6 @@ class RobotMdarGenerator:
 
 @dataclass(frozen=True)
 class StreamConfig:
-    fps: float
     guidance_scale: float
     log_every_blocks: int
 
@@ -244,7 +244,7 @@ def stream_robotmdar_blocks(
             guidance_scale=cfg.guidance_scale,
             recovery_epoch=int(getattr(prompt_controller, "recovery_epoch", 0)),
         )
-        conn.sendall(textop_block_to_ndjson_message(block, fps=cfg.fps).encode("utf-8"))
+        conn.sendall(textop_block_to_ndjson_message(block).encode("utf-8"))
 
         block_frames = block.joint_pos.shape[0]
         frame_index += block_frames
@@ -262,7 +262,7 @@ def stream_robotmdar_blocks(
             next_send_time=next_send_time,
             prompt=current_prompt,
         )
-        next_send_time += block_frames / cfg.fps
+        next_send_time += block_frames / TEXTOP_FPS
         time.sleep(max(0.0, sleep_seconds))
 
 
@@ -279,7 +279,7 @@ def log_stream_timing(
     next_send_time: float,
     prompt: str,
 ) -> float:
-    block_duration = block_frames / cfg.fps
+    block_duration = block_frames / TEXTOP_FPS
     sleep_seconds = next_send_time + block_duration - time.monotonic()
     if (
         cfg.log_every_blocks > 0

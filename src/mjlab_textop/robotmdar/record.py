@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 from mjlab_textop.core.robotmdar_record import save_robotmdar_raw_record
+from mjlab_textop.core.schema import TEXTOP_FPS
 from mjlab_textop.robotmdar.runtime import make_robotmdar_generator
 
 
@@ -36,7 +37,7 @@ def run_record(args: argparse.Namespace) -> None:
     save_robotmdar_raw_record(
         args.output,
         recorded_blocks,
-        fps=args.fps,
+        fps=TEXTOP_FPS,
         prompt=args.prompt,
         guidance_scale=args.guidance_scale,
     )
@@ -55,7 +56,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--datadir", required=True)
     parser.add_argument("--skeleton-asset-root", required=True)
     parser.add_argument("--device", default="cuda")
-    parser.add_argument("--fps", type=float, default=50.0)
     parser.add_argument("--guidance-scale", type=float, default=5.0)
     parser.add_argument("--prompt", default="walk")
     parser.add_argument("--num-blocks", type=int, required=True)

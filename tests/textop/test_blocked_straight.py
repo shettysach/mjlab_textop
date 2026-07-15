@@ -35,7 +35,6 @@ def test_blocked_straight_play_task_uses_onnx_runner(tmp_path) -> None:
         "blocked-straight",
         runner_cls=OnnxPolicyRunner,
         source_mode="live",
-        future_steps=2,
         num_envs=1,
     )
 

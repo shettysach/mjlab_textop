@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 import torch
 from builders import fake_env, motion_block, write_mjlab_motion_npz
+from mjlab.managers.recorder_manager import RecorderTermCfg
 
 from mjlab_textop.core.feedback.observation import (
     OnlineObservationCfg,
@@ -21,6 +22,7 @@ from mjlab_textop.core.mdp.collision_recovery import (
 from mjlab_textop.core.mdp.collision_recovery import (
     find_collision_geom_ids as _find_collision_geom_ids,
 )
+from mjlab_textop.core.mdp.online_cleanup import OnlineTextOpCleanup
 from mjlab_textop.core.mdp.online_commands import (
     OnlineMotionCommand,
     OnlineMotionCommandCfg,
@@ -42,11 +44,15 @@ from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
 class _LiveTextOpOnlineSource:
     def __init__(self, blocks: list[MotionBlock]) -> None:
         self.blocks = list(blocks)
+        self.close_count = 0
 
     def poll(self) -> MotionBlock | None:
         if not self.blocks:
             return None
         return self.blocks.pop(0)
+
+    def close(self) -> None:
+        self.close_count += 1
 
 
 class _RecordingObservationPublisher:
@@ -261,7 +267,6 @@ def test_mjlab_npz_replay_source_chunks_and_round_trips_joint_order(tmp_path) ->
     joint_pos, _, _, _ = write_mjlab_motion_npz(path, frames=10)
 
     source = make_mjlab_npz_replay_source(path, block_size=8)
-    assert source.fps == 50.0
     buffer = RollingMotionBuffer()
     while (block := source.poll()) is not None:
         buffer.append_block(block)
@@ -275,7 +280,7 @@ def test_mjlab_npz_replay_source_chunks_and_round_trips_joint_order(tmp_path) ->
 def test_online_command_polls_source_and_exposes_five_step_window() -> None:
     source = QueueOnlineSource([motion_block(frames=8)])
     command = OnlineMotionCommand(
-        OnlineMotionCommandCfg(source=source, future_steps=5),
+        OnlineMotionCommandCfg(source=source),
         fake_env(),
     )
 
@@ -297,7 +302,7 @@ def test_online_command_polls_source_and_exposes_five_step_window() -> None:
 
 def test_online_command_debug_vis_skips_before_start() -> None:
     command = OnlineMotionCommand(
-        OnlineMotionCommandCfg(source=QueueOnlineSource(), future_steps=5),
+        OnlineMotionCommandCfg(source=QueueOnlineSource()),
         fake_env(),
     )
     visualizer = _RecordingDebugVisualizer()
@@ -312,7 +317,6 @@ def test_online_command_debug_vis_draws_reference_ghost_qpos() -> None:
     command = OnlineMotionCommand(
         OnlineMotionCommandCfg(
             source=QueueOnlineSource([block]),
-            future_steps=5,
         ),
         fake_env(),
     )
@@ -335,7 +339,7 @@ def test_online_command_debug_vis_draws_reference_ghost_qpos() -> None:
 def test_online_command_reuses_future_window_for_current_frame() -> None:
     source = QueueOnlineSource([motion_block(frames=8)])
     command = OnlineMotionCommand(
-        OnlineMotionCommandCfg(source=source, future_steps=5),
+        OnlineMotionCommandCfg(source=source),
         fake_env(),
     )
     command._update_command()
@@ -364,7 +368,6 @@ def test_online_command_latches_collision_and_holds_last_safe_reference(
     command = OnlineMotionCommand(
         OnlineMotionCommandCfg(
             source=QueueOnlineSource([motion_block(frames=8)]),
-            future_steps=5,
         ),
         fake_env(),
     )
@@ -411,7 +414,6 @@ def test_online_command_clears_collision_latch_on_reset(monkeypatch) -> None:
     command = OnlineMotionCommand(
         OnlineMotionCommandCfg(
             source=QueueOnlineSource([motion_block(frames=8)]),
-            future_steps=5,
         ),
         fake_env(),
     )
@@ -434,7 +436,7 @@ def test_online_command_clears_collision_latch_on_reset(monkeypatch) -> None:
 def test_online_command_discards_motion_until_fresh_stand_block(monkeypatch) -> None:
     source = QueueOnlineSource([motion_block(index=0, frames=8)])
     command = OnlineMotionCommand(
-        OnlineMotionCommandCfg(source=source, future_steps=5),
+        OnlineMotionCommandCfg(source=source),
         fake_env(robot_anchor_pos=(10.0, 20.0, 30.0)),
     )
     command._update_command()
@@ -566,7 +568,7 @@ def test_collision_geom_ids_select_robot_and_named_obstacles() -> None:
 def test_online_command_exposes_startup_window_before_source_poll() -> None:
     source = QueueOnlineSource([motion_block(frames=8)])
     command = OnlineMotionCommand(
-        OnlineMotionCommandCfg(source=source, future_steps=5),
+        OnlineMotionCommandCfg(source=source),
         fake_env(robot_anchor_pos=(10.0, 20.0, 30.0)),
     )
 
@@ -585,7 +587,7 @@ def test_online_command_exposes_startup_window_before_source_poll() -> None:
 def test_online_command_aligns_future_anchors_to_fixed_start_frame() -> None:
     source = QueueOnlineSource([motion_block(frames=8, offset=100.0)])
     command = OnlineMotionCommand(
-        OnlineMotionCommandCfg(source=source, future_steps=5),
+        OnlineMotionCommandCfg(source=source),
         fake_env(robot_anchor_pos=(10.0, 20.0, 30.0)),
     )
 
@@ -601,7 +603,7 @@ def test_online_command_fixed_start_alignment_preserves_reference_z_delta() -> N
     block.anchor_pos_w[:, 2] = np.arange(8, dtype=np.float32) + 2.0
     source = QueueOnlineSource([block])
     command = OnlineMotionCommand(
-        OnlineMotionCommandCfg(source=source, future_steps=5),
+        OnlineMotionCommandCfg(source=source),
         fake_env(robot_anchor_pos=(10.0, 20.0, 30.0)),
     )
 
@@ -633,7 +635,7 @@ def test_online_command_fixed_start_alignment_preserves_future_xy_deltas() -> No
     )
     source = QueueOnlineSource([block])
     command = OnlineMotionCommand(
-        OnlineMotionCommandCfg(source=source, future_steps=5),
+        OnlineMotionCommandCfg(source=source),
         fake_env(robot_anchor_pos=(10.0, 20.0, 30.0)),
     )
 
@@ -675,7 +677,6 @@ def test_online_command_counts_consecutive_stale_windows() -> None:
         OnlineMotionCommandCfg(
             source=source,
             source_mode="replay",
-            future_steps=5,
         ),
         fake_env(),
     )
@@ -700,7 +701,6 @@ def test_online_command_replay_allows_stale_windows_at_clip_end() -> None:
         OnlineMotionCommandCfg(
             source=source,
             source_mode="replay",
-            future_steps=5,
         ),
         fake_env(),
     )
@@ -726,7 +726,6 @@ def test_online_command_replay_does_not_evict_preloaded_frames() -> None:
         OnlineMotionCommandCfg(
             source=source,
             source_mode="replay",
-            future_steps=5,
             max_poll_blocks=16,
         ),
         fake_env(),
@@ -749,44 +748,14 @@ def test_online_command_rejects_replay_source_without_reset() -> None:
         )
 
 
-def test_online_command_rejects_replay_source_fps_mismatch() -> None:
-    source = QueueOnlineSource([motion_block(frames=8)], fps=25.0)
-
-    with pytest.raises(ValueError, match="FPS must match env control rate"):
-        OnlineMotionCommand(
-            OnlineMotionCommandCfg(
-                source=source,
-                source_mode="replay",
-                future_steps=5,
-            ),
-            fake_env(step_dt=0.02),
-        )
-
-
-def test_online_command_rejects_live_source_fps_mismatch() -> None:
-    source = QueueOnlineSource([motion_block(frames=8)], fps=25.0)
-
-    with pytest.raises(ValueError, match="FPS must match env control rate"):
-        OnlineMotionCommand(
-            OnlineMotionCommandCfg(
-                source=source,
-                source_mode="live",
-                future_steps=5,
-            ),
-            fake_env(step_dt=0.02),
-        )
-
-
 def test_online_command_cfg_with_live_source_cfg_is_deepcopyable() -> None:
     cfg = OnlineMotionCommandCfg(
         live_source_cfg=SocketSourceCfg(
             host="127.0.0.1",
             port=8765,
-            fps=50.0,
             max_queue_blocks=4,
         ),
         source_mode="live",
-        future_steps=5,
     )
 
     copied = copy.deepcopy(cfg)
@@ -799,7 +768,6 @@ def test_online_command_creates_live_socket_source_from_cfg(monkeypatch) -> None
     created = []
 
     class _FakeSocketSource:
-        fps = 50.0
         diagnostics = SimpleNamespace(
             queue_depth=0,
             blocks_received=0,
@@ -828,7 +796,6 @@ def test_online_command_creates_live_socket_source_from_cfg(monkeypatch) -> None
         OnlineMotionCommandCfg(
             live_source_cfg=live_source_cfg,
             source_mode="live",
-            future_steps=5,
         ),
         fake_env(),
     )
@@ -848,7 +815,7 @@ def test_online_command_updates_live_diagnostics_metrics() -> None:
         bad_messages=2,
     )
     command = OnlineMotionCommand(
-        OnlineMotionCommandCfg(source=source, future_steps=5),
+        OnlineMotionCommandCfg(source=source),
         fake_env(),
     )
 
@@ -880,7 +847,6 @@ def test_online_command_publishes_observations_with_images_on_interval(
     command = OnlineMotionCommand(
         OnlineMotionCommandCfg(
             source=QueueOnlineSource([motion_block(frames=8)]),
-            future_steps=5,
             observation=OnlineObservationCfg(
                 publisher=publisher,
                 publish_interval=2,
@@ -905,7 +871,6 @@ def test_online_command_does_not_create_observation_reporter_by_default() -> Non
     command = OnlineMotionCommand(
         OnlineMotionCommandCfg(
             source=QueueOnlineSource([motion_block(frames=8)]),
-            future_steps=5,
         ),
         fake_env(),
     )
@@ -991,6 +956,58 @@ def test_online_observation_reporter_drops_observation_while_publish_inflight(
 
     assert len(render_calls) == 2
     assert publisher.publish_count == 2
+
+
+def test_online_observation_reporter_close_is_idempotent() -> None:
+    reporter = OnlineObservationReporter(OnlineObservationCfg(), fake_env())
+    renderer = SimpleNamespace(close_count=0)
+
+    def close_renderer() -> None:
+        renderer.close_count += 1
+
+    renderer.close = close_renderer
+    reporter._image_renderer = renderer
+
+    reporter.close()
+    reporter.close()
+
+    assert reporter._closed is True
+    assert renderer.close_count == 1
+    assert reporter._image_renderer is None
+
+
+def test_online_command_closes_owned_resources_once() -> None:
+    source = _LiveTextOpOnlineSource([])
+    command = OnlineMotionCommand(
+        OnlineMotionCommandCfg(source=source, source_mode="live"),
+        fake_env(),
+    )
+
+    command.close()
+    command.close()
+
+    assert source.close_count == 1
+    assert command._closed is True
+
+
+def test_online_cleanup_recorder_closes_command() -> None:
+    command = SimpleNamespace(close_count=0)
+
+    def close() -> None:
+        command.close_count += 1
+
+    command.close = close
+    env = SimpleNamespace(
+        command_manager=SimpleNamespace(get_term=lambda name: command)
+    )
+    cfg = RecorderTermCfg(
+        func=OnlineTextOpCleanup,
+        params={"command_name": "motion"},
+    )
+
+    OnlineTextOpCleanup(cfg, env).close()
+
+    assert command.close_count == 1
 
 
 def test_online_observation_reporter_uses_observation_camera(monkeypatch) -> None:
@@ -1091,7 +1108,6 @@ def test_online_command_replay_reset_rewinds_source() -> None:
         OnlineMotionCommandCfg(
             source=source,
             source_mode="replay",
-            future_steps=5,
         ),
         env,
     )
@@ -1133,7 +1149,6 @@ def test_online_command_live_reset_does_not_rewind_source() -> None:
         OnlineMotionCommandCfg(
             source=source,
             source_mode="live",
-            future_steps=5,
             startup_timeout_steps=1,
         ),
         env,
@@ -1168,7 +1183,6 @@ def test_online_command_live_attaches_to_earliest_full_future_window() -> None:
         OnlineMotionCommandCfg(
             source=source,
             source_mode="live",
-            future_steps=5,
         ),
         env,
     )
@@ -1211,7 +1225,6 @@ def test_online_command_live_reset_before_first_start_uses_initial_window() -> N
         OnlineMotionCommandCfg(
             source=source,
             source_mode="live",
-            future_steps=5,
         ),
         fake_env(),
     )
@@ -1230,7 +1243,6 @@ def test_online_command_live_reset_rejects_non_contiguous_stream() -> None:
         OnlineMotionCommandCfg(
             source=source,
             source_mode="live",
-            future_steps=5,
         ),
         fake_env(),
     )
@@ -1252,7 +1264,6 @@ def test_online_command_live_pauses_before_advancing_into_stale_window() -> None
         OnlineMotionCommandCfg(
             source=source,
             source_mode="live",
-            future_steps=5,
         ),
         fake_env(),
     )
@@ -1278,7 +1289,6 @@ def test_online_command_live_rejects_stream_jump_ahead() -> None:
         OnlineMotionCommandCfg(
             source=source,
             source_mode="live",
-            future_steps=5,
         ),
         fake_env(),
     )
@@ -1303,7 +1313,6 @@ def test_online_command_live_prunes_frames_behind_current_frame() -> None:
         OnlineMotionCommandCfg(
             source=source,
             source_mode="live",
-            future_steps=5,
         ),
         fake_env(),
     )

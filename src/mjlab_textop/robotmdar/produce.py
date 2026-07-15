@@ -46,7 +46,6 @@ def run_producer(args: argparse.Namespace) -> None:
                     generator=generator,
                     prompt_controller=planner,
                     cfg=StreamConfig(
-                        fps=args.fps,
                         guidance_scale=args.guidance_scale,
                         log_every_blocks=args.log_every_blocks,
                     ),
@@ -73,7 +72,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--device", default="cuda")
-    parser.add_argument("--fps", type=float, default=50.0)
     parser.add_argument("--guidance-scale", type=float, default=5.0)
     parser.add_argument(
         "--planner",
@@ -164,7 +162,6 @@ def _log_block_timing(
     return log_stream_timing(
         prompt_controller=planner,
         cfg=StreamConfig(
-            fps=args.fps,
             guidance_scale=getattr(args, "guidance_scale", 0.0),
             log_every_blocks=args.log_every_blocks,
         ),

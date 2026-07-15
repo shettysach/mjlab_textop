@@ -54,7 +54,7 @@ class HttpObservationReceiver:
             self._server.server_close()
             self._server = None
         if self._thread is not None:
-            self._thread.join(timeout=1.0)
+            self._thread.join()
             self._thread = None
 
     def latest(self) -> FeedbackObservation | None:

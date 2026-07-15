@@ -13,7 +13,6 @@ from mjlab_textop.core.feedback.observation import (
 )
 from mjlab_textop.core.online.live import SocketSourceCfg
 from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
-from mjlab_textop.core.schema import FUTURE_STEPS
 from mjlab_textop.scripts.utils import (
     ResolvedPolicy,
 )
@@ -40,8 +39,6 @@ class PlayLiveCommand:
     port: int = 8765
     device: str = "cuda:0"
     num_envs: int = 1
-    future_steps: int = FUTURE_STEPS
-    fps: float = 50.0
     max_queue_blocks: int = 32
     reset_robot_to_reference: bool = True
     reference_debug_vis: bool = False
@@ -71,11 +68,9 @@ def play_live_textop_motion(
         live_source_cfg=SocketSourceCfg(
             host=cfg.host,
             port=cfg.port,
-            fps=cfg.fps,
             max_queue_blocks=cfg.max_queue_blocks,
         ),
         source_mode="live",
-        future_steps=cfg.future_steps,
         num_envs=cfg.num_envs,
         reset_robot_to_reference=cfg.reset_robot_to_reference,
         reference_debug_vis=cfg.reference_debug_vis,
@@ -125,7 +120,6 @@ class PlayOnlineCommand:
     onnx_file: str | None = None
     device: str = "cuda:0"
     num_envs: int = 1
-    future_steps: int = FUTURE_STEPS
     block_size: int = 8
     reset_robot_to_reference: bool = True
 
@@ -142,7 +136,6 @@ def play_online_textop_motion(
         runner_cls=policy.runner_cls,
         source=source,
         source_mode="replay",
-        future_steps=cfg.future_steps,
         num_envs=cfg.num_envs,
         reset_robot_to_reference=cfg.reset_robot_to_reference,
     )

@@ -5,10 +5,10 @@ from mjlab.tasks.registry import load_env_cfg, load_runner_cls
 
 from mjlab_textop.core.feedback.observation import OnlineObservationCfg
 from mjlab_textop.core.mdp.offline_commands import OfflineMotionCommandCfg
+from mjlab_textop.core.mdp.online_cleanup import OnlineTextOpCleanup
 from mjlab_textop.core.mdp.online_commands import OnlineMotionCommandCfg
 from mjlab_textop.core.online.source import MotionBlock, QueueOnlineSource
 from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
-from mjlab_textop.core.schema import FUTURE_STEPS
 from mjlab_textop.tasks.online_textop.env_cfg import (
     make_online_textop_g1_env_cfg,
 )
@@ -23,7 +23,6 @@ def test_textop_env_cfg_uses_textop_motion_command() -> None:
     motion_cmd = env_cfg.commands["motion"]
 
     assert isinstance(motion_cmd, OfflineMotionCommandCfg)
-    assert motion_cmd.future_steps == FUTURE_STEPS
     assert motion_cmd.anchor_body_name == "torso_link"
 
 
@@ -32,9 +31,9 @@ def test_online_textop_env_cfg_uses_online_motion_command() -> None:
     motion_cmd = env_cfg.commands["motion"]
 
     assert isinstance(motion_cmd, OnlineMotionCommandCfg)
-    assert motion_cmd.future_steps == FUTURE_STEPS
     assert motion_cmd.anchor_body_name == "pelvis"
     assert motion_cmd.source_mode == "live"
+    assert env_cfg.recorders["online_textop_cleanup"].func is OnlineTextOpCleanup
 
 
 def test_online_textop_onnx_env_cfg_uses_online_motion_command() -> None:
@@ -42,7 +41,6 @@ def test_online_textop_onnx_env_cfg_uses_online_motion_command() -> None:
     motion_cmd = env_cfg.commands["motion"]
 
     assert isinstance(motion_cmd, OnlineMotionCommandCfg)
-    assert motion_cmd.future_steps == FUTURE_STEPS
     assert motion_cmd.anchor_body_name == "pelvis"
     assert motion_cmd.source_mode == "live"
 
@@ -122,7 +120,7 @@ def test_online_textop_replay_task_can_disable_reference_reset() -> None:
 
 
 def test_online_textop_live_task_uses_live_source_mode() -> None:
-    source = QueueOnlineSource([], fps=50.0)
+    source = QueueOnlineSource([])
 
     task_name = register_task(
         "default",

@@ -17,6 +17,7 @@ from mjlab_textop.core.mdp.collision_recovery import (
     CollisionDetector,
     CollisionRecovery,
 )
+from mjlab_textop.core.mdp.online_cleanup import Closeable
 from mjlab_textop.core.mdp.online_reference_debug import OnlineReferenceGhost
 from mjlab_textop.core.mdp.online_types import (
     ONLINE_METRIC_NAMES,
@@ -46,7 +47,6 @@ class OnlineMotionCommandCfg(CommandTermCfg):
     resampling_time_range: tuple[float, float] = (1.0e9, 1.0e9)
     entity_name: str = "robot"
     anchor_body_name: str = "pelvis"
-    future_steps: int = FUTURE_STEPS
     source: OnlineSource | None = None
     live_source_cfg: SocketSourceCfg | None = None
     source_mode: OnlineSourceMode = "live"
@@ -59,8 +59,6 @@ class OnlineMotionCommandCfg(CommandTermCfg):
     collision_stop_geom_suffix: str | None = "_collision"
 
     def __post_init__(self) -> None:
-        if self.future_steps <= 0:
-            raise ValueError(f"future_steps must be positive, got {self.future_steps}")
         if self.source_mode not in ("replay", "live"):
             raise ValueError(f"Unknown source_mode: {self.source_mode}")
         if self.source_mode == "replay" and not isinstance(
@@ -88,8 +86,6 @@ class OnlineMotionCommand(CommandTerm):
             raise ValueError(
                 f"start_frame must be non-negative, got {self.cfg.start_frame}"
             )
-        self._validate_source_fps(env)
-
         self.robot = env.scene[cfg.entity_name]
         self.robot_anchor_body_index = self.robot.body_names.index(cfg.anchor_body_name)
         self.buffer = RollingMotionBuffer(device=self.device)
@@ -123,7 +119,10 @@ class OnlineMotionCommand(CommandTerm):
             device=self.device,
         )
         self._reference_ghost = OnlineReferenceGhost(env, self.robot)
+        self._closed = False
         self._init_metrics()
+        if isinstance(self.source, SocketOnlineSource):
+            self.source.start()
 
     @property
     def command(self) -> torch.Tensor:
@@ -252,7 +251,7 @@ class OnlineMotionCommand(CommandTerm):
             self._poll_source()
 
             self.current_frame = int(self.cfg.start_frame)
-            if self.buffer.can_start(self.current_frame, self.cfg.future_steps):
+            if self.buffer.can_start(self.current_frame, FUTURE_STEPS):
                 self._align_reference_anchor()
                 if self.cfg.reset_robot_to_reference:
                     self._reset_robot_to_reference(env_ids)
@@ -317,7 +316,7 @@ class OnlineMotionCommand(CommandTerm):
             if self._startup_wait_steps > self.cfg.startup_timeout_steps:
                 raise RuntimeError(
                     "Online TextOp buffer did not receive enough contiguous "
-                    f"frames for future_steps={self.cfg.future_steps}"
+                    f"frames for future_steps={FUTURE_STEPS}"
                 )
             return
 
@@ -369,15 +368,15 @@ class OnlineMotionCommand(CommandTerm):
     def _startup_start_frame(self) -> int | None:
         if self.cfg.source_mode == "live":
             return self._initial_live_start_frame()
-        if self.buffer.can_start(self.current_frame, self.cfg.future_steps):
+        if self.buffer.can_start(self.current_frame, FUTURE_STEPS):
             return self.current_frame
         return None
 
     def _initial_live_start_frame(self) -> int | None:
-        return self.buffer.earliest_start_frame(self.cfg.future_steps)
+        return self.buffer.earliest_start_frame(FUTURE_STEPS)
 
     def _resync_live_start_frame(self) -> int | None:
-        return self.buffer.latest_start_frame(self.cfg.future_steps)
+        return self.buffer.latest_start_frame(FUTURE_STEPS)
 
     def _live_start_or_resync_frame(self) -> int | None:
         if not self._has_started_once:
@@ -385,17 +384,17 @@ class OnlineMotionCommand(CommandTerm):
         return self._resync_live_start_frame()
 
     def _can_advance_live_frame(self) -> bool:
-        if not self.buffer.can_start(self.current_frame, self.cfg.future_steps):
+        if not self.buffer.can_start(self.current_frame, FUTURE_STEPS):
             raise RuntimeError(
                 "Lost active live reference window: "
                 f"current={self.current_frame}, "
                 f"earliest={self.buffer.earliest_index}, "
                 f"latest={self.buffer.latest_index}, "
-                f"future_steps={self.cfg.future_steps}"
+                f"future_steps={FUTURE_STEPS}"
             )
 
         next_frame = self.current_frame + 1
-        return self.buffer.can_start(next_frame, self.cfg.future_steps)
+        return self.buffer.can_start(next_frame, FUTURE_STEPS)
 
     def _future_window(self) -> FutureWindow:
         if self._collision.active:
@@ -410,7 +409,7 @@ class OnlineMotionCommand(CommandTerm):
             return self._future_cache
 
         joint_pos, joint_vel, anchor_pos_w, anchor_quat_w, stale_steps = (
-            self.buffer.get_future(self.current_frame, self.cfg.future_steps)
+            self.buffer.get_future(self.current_frame, FUTURE_STEPS)
         )
 
         anchor_pos_w = self._fixed_start_reference_pos(anchor_pos_w)
@@ -471,7 +470,7 @@ class OnlineMotionCommand(CommandTerm):
                 self._collision.buffering = True
             block = replace(block, index=block.index + self._live_index_offset)
             self.buffer.append_block(block)
-            if not self.buffer.can_start(self.current_frame, self.cfg.future_steps):
+            if not self.buffer.can_start(self.current_frame, FUTURE_STEPS):
                 continue
 
             self._align_reference_anchor()
@@ -485,11 +484,11 @@ class OnlineMotionCommand(CommandTerm):
 
     def _startup_future_window(self) -> FutureWindow:
         dtype = self.robot_anchor_pos_w.dtype
-        joint_shape = (self.cfg.future_steps, G1_JOINT_COUNT)
+        joint_shape = (FUTURE_STEPS, G1_JOINT_COUNT)
         joint_pos = torch.zeros(joint_shape, device=self.device, dtype=dtype)
         joint_vel = torch.zeros(joint_shape, device=self.device, dtype=dtype)
-        anchor_pos_w = self.robot_anchor_pos_w[0].expand(self.cfg.future_steps, -1)
-        anchor_quat_w = self.robot_anchor_quat_w[0].expand(self.cfg.future_steps, -1)
+        anchor_pos_w = self.robot_anchor_pos_w[0].expand(FUTURE_STEPS, -1)
+        anchor_quat_w = self.robot_anchor_quat_w[0].expand(FUTURE_STEPS, -1)
         return FutureWindow(
             joint_pos=joint_pos,
             joint_vel=joint_vel,
@@ -575,32 +574,29 @@ class OnlineMotionCommand(CommandTerm):
             anchor_quat_w=self.anchor_quat_w,
         )
 
-    def _validate_source_fps(self, env: ManagerBasedRlEnv) -> None:
-        fps = getattr(self.source, "fps", None)
-        if fps is None:
-            return
-        expected_fps = 1.0 / float(env.step_dt)
-        if abs(float(fps) - expected_fps) > 1.0e-4:
-            raise ValueError(
-                "Replay TextOp source FPS must match env control rate: "
-                f"{float(fps):g} != {expected_fps:g}"
-            )
-
     def _make_source(self) -> OnlineSource:
         if self.cfg.source is not None:
             return self.cfg.source
         if self.cfg.source_mode == "live" and self.cfg.live_source_cfg is not None:
-            source = SocketOnlineSource(self.cfg.live_source_cfg)
-            source.start()
-            return source
+            return SocketOnlineSource(self.cfg.live_source_cfg)
         return QueueOnlineSource()
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            if isinstance(self.source, Closeable):
+                self.source.close()
+        finally:
+            if self.observation_reporter is not None:
+                self.observation_reporter.close()
 
 
 def use_online_textop_motion_command(
     env_cfg,
     *,
     command_name: str = "motion",
-    future_steps: int = FUTURE_STEPS,
     source: OnlineSource | None = None,
     live_source_cfg: SocketSourceCfg | None = None,
     source_mode: OnlineSourceMode = "live",
@@ -620,7 +616,6 @@ def use_online_textop_motion_command(
     env_cfg.commands[command_name] = OnlineMotionCommandCfg(
         entity_name=entity_name,
         anchor_body_name=anchor_body_name,
-        future_steps=future_steps,
         source=source,
         live_source_cfg=live_source_cfg,
         source_mode=source_mode,

@@ -13,11 +13,10 @@ from mjlab_textop.core.schema import FUTURE_STEPS
 def make_future_time_steps(
     time_steps: torch.Tensor,
     *,
-    future_steps: int,
     time_step_total: int,
 ) -> torch.Tensor:
     offsets = torch.arange(
-        future_steps,
+        FUTURE_STEPS,
         dtype=torch.long,
         device=time_steps.device,
     )
@@ -27,12 +26,6 @@ def make_future_time_steps(
 
 @dataclass(kw_only=True)
 class OfflineMotionCommandCfg(MotionCommandCfg):
-    future_steps: int = FUTURE_STEPS
-
-    def __post_init__(self) -> None:
-        if self.future_steps <= 0:
-            raise ValueError(f"future_steps must be positive, got {self.future_steps}")
-
     def build(self, env: ManagerBasedRlEnv) -> OfflineMotionCommand:
         return OfflineMotionCommand(self, env)
 
@@ -44,7 +37,6 @@ class OfflineMotionCommand(MotionCommand):
     def future_time_steps(self) -> torch.Tensor:
         return make_future_time_steps(
             self.time_steps,
-            future_steps=self.cfg.future_steps,
             time_step_total=self.motion.time_step_total,
         )
 
@@ -76,21 +68,18 @@ class OfflineMotionCommand(MotionCommand):
 
 def textop_motion_command_cfg_from(
     cfg: MotionCommandCfg,
-    *,
-    future_steps: int = FUTURE_STEPS,
 ) -> OfflineMotionCommandCfg:
     kwargs = {
         field.name: copy.deepcopy(getattr(cfg, field.name))
         for field in fields(MotionCommandCfg)
     }
-    return OfflineMotionCommandCfg(**kwargs, future_steps=future_steps)
+    return OfflineMotionCommandCfg(**kwargs)
 
 
 def use_textop_motion_command(
     env_cfg,
     *,
     command_name: str = "motion",
-    future_steps: int = FUTURE_STEPS,
 ) -> None:
     motion_cfg = env_cfg.commands[command_name]
     if not isinstance(motion_cfg, MotionCommandCfg):
@@ -101,5 +90,4 @@ def use_textop_motion_command(
 
     env_cfg.commands[command_name] = textop_motion_command_cfg_from(
         motion_cfg,
-        future_steps=future_steps,
     )

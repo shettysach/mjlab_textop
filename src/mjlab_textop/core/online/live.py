@@ -19,7 +19,6 @@ from mjlab_textop.core.online.source import (
 class SocketSourceCfg:
     host: str = "127.0.0.1"
     port: int = 8765
-    fps: float = 50.0
     max_queue_blocks: int = 32
 
 
@@ -36,12 +35,9 @@ class TextOpLiveDiagnostics:
 
 def textop_block_to_ndjson_message(
     block: MotionBlock,
-    *,
-    fps: float = 50.0,
 ) -> str:
     message = {
         "index": int(block.index),
-        "fps": float(fps),
         "joint_pos": np.asarray(block.joint_pos, dtype=np.float32).tolist(),
         "joint_vel": np.asarray(block.joint_vel, dtype=np.float32).tolist(),
         "anchor_pos_w": np.asarray(block.anchor_pos_w, dtype=np.float32).tolist(),
@@ -55,9 +51,7 @@ def textop_block_to_ndjson_message(
 
 def parse_textop_block_message(
     message: str | bytes | dict[str, Any],
-    *,
-    default_fps: float = 50.0,
-) -> tuple[MotionBlock, float]:
+) -> MotionBlock:
     data = _load_message(message)
     missing = [
         key
@@ -84,7 +78,7 @@ def parse_textop_block_message(
             recovery_epoch=data.get("recovery_epoch", 0),
         )
     )
-    return block, float(data.get("fps", default_fps))
+    return block
 
 
 class SocketOnlineSource:
@@ -95,7 +89,6 @@ class SocketOnlineSource:
                 f"max_queue_blocks must be positive, got {cfg.max_queue_blocks}"
             )
         self.cfg = cfg
-        self.fps = cfg.fps
         self.diagnostics = TextOpLiveDiagnostics()
         self._queue: deque[MotionBlock] = deque()
         self._queue_condition = threading.Condition()
@@ -124,7 +117,9 @@ class SocketOnlineSource:
             except OSError:
                 pass
         if self._thread is not None:
-            self._thread.join(timeout=1.0)
+            self._thread.join()
+            self._thread = None
+        self._sock = None
 
     def poll(self) -> MotionBlock | None:
         with self._queue_condition:
@@ -138,13 +133,13 @@ class SocketOnlineSource:
             return block
 
     def append_message(self, message: str | bytes | dict[str, Any]) -> None:
-        block, fps = parse_textop_block_message(message, default_fps=self.fps)
-        self.fps = fps
-        self._append_block(block)
+        self._append_block(parse_textop_block_message(message))
 
     def _reader_loop(self) -> None:
         try:
-            with socket.create_connection((self.cfg.host, self.cfg.port)) as sock:
+            with socket.create_connection(
+                (self.cfg.host, self.cfg.port), timeout=1.0
+            ) as sock:
                 self._sock = sock
                 self.diagnostics.connected = True
                 with sock.makefile("rb") as reader:

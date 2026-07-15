@@ -39,4 +39,4 @@ def make_mjlab_npz_replay_source(
                 anchor_quat_w=anchor_quat_w[start:stop],
             )
         )
-    return QueueOnlineSource(blocks, fps=motion.fps)
+    return QueueOnlineSource(blocks)

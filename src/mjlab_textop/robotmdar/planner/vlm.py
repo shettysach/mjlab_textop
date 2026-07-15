@@ -86,10 +86,12 @@ class VlmPromptPlanner:
 
     def request_stop(self) -> None:
         self._stop = True
-        self.feedback.close()
-        if self._future is not None:
-            self._future.cancel()
-        self._executor.shutdown(wait=False, cancel_futures=True)
+        try:
+            self.feedback.close()
+        finally:
+            if self._future is not None:
+                self._future.cancel()
+            self._executor.shutdown(wait=True, cancel_futures=True)
 
     def choose_prompt(self, *, block_count: int) -> str:
         observation = self.feedback.latest()

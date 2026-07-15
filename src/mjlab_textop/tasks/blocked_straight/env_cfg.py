@@ -12,7 +12,6 @@ from mjlab_textop.core.feedback.observation import OnlineObservationCfg
 from mjlab_textop.core.mdp.online_commands import OnlineSourceMode
 from mjlab_textop.core.online.live import SocketSourceCfg
 from mjlab_textop.core.online.source import OnlineSource
-from mjlab_textop.core.schema import FUTURE_STEPS
 from mjlab_textop.tasks.blocked_straight.assets import (
     make_blocked_straight_spec_fn,
 )
@@ -41,7 +40,6 @@ BLOCKED_STRAIGHT_TASK_CFG = BlockedStraightTaskCfg()
 def make_blocked_straight_g1_env_cfg(
     *,
     play: bool = True,
-    future_steps: int = FUTURE_STEPS,
     source: OnlineSource | None = None,
     live_source_cfg: SocketSourceCfg | None = None,
     source_mode: OnlineSourceMode = "live",
@@ -53,7 +51,6 @@ def make_blocked_straight_g1_env_cfg(
 ):
     cfg = make_online_textop_g1_env_cfg(
         play=play,
-        future_steps=future_steps,
         source=source,
         live_source_cfg=live_source_cfg,
         source_mode=source_mode,

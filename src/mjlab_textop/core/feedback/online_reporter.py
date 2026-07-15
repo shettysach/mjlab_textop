@@ -33,8 +33,11 @@ class OnlineObservationReporter:
         self._publish_future: Future[None] | None = None
         self._event_futures: deque[Future[None]] = deque()
         self.last_publish_error: str | None = None
+        self._closed = False
 
     def maybe_publish(self, state: OnlineObservationState) -> None:
+        if self._closed:
+            return
         publisher = self.publisher
         current_frame = state.frame
         if publisher is None or not state.started:
@@ -71,7 +74,7 @@ class OnlineObservationReporter:
         )
 
     def publish_collision_stop(self, active: bool, *, recovery_epoch: int) -> None:
-        if self.publisher is None:
+        if self.publisher is None or self._closed:
             return
         self._collect_event_result()
         self._event_futures.append(
@@ -107,6 +110,19 @@ class OnlineObservationReporter:
                 self.last_publish_error = None
             except Exception as exc:
                 self.last_publish_error = f"{type(exc).__name__}: {exc}"
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            self._publish_executor.shutdown(wait=True, cancel_futures=True)
+            self._collect_publish_result()
+            self._collect_event_result()
+        finally:
+            if self._image_renderer is not None:
+                self._image_renderer.close()
+                self._image_renderer = None
 
     def _render_image(self):
         renderer = self._image_renderer

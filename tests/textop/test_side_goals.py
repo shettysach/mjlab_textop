@@ -40,7 +40,6 @@ def test_side_goals_play_task_uses_onnx_runner(tmp_path) -> None:
         "side-goals",
         runner_cls=OnnxPolicyRunner,
         source_mode="live",
-        future_steps=2,
         num_envs=1,
     )
 

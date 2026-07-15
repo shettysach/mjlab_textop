@@ -14,7 +14,6 @@ from mjlab_textop.core.mdp.online_commands import OnlineSourceMode
 from mjlab_textop.core.online.live import SocketSourceCfg
 from mjlab_textop.core.online.source import OnlineSource
 from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
-from mjlab_textop.core.schema import FUTURE_STEPS
 from mjlab_textop.tasks.blocked_straight.env_cfg import make_blocked_straight_g1_env_cfg
 from mjlab_textop.tasks.online_textop.env_cfg import make_online_textop_g1_env_cfg
 from mjlab_textop.tasks.portrait_corridors.env_cfg import (
@@ -51,7 +50,6 @@ def register_task(
     source: OnlineSource | None = None,
     live_source_cfg: SocketSourceCfg | None = None,
     source_mode: OnlineSourceMode,
-    future_steps: int = FUTURE_STEPS,
     num_envs: int = 1,
     reset_robot_to_reference: bool = True,
     reference_debug_vis: bool | None = None,
@@ -65,7 +63,6 @@ def register_task(
     task_name = "-".join(name_parts)
     env_cfg = make_env_cfg(
         play=True,
-        future_steps=future_steps,
         source=source,
         live_source_cfg=live_source_cfg,
         source_mode=source_mode,
