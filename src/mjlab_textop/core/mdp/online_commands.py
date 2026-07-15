@@ -204,19 +204,19 @@ class OnlineMotionCommand(CommandTerm):
         self._set_metric("online_lag_frames", lag_frames)
         self._set_metric("online_started", self._clock.started)
         self._set_metric("online_collision_stop", self._collision.active)
-        diagnostics = getattr(self.source, "diagnostics", None)
-        if diagnostics is not None:
+        if isinstance(self.source, SocketOnlineSource):
+            diagnostics = self.source.diagnostics
             self._set_metric(
                 "online_queue_depth",
-                getattr(diagnostics, "queue_depth", 0),
+                diagnostics.queue_depth,
             )
             self._set_metric(
                 "online_blocks_received",
-                getattr(diagnostics, "blocks_received", 0),
+                diagnostics.blocks_received,
             )
             self._set_metric(
                 "online_bad_messages",
-                getattr(diagnostics, "bad_messages", 0),
+                diagnostics.bad_messages,
             )
         if self.observation_reporter is not None:
             self.observation_reporter.maybe_publish(

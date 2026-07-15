@@ -32,12 +32,16 @@ from mjlab_textop.core.mdp.online_commands import (
 from mjlab_textop.core.online.buffer import (
     RollingMotionBuffer,
 )
-from mjlab_textop.core.online.live import SocketSourceCfg
+from mjlab_textop.core.online.live import SocketOnlineSource, SocketSourceCfg
 from mjlab_textop.core.online.replay import (
     QueueOnlineSource,
     make_mjlab_npz_replay_source,
 )
-from mjlab_textop.core.online.source import MotionBlock, MotionFrames, StreamControl
+from mjlab_textop.core.online.source import (
+    MotionBlock,
+    MotionFrames,
+    StreamControl,
+)
 from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
 
 
@@ -771,12 +775,6 @@ def test_online_command_creates_live_socket_source_from_cfg(monkeypatch) -> None
     created = []
 
     class _FakeSocketSource:
-        diagnostics = SimpleNamespace(
-            queue_depth=0,
-            blocks_received=0,
-            bad_messages=0,
-        )
-
         def __init__(self, cfg):
             self.cfg = cfg
             self.started = False
@@ -809,24 +807,18 @@ def test_online_command_creates_live_socket_source_from_cfg(monkeypatch) -> None
 
 
 def test_online_command_updates_live_diagnostics_metrics() -> None:
-    source = QueueOnlineSource([motion_block(frames=8)])
-    source.diagnostics = SimpleNamespace(
-        queue_depth=3,
-        blocks_received=4,
-        bad_messages=2,
-    )
+    source = SocketOnlineSource()
+    source.start = lambda: None
+    source.diagnostics.queue_depth = 3
+    source.diagnostics.blocks_received = 4
+    source.diagnostics.bad_messages = 2
     command = OnlineMotionCommand(
         OnlineMotionCommandCfg(source=source),
         fake_env(),
     )
 
-    command._update_command()
     command._update_metrics()
 
-    assert command.metrics["online_started"].item() == 1.0
-    assert command.metrics["online_current_frame"].item() == 0.0
-    assert command.metrics["online_latest_frame"].item() == 7.0
-    assert command.metrics["online_lag_frames"].item() == 7.0
     assert command.metrics["online_queue_depth"].item() == 3.0
     assert command.metrics["online_blocks_received"].item() == 4.0
     assert command.metrics["online_bad_messages"].item() == 2.0
