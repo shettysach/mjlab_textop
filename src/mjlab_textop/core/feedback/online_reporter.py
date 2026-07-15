@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
-from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -23,7 +22,11 @@ from mjlab_textop.core.feedback.observation import (
 
 @dataclass(frozen=True)
 class _RenderSnapshot:
-    data: Any
+    nworld: int
+    qpos: torch.Tensor
+    qvel: torch.Tensor
+    mocap_pos: torch.Tensor
+    mocap_quat: torch.Tensor
     yaw_degrees: float | None
 
 
@@ -136,15 +139,12 @@ class OnlineObservationReporter:
     def _capture_render_snapshot(self) -> _RenderSnapshot:
         """Copy the small dynamic state while the simulation thread is paused."""
         data = self.env.sim.data
-        snapshot_data = SimpleNamespace(
+        return _RenderSnapshot(
             nworld=int(data.nworld),
             qpos=_copy_tensor_to_cpu(data.qpos),
             qvel=_copy_tensor_to_cpu(data.qvel),
             mocap_pos=_copy_tensor_to_cpu(data.mocap_pos),
             mocap_quat=_copy_tensor_to_cpu(data.mocap_quat),
-        )
-        return _RenderSnapshot(
-            data=snapshot_data,
             yaw_degrees=_body_yaw_degrees(self.env, self.cfg.camera),
         )
 
@@ -164,7 +164,7 @@ class OnlineObservationReporter:
 
         if snapshot.yaw_degrees is not None:
             renderer._cam.azimuth = self.cfg.camera.azimuth + snapshot.yaw_degrees
-        renderer.update(snapshot.data, debug_vis_callback=env.update_visualizers)
+        renderer.update(snapshot, debug_vis_callback=env.update_visualizers)
         return renderer.render()
 
     def _close_renderer(self) -> None:

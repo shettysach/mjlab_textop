@@ -112,10 +112,10 @@ class OnnxPolicy:
                 device=self.device,
             )
 
-        assert self._binding is not None
-        self._binding.clear_binding_inputs()
-        self._binding.clear_binding_outputs()
-        self._binding.bind_input(
+        binding: Any = self._binding
+        binding.clear_binding_inputs()
+        binding.clear_binding_outputs()
+        binding.bind_input(
             name=self.input_name,
             device_type="cuda",
             device_id=self.device_id,
@@ -123,7 +123,7 @@ class OnnxPolicy:
             shape=tuple(obs.shape),
             buffer_ptr=obs.data_ptr(),
         )
-        self._binding.bind_output(
+        binding.bind_output(
             name=self.output_name,
             device_type="cuda",
             device_id=self.device_id,
@@ -131,7 +131,7 @@ class OnnxPolicy:
             shape=output_shape,
             buffer_ptr=self._output.data_ptr(),
         )
-        self.session.run_with_iobinding(self._binding)
+        self.session.run_with_iobinding(binding)
         return self._output
 
     def _joint_order_index(self, device: torch.device) -> torch.Tensor:

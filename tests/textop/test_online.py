@@ -1103,7 +1103,7 @@ def test_online_observation_reporter_uses_observation_camera(monkeypatch) -> Non
         env,
     )
 
-    snapshot = SimpleNamespace(data=object(), yaw_degrees=90.0)
+    snapshot = SimpleNamespace(yaw_degrees=90.0)
 
     assert reporter._render_image(snapshot) == "rendered"
     assert calls["cfg"] is observation_camera
