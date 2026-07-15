@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import cast
 
 import torch
@@ -27,6 +27,7 @@ from mjlab_textop.core.online.buffer import (
     RollingMotionBuffer,
 )
 from mjlab_textop.core.online.clock import OnlineReferenceClock
+from mjlab_textop.core.online.ingestion import OnlineBlockIngestor
 from mjlab_textop.core.online.live import (
     SocketOnlineSource,
     SocketSourceCfg,
@@ -90,6 +91,11 @@ class OnlineMotionCommand(CommandTerm):
         self.robot = env.scene[cfg.entity_name]
         self.robot_anchor_body_index = self.robot.body_names.index(cfg.anchor_body_name)
         self.buffer = RollingMotionBuffer(device=self.device)
+        self._ingestor = OnlineBlockIngestor(
+            self.source,
+            self.buffer,
+            live=self.cfg.source_mode == "live",
+        )
         self._clock = OnlineReferenceClock(int(self.cfg.start_frame))
         self._reference_window = OnlineReferenceWindow(
             self.buffer,
@@ -103,7 +109,6 @@ class OnlineMotionCommand(CommandTerm):
             else OnlineObservationReporter(cfg.observation, env)
         )
         self._collision = CollisionRecovery()
-        self._live_index_offset = 0
         self._collision_detector = CollisionDetector(
             env.sim.mj_model,
             entity_name=cfg.entity_name,
@@ -120,9 +125,6 @@ class OnlineMotionCommand(CommandTerm):
     def command(self) -> torch.Tensor:
         return torch.cat([self.joint_pos, self.joint_vel], dim=-1)
 
-    # Keep these attributes as properties while the timing state lives in one
-    # small, independently-testable object. Several callers inspect them for
-    # diagnostics, so this preserves the existing command-term surface.
     @property
     def current_frame(self) -> int:
         return self._clock.current_frame
@@ -130,38 +132,6 @@ class OnlineMotionCommand(CommandTerm):
     @current_frame.setter
     def current_frame(self, value: int) -> None:
         self._clock.current_frame = value
-
-    @property
-    def _started(self) -> bool:
-        return self._clock.started
-
-    @_started.setter
-    def _started(self, value: bool) -> None:
-        self._clock.started = value
-
-    @property
-    def _has_started_once(self) -> bool:
-        return self._clock.has_started_once
-
-    @_has_started_once.setter
-    def _has_started_once(self, value: bool) -> None:
-        self._clock.has_started_once = value
-
-    @property
-    def _startup_wait_steps(self) -> int:
-        return self._clock.startup_wait_steps
-
-    @_startup_wait_steps.setter
-    def _startup_wait_steps(self, value: int) -> None:
-        self._clock.startup_wait_steps = value
-
-    @property
-    def _last_stale_steps(self) -> int:
-        return self._reference_window.last_stale_steps
-
-    @property
-    def _consecutive_stale_steps(self) -> int:
-        return self._reference_window.consecutive_stale_steps
 
     @property
     def joint_pos(self) -> torch.Tensor:
@@ -207,14 +177,6 @@ class OnlineMotionCommand(CommandTerm):
     def collision_stop(self) -> bool:
         return self._collision.active
 
-    @property
-    def _collision_epoch(self) -> int:
-        return self._collision.epoch
-
-    @property
-    def _collision_hold_window(self) -> FutureWindow | None:
-        return self._collision.hold_window
-
     def _init_metrics(self) -> None:
         for name in ONLINE_METRIC_NAMES:
             self.metrics[name] = torch.zeros(self.num_envs, device=self.device)
@@ -226,10 +188,13 @@ class OnlineMotionCommand(CommandTerm):
         latest_index = self.buffer.latest_index
         lag_frames = 0 if latest_index is None else latest_index - self.current_frame
         self._set_metric("online_buffer_frames", self.buffer.frame_count)
-        self._set_metric("online_stale_steps", self._last_stale_steps)
+        self._set_metric(
+            "online_stale_steps",
+            self._reference_window.last_stale_steps,
+        )
         self._set_metric(
             "online_consecutive_stale_steps",
-            self._consecutive_stale_steps,
+            self._reference_window.consecutive_stale_steps,
         )
         self._set_metric("online_current_frame", self.current_frame)
         self._set_metric(
@@ -237,7 +202,7 @@ class OnlineMotionCommand(CommandTerm):
             -1 if latest_index is None else latest_index,
         )
         self._set_metric("online_lag_frames", lag_frames)
-        self._set_metric("online_started", self._started)
+        self._set_metric("online_started", self._clock.started)
         self._set_metric("online_collision_stop", self._collision.active)
         diagnostics = getattr(self.source, "diagnostics", None)
         if diagnostics is not None:
@@ -257,7 +222,7 @@ class OnlineMotionCommand(CommandTerm):
             self.observation_reporter.maybe_publish(
                 OnlineObservationState(
                     frame=self.current_frame,
-                    started=self._started,
+                    started=self._clock.started,
                 )
             )
 
@@ -265,7 +230,7 @@ class OnlineMotionCommand(CommandTerm):
         if len(env_ids) == 0:
             return
         self._reset_runtime_counters()
-        self._started = False
+        self._clock.started = False
 
         if self.cfg.source_mode == "replay":
             if self.cfg.clear_buffer_on_reset:
@@ -279,7 +244,7 @@ class OnlineMotionCommand(CommandTerm):
                 self._align_reference_anchor()
                 if self.cfg.reset_robot_to_reference:
                     self._reset_robot_to_reference(env_ids)
-                self._started = True
+                self._clock.started = True
             return
 
         if self.cfg.source_mode == "live":
@@ -291,15 +256,15 @@ class OnlineMotionCommand(CommandTerm):
             self._align_reference_anchor()
             if self.cfg.reset_robot_to_reference:
                 self._reset_robot_to_reference(env_ids)
-            self._started = True
-            self._has_started_once = True
+            self._clock.started = True
+            self._clock.has_started_once = True
             return
 
     def _reset_runtime_counters(self) -> None:
         if self._collision.active and self.observation_reporter is not None:
             self.observation_reporter.publish_collision_stop(
                 False,
-                recovery_epoch=self._collision_epoch,
+                recovery_epoch=self._collision.epoch,
             )
         self._clock.reset_runtime()
         self._collision.reset()
@@ -309,7 +274,7 @@ class OnlineMotionCommand(CommandTerm):
         if self._collision.active:
             self._poll_collision_recovery_source()
             return
-        if self._started:
+        if self._clock.started:
             in_collision = self._has_obstacle_collision()
             if self._collision.collision_edge(in_collision):
                 self._activate_collision_stop()
@@ -317,7 +282,7 @@ class OnlineMotionCommand(CommandTerm):
 
         self._poll_source()
 
-        if not self._started:
+        if not self._clock.started:
             start_frame = self._startup_start_frame()
             if start_frame is not None:
                 self.current_frame = start_frame
@@ -325,13 +290,13 @@ class OnlineMotionCommand(CommandTerm):
                 if self.cfg.reset_robot_to_reference:
                     env_ids = torch.arange(self.num_envs, device=self.device)
                     self._reset_robot_to_reference(env_ids)
-                self._started = True
+                self._clock.started = True
                 if self.cfg.source_mode == "live":
-                    self._has_started_once = True
+                    self._clock.has_started_once = True
                 return
 
-            self._startup_wait_steps += 1
-            if self._startup_wait_steps > self.cfg.startup_timeout_steps:
+            self._clock.startup_wait_steps += 1
+            if self._clock.startup_wait_steps > self.cfg.startup_timeout_steps:
                 raise RuntimeError(
                     "Online TextOp buffer did not receive enough contiguous "
                     f"frames for future_steps={FUTURE_STEPS}"
@@ -345,26 +310,15 @@ class OnlineMotionCommand(CommandTerm):
         self.current_frame += 1
         if self.cfg.source_mode == "live":
             self.buffer.discard_before(self.current_frame)
-        self._clear_future_cache()
+        self._reference_window.clear_cache()
 
     def _poll_source(self) -> None:
-        for _ in range(self.cfg.max_poll_blocks):
-            if self.cfg.source_mode == "live" and not self._should_poll_live_source():
-                return
-            block = self.source.poll()
-            if block is None:
-                return
-            if self.cfg.source_mode == "live":
-                block = replace(block, index=block.index + self._live_index_offset)
-                latest_index = self.buffer.latest_index
-                if latest_index is not None and block.index != latest_index + 1:
-                    raise RuntimeError(
-                        "Non-contiguous RobotMDAR live stream: "
-                        f"expected block index {latest_index + 1}, got "
-                        f"{block.index}"
-                    )
-            self.buffer.append_block(block)
-            self._clear_future_cache()
+        appended = self._ingestor.poll(
+            max_blocks=self.cfg.max_poll_blocks,
+            should_poll=self._should_poll_live_source,
+        )
+        if appended:
+            self._reference_window.clear_cache()
 
     def _should_poll_live_source(self) -> bool:
         return self._clock.should_poll_live(
@@ -396,7 +350,7 @@ class OnlineMotionCommand(CommandTerm):
         if self._collision.active:
             assert self._collision.hold_window is not None
             return self._collision.hold_window
-        if not self._started:
+        if not self._clock.started:
             return self._startup_future_window()
         return self._reference_window.get(self.current_frame)
 
@@ -412,9 +366,10 @@ class OnlineMotionCommand(CommandTerm):
             # contact occurred. It is therefore the latest pre-collision target.
             safe_window = self._future_window()
         epoch = self._collision.activate(safe_window)
+        self._ingestor.begin_recovery()
         self.buffer.clear()
         self._clock.live_polling_paused = False
-        self._clear_future_cache()
+        self._reference_window.clear_cache()
         if self.observation_reporter is not None:
             self.observation_reporter.publish_collision_stop(
                 True,
@@ -422,29 +377,23 @@ class OnlineMotionCommand(CommandTerm):
             )
 
     def _poll_collision_recovery_source(self) -> None:
-        for _ in range(self.cfg.max_poll_blocks):
-            block = self.source.poll()
-            if block is None:
-                return
-            if not self._collision.accepts(block):
-                continue
-
-            if not self._collision.buffering:
-                self._live_index_offset = self.current_frame - block.index
-                self._collision.buffering = True
-            block = replace(block, index=block.index + self._live_index_offset)
-            self.buffer.append_block(block)
-            if not self.buffer.can_start(self.current_frame, FUTURE_STEPS):
-                continue
-
-            self._align_reference_anchor()
-            self._collision.complete()
-            if self.observation_reporter is not None:
-                self.observation_reporter.publish_collision_stop(
-                    False,
-                    recovery_epoch=self._collision_epoch,
-                )
+        ready = self._ingestor.poll_recovery(
+            max_blocks=self.cfg.max_poll_blocks,
+            current_frame=self.current_frame,
+            future_steps=FUTURE_STEPS,
+            accepts=self._collision.accepts,
+        )
+        if not ready:
             return
+
+        self._reference_window.clear_cache()
+        self._align_reference_anchor()
+        self._collision.complete()
+        if self.observation_reporter is not None:
+            self.observation_reporter.publish_collision_stop(
+                False,
+                recovery_epoch=self._collision.epoch,
+            )
 
     def _startup_future_window(self) -> FutureWindow:
         dtype = self.robot_anchor_pos_w.dtype
@@ -460,12 +409,6 @@ class OnlineMotionCommand(CommandTerm):
             anchor_quat_w=anchor_quat_w,
             stale_steps=0,
         )
-
-    def _clear_future_cache(self) -> None:
-        self._reference_window.clear_cache()
-
-    def _fixed_start_reference_pos(self, anchor_pos_w: torch.Tensor) -> torch.Tensor:
-        return self._reference_window.translate_anchor(anchor_pos_w)
 
     def _align_reference_anchor(self) -> None:
         self._reference_window.align(
@@ -484,7 +427,7 @@ class OnlineMotionCommand(CommandTerm):
         joint_pos = torch.clip(joint_pos, soft_limits[:, :, 0], soft_limits[:, :, 1])
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
 
-        root_pos = self._fixed_start_reference_pos(anchor_pos_w)
+        root_pos = self._reference_window.translate_anchor(anchor_pos_w)
         root_pos = root_pos[0].repeat(len(env_ids), 1)
         root_quat = anchor_quat_w[0].repeat(len(env_ids), 1)
         root_vel = self._reference_window.reference_root_velocity(
@@ -496,7 +439,7 @@ class OnlineMotionCommand(CommandTerm):
         self.robot.reset(env_ids=env_ids)
 
     def _debug_vis_impl(self, visualizer: DebugVisualizer) -> None:
-        if not self._started:
+        if not self._clock.started:
             return
 
         self._reference_ghost.draw(

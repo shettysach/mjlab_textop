@@ -432,7 +432,7 @@ def test_online_command_clears_collision_latch_on_reset(monkeypatch) -> None:
     command._resample_command(torch.tensor([0]))
 
     assert command.collision_stop is False
-    assert command._collision_hold_window is None
+    assert command._collision.hold_window is None
 
 
 def test_online_command_discards_motion_until_fresh_stand_block(monkeypatch) -> None:
@@ -467,7 +467,7 @@ def test_online_command_discards_motion_until_fresh_stand_block(monkeypatch) -> 
         motion_block(index=24, frames=8, offset=2000.0),
         control=StreamControl(
             prompt="stand",
-            recovery_epoch=command._collision_epoch,
+            recovery_epoch=command._collision.epoch,
         ),
     )
     source.append(stand_block)
@@ -487,7 +487,7 @@ def test_online_command_discards_motion_until_fresh_stand_block(monkeypatch) -> 
         command.anchor_pos_w,
         torch.tensor([[10.0, 20.0, 30.0]]),
     )
-    assert command._live_index_offset == -24
+    assert command._ingestor.index_offset == -24
 
     source.append(
         replace(
@@ -694,7 +694,7 @@ def test_online_command_counts_consecutive_stale_windows() -> None:
     future = command.future_joint_pos
     command._update_metrics()
 
-    assert command._consecutive_stale_steps > 0
+    assert command._reference_window.consecutive_stale_steps > 0
     assert future.shape == (1, 5, 29)
 
 
@@ -713,7 +713,7 @@ def test_online_command_replay_allows_stale_windows_at_clip_end() -> None:
         command._update_command()
         _ = command.future_joint_pos
 
-    assert command._consecutive_stale_steps > 0
+    assert command._reference_window.consecutive_stale_steps > 0
     assert command.future_joint_pos.shape == (1, 5, 29)
 
 
@@ -736,7 +736,7 @@ def test_online_command_replay_does_not_evict_preloaded_frames() -> None:
 
     command._update_command()
 
-    assert command._started is True
+    assert command._clock.started is True
     assert command.current_frame == 0
     assert command.buffer.earliest_index == 0
     assert command.buffer.frame_count == 1024
@@ -1112,7 +1112,7 @@ def test_online_command_replay_reset_rewinds_source() -> None:
 
     assert command.buffer.frame_count == 8
     assert command.current_frame == 0
-    assert command._started is True
+    assert command._clock.started is True
     assert command.future_joint_pos.shape == (1, 5, 29)
     robot = env.scene["robot"]
     torch.testing.assert_close(
@@ -1127,7 +1127,7 @@ def test_online_command_replay_reset_rewinds_source() -> None:
         command.current_frame, 1
     )
     expected_root = torch.cat(
-        [command._fixed_start_reference_pos(raw_anchor_pos), raw_anchor_quat],
+        [command._reference_window.translate_anchor(raw_anchor_pos), raw_anchor_quat],
         dim=-1,
     )
     torch.testing.assert_close(robot.written_root_state[:, :7], expected_root)
@@ -1157,7 +1157,7 @@ def test_online_command_live_reset_does_not_rewind_source() -> None:
 
     assert command.buffer.frame_count == 8
     assert command.current_frame == 3
-    assert command._started is True
+    assert command._clock.started is True
     assert command.future_joint_pos.shape == (1, 5, 29)
     robot = env.scene["robot"]
     torch.testing.assert_close(
@@ -1185,10 +1185,10 @@ def test_online_command_live_attaches_to_earliest_full_future_window() -> None:
 
     command._update_command()
 
-    assert command._started is True
+    assert command._clock.started is True
     assert command.current_frame == 100
-    assert command._has_started_once is True
-    assert command._last_stale_steps == 0
+    assert command._clock.has_started_once is True
+    assert command._reference_window.last_stale_steps == 0
     robot = env.scene["robot"]
     torch.testing.assert_close(
         robot.written_joint_pos,
@@ -1202,7 +1202,7 @@ def test_online_command_live_attaches_to_earliest_full_future_window() -> None:
         command.current_frame, 1
     )
     expected_root = torch.cat(
-        [command._fixed_start_reference_pos(raw_anchor_pos), raw_anchor_quat],
+        [command._reference_window.translate_anchor(raw_anchor_pos), raw_anchor_quat],
         dim=-1,
     )
     torch.testing.assert_close(robot.written_root_state[:, :7], expected_root)
@@ -1230,10 +1230,10 @@ def test_online_command_live_reset_before_first_start_uses_initial_window() -> N
 
     command._resample_command(torch.tensor([0]))
 
-    assert command._started is True
-    assert command._has_started_once is True
+    assert command._clock.started is True
+    assert command._clock.has_started_once is True
     assert command.current_frame == 100
-    assert command._last_stale_steps == 0
+    assert command._reference_window.last_stale_steps == 0
 
 
 def test_online_command_live_reset_rejects_non_contiguous_stream() -> None:
@@ -1274,7 +1274,7 @@ def test_online_command_live_pauses_before_advancing_into_stale_window() -> None
     assert command.current_frame == 3
     assert command.buffer.latest_index == 7
     assert command.future_joint_pos.shape == (1, 5, 29)
-    assert command._last_stale_steps == 0
+    assert command._reference_window.last_stale_steps == 0
 
     source.blocks.append(motion_block(index=8, frames=1))
     command._update_command()

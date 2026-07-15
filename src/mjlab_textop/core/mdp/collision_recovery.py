@@ -17,7 +17,6 @@ class CollisionRecovery:
     epoch: int = 0
     contact_active: bool = False
     hold_window: FutureWindow | None = None
-    buffering: bool = False
 
     def collision_edge(self, in_collision: bool) -> bool:
         if not in_collision:
@@ -32,7 +31,6 @@ class CollisionRecovery:
         self.active = True
         self.epoch += 1
         self.hold_window = make_stationary_window(safe_window)
-        self.buffering = False
         return self.epoch
 
     def accepts(self, block: MotionBlock) -> bool:
@@ -45,13 +43,11 @@ class CollisionRecovery:
     def complete(self) -> None:
         self.active = False
         self.hold_window = None
-        self.buffering = False
 
     def reset(self) -> None:
         self.active = False
         self.contact_active = False
         self.hold_window = None
-        self.buffering = False
 
 
 class CollisionDetector:
