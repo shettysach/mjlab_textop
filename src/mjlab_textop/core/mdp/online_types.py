@@ -17,7 +17,6 @@ ONLINE_METRIC_NAMES = (
     "online_started",
     "online_queue_depth",
     "online_blocks_received",
-    "online_blocks_dropped",
     "online_bad_messages",
     "online_collision_stop",
 )

@@ -27,7 +27,6 @@ class TextOpLiveDiagnostics:
     queue_depth: int = 0
     blocks_received: int = 0
     blocks_polled: int = 0
-    blocks_dropped: int = 0
     bad_messages: int = 0
     last_error: str | None = None
     connected: bool = False

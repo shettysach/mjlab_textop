@@ -6,6 +6,4 @@
 
 Regarding eliminating code. I agree with all except `notes/ONNX_CUDA.md`.
 
-Regarding refactors,
-- I agree with task configuration part. We can consolidate much better.
-- Totally agree with refactoring OnlineMotionCommand.
+regarding refactors, i agree with all of them. refactor all the things you've stated.

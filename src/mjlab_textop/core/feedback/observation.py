@@ -8,7 +8,6 @@ from io import BytesIO
 from typing import Any, Protocol
 
 import imageio.v3 as iio
-import torch
 from mjlab.viewer import ViewerConfig
 
 OBSERVATION_JPEG_QUALITY = 95
@@ -24,13 +23,6 @@ class ObservationImage:
 class OnlineObservationState:
     frame: int
     started: bool
-    latest_index: int | None
-    lag_frames: int
-    buffer_frames: int
-    stale_steps: int
-    consecutive_stale_steps: int
-    robot_anchor_pos_w: torch.Tensor
-    robot_anchor_quat_w: torch.Tensor
 
 
 class ObservationPublisher(Protocol):
@@ -95,27 +87,6 @@ class HttpObservationPublisher:
         )
         with urllib.request.urlopen(request, timeout=self.timeout_sec) as response:
             response.read()
-
-
-def make_online_textop_observation(state: OnlineObservationState) -> dict[str, Any]:
-    return {
-        "schema": "mjlab_textop.online_observation.v1",
-        "frame": int(state.frame),
-        "started": bool(state.started),
-        "latest_frame": None if state.latest_index is None else int(state.latest_index),
-        "lag_frames": int(state.lag_frames),
-        "buffer_frames": int(state.buffer_frames),
-        "stale_steps": int(state.stale_steps),
-        "consecutive_stale_steps": int(state.consecutive_stale_steps),
-        "robot_anchor_pos_w": [
-            float(item)
-            for item in state.robot_anchor_pos_w.detach().cpu().reshape(-1).tolist()
-        ],
-        "robot_anchor_quat_w": [
-            float(item)
-            for item in state.robot_anchor_quat_w.detach().cpu().reshape(-1).tolist()
-        ],
-    }
 
 
 def make_torso_observation_camera(

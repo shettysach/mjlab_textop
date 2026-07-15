@@ -87,7 +87,6 @@ def test_socket_source_blocks_when_queue_is_full() -> None:
     assert block is not None
     assert block.index == 8
     assert source.diagnostics.blocks_received == 2
-    assert source.diagnostics.blocks_dropped == 0
     assert source.diagnostics.blocks_polled == 2
     assert source.diagnostics.queue_depth == 0
 

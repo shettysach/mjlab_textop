@@ -77,7 +77,9 @@ def overshot_goal(
 
 class success_held:
     def __init__(self, cfg: ManagerTermBaseCfg, env: ManagerBasedRlEnv):
-        self.held_time = torch.zeros(env.num_envs, dtype=torch.float32, device=env.device)
+        self.held_time = torch.zeros(
+            env.num_envs, dtype=torch.float32, device=env.device
+        )
 
     def __call__(
         self,

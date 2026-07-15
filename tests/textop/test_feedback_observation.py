@@ -3,17 +3,14 @@ from __future__ import annotations
 import json
 
 import pytest
-import torch
 
 from mjlab_textop.core.feedback.observation import (
     OBSERVATION_JPEG_QUALITY,
     HttpObservationPublisher,
     ObservationImage,
     OnlineObservationCfg,
-    OnlineObservationState,
     encode_render_image_jpeg,
     make_http_observation_payload,
-    make_online_textop_observation,
     make_torso_observation_camera,
 )
 
@@ -27,35 +24,6 @@ class _FakeResponse:
 
     def read(self) -> bytes:
         return b""
-
-
-def test_make_online_textop_observation_payload() -> None:
-    payload = make_online_textop_observation(
-        OnlineObservationState(
-            frame=10,
-            started=True,
-            latest_index=18,
-            lag_frames=8,
-            buffer_frames=32,
-            stale_steps=0,
-            consecutive_stale_steps=0,
-            robot_anchor_pos_w=torch.tensor([1, 2, 3]),
-            robot_anchor_quat_w=torch.tensor([1, 0, 0, 0]),
-        )
-    )
-
-    assert payload == {
-        "schema": "mjlab_textop.online_observation.v1",
-        "frame": 10,
-        "started": True,
-        "latest_frame": 18,
-        "lag_frames": 8,
-        "buffer_frames": 32,
-        "stale_steps": 0,
-        "consecutive_stale_steps": 0,
-        "robot_anchor_pos_w": [1.0, 2.0, 3.0],
-        "robot_anchor_quat_w": [1.0, 0.0, 0.0, 0.0],
-    }
 
 
 def test_online_observation_cfg_defaults_to_torso_camera() -> None:

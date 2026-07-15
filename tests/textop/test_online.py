@@ -771,7 +771,6 @@ def test_online_command_creates_live_socket_source_from_cfg(monkeypatch) -> None
         diagnostics = SimpleNamespace(
             queue_depth=0,
             blocks_received=0,
-            blocks_dropped=0,
             bad_messages=0,
         )
 
@@ -811,7 +810,6 @@ def test_online_command_updates_live_diagnostics_metrics() -> None:
     source.diagnostics = SimpleNamespace(
         queue_depth=3,
         blocks_received=4,
-        blocks_dropped=1,
         bad_messages=2,
     )
     command = OnlineMotionCommand(
@@ -828,7 +826,6 @@ def test_online_command_updates_live_diagnostics_metrics() -> None:
     assert command.metrics["online_lag_frames"].item() == 7.0
     assert command.metrics["online_queue_depth"].item() == 3.0
     assert command.metrics["online_blocks_received"].item() == 4.0
-    assert command.metrics["online_blocks_dropped"].item() == 1.0
     assert command.metrics["online_bad_messages"].item() == 2.0
 
 
@@ -1091,13 +1088,6 @@ def _observation_state(*, frame: int) -> OnlineObservationState:
     return OnlineObservationState(
         frame=frame,
         started=True,
-        latest_index=frame,
-        lag_frames=0,
-        buffer_frames=0,
-        stale_steps=0,
-        consecutive_stale_steps=0,
-        robot_anchor_pos_w=torch.tensor([0.0, 0.0, 0.0]),
-        robot_anchor_quat_w=torch.tensor([1.0, 0.0, 0.0, 0.0]),
     )
 
 

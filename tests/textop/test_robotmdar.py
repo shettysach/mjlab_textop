@@ -55,9 +55,7 @@ def test_robotmdar_dof_indices_are_derived_from_joint_names() -> None:
         MJLAB_G1_JOINT_NAMES.index(name) for name in ROBOTMDAR_G1_DOF_NAMES
     )
     assert tuple(
-        name
-        for name in MJLAB_G1_JOINT_NAMES
-        if name not in ROBOTMDAR_G1_DOF_NAMES
+        name for name in MJLAB_G1_JOINT_NAMES if name not in ROBOTMDAR_G1_DOF_NAMES
     ) == (
         "left_wrist_roll_joint",
         "left_wrist_pitch_joint",
@@ -212,9 +210,7 @@ def test_robotmdar_record_preserves_textop_joint_order(tmp_path) -> None:
     np.testing.assert_allclose(record.joint_vel, textop_joint_pos + 100.0)
 
 
-def test_normalize_does_not_double_reindex_joints(
-    tmp_path, monkeypatch
-) -> None:
+def test_normalize_does_not_double_reindex_joints(tmp_path, monkeypatch) -> None:
     textop_joint_pos = np.arange(29, dtype=np.float32).reshape(1, 29)
     textop_joint_vel = textop_joint_pos + 100.0
     raw_file = tmp_path / "robotmdar_raw.npz"

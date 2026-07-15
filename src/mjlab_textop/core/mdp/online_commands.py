@@ -215,10 +215,6 @@ class OnlineMotionCommand(CommandTerm):
                 getattr(diagnostics, "blocks_received", 0),
             )
             self._set_metric(
-                "online_blocks_dropped",
-                getattr(diagnostics, "blocks_dropped", 0),
-            )
-            self._set_metric(
                 "online_bad_messages",
                 getattr(diagnostics, "bad_messages", 0),
             )
@@ -227,13 +223,6 @@ class OnlineMotionCommand(CommandTerm):
                 OnlineObservationState(
                     frame=self.current_frame,
                     started=self._started,
-                    latest_index=latest_index,
-                    lag_frames=lag_frames,
-                    buffer_frames=self.buffer.frame_count,
-                    stale_steps=self._last_stale_steps,
-                    consecutive_stale_steps=self._consecutive_stale_steps,
-                    robot_anchor_pos_w=self.robot_anchor_pos_w[0],
-                    robot_anchor_quat_w=self.robot_anchor_quat_w[0],
                 )
             )
 
@@ -413,8 +402,6 @@ class OnlineMotionCommand(CommandTerm):
         )
 
         anchor_pos_w = self._fixed_start_reference_pos(anchor_pos_w)
-        # anchor_pos_w = self._zero_future_anchor_pos_w(anchor_pos_w)
-
         window = FutureWindow(
             joint_pos=joint_pos,
             joint_vel=joint_vel,
@@ -508,29 +495,6 @@ class OnlineMotionCommand(CommandTerm):
             + anchor_pos_w
             - self._reference_start_anchor_pos_w[0]
         )
-
-    # FIX: Meant to fix the drift, see /notes/DRIFT.md
-    # Match TextOpDeploy's unconditional zero anchor-position observation.
-    def _zero_future_anchor_pos_w(self, anchor_pos_w: torch.Tensor) -> torch.Tensor:
-        return self.robot_anchor_pos_w[0].expand_as(anchor_pos_w)
-
-    # FIX: Meant to fix the drift, see /notes/DRIFT.md
-    # XY is re-anchored to the current robot anchor.
-    # Z preserves reference height motion, offset to the robot's start height.
-    def _aligned_reference_pos(self, anchor_pos_w: torch.Tensor) -> torch.Tensor:
-        aligned_pos_w = anchor_pos_w.clone()
-
-        reference_start_xy_w = anchor_pos_w[0, :2]
-        reference_delta_xy_w = anchor_pos_w[:, :2] - reference_start_xy_w
-
-        aligned_pos_w[:, :2] = self.robot_anchor_pos_w[0, :2] + reference_delta_xy_w
-        aligned_pos_w[:, 2] = (
-            self._robot_start_anchor_pos_w[0, 2]
-            + anchor_pos_w[:, 2]
-            - self._reference_start_anchor_pos_w[0, 2]
-        )
-
-        return aligned_pos_w
 
     def _align_reference_anchor(self) -> None:
         _, _, anchor_pos_w, _, _ = self.buffer.get_future(
