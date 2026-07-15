@@ -7,7 +7,11 @@ from mjlab_textop.core.feedback.observation import OnlineObservationCfg
 from mjlab_textop.core.mdp.offline_commands import OfflineMotionCommandCfg
 from mjlab_textop.core.mdp.online_cleanup import OnlineTextOpCleanup
 from mjlab_textop.core.mdp.online_commands import OnlineMotionCommandCfg
-from mjlab_textop.core.online.source import MotionBlock, QueueOnlineSource
+from mjlab_textop.core.online.source import (
+    MotionBlock,
+    MotionFrames,
+    QueueOnlineSource,
+)
 from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
 from mjlab_textop.tasks.online_textop.env_cfg import (
     make_online_textop_g1_env_cfg,
@@ -50,12 +54,14 @@ def test_online_textop_replay_task_uses_replay_source_mode() -> None:
         [
             MotionBlock(
                 index=0,
-                joint_pos=np.zeros((5, 29), dtype=np.float32),
-                joint_vel=np.zeros((5, 29), dtype=np.float32),
-                anchor_pos_w=np.zeros((5, 3), dtype=np.float32),
-                anchor_quat_w=np.tile(
-                    np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32),
-                    (5, 1),
+                motion=MotionFrames(
+                    joint_pos=np.zeros((5, 29), dtype=np.float32),
+                    joint_vel=np.zeros((5, 29), dtype=np.float32),
+                    anchor_pos_w=np.zeros((5, 3), dtype=np.float32),
+                    anchor_quat_w=np.tile(
+                        np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32),
+                        (5, 1),
+                    ),
                 ),
             )
         ]
@@ -72,12 +78,14 @@ def test_online_textop_onnx_replay_task_uses_replay_source_mode() -> None:
         [
             MotionBlock(
                 index=0,
-                joint_pos=np.zeros((5, 29), dtype=np.float32),
-                joint_vel=np.zeros((5, 29), dtype=np.float32),
-                anchor_pos_w=np.zeros((5, 3), dtype=np.float32),
-                anchor_quat_w=np.tile(
-                    np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32),
-                    (5, 1),
+                motion=MotionFrames(
+                    joint_pos=np.zeros((5, 29), dtype=np.float32),
+                    joint_vel=np.zeros((5, 29), dtype=np.float32),
+                    anchor_pos_w=np.zeros((5, 3), dtype=np.float32),
+                    anchor_quat_w=np.tile(
+                        np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32),
+                        (5, 1),
+                    ),
                 ),
             )
         ]
@@ -97,12 +105,14 @@ def test_online_textop_replay_task_can_disable_reference_reset() -> None:
         [
             MotionBlock(
                 index=0,
-                joint_pos=np.zeros((5, 29), dtype=np.float32),
-                joint_vel=np.zeros((5, 29), dtype=np.float32),
-                anchor_pos_w=np.zeros((5, 3), dtype=np.float32),
-                anchor_quat_w=np.tile(
-                    np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32),
-                    (5, 1),
+                motion=MotionFrames(
+                    joint_pos=np.zeros((5, 29), dtype=np.float32),
+                    joint_vel=np.zeros((5, 29), dtype=np.float32),
+                    anchor_pos_w=np.zeros((5, 3), dtype=np.float32),
+                    anchor_quat_w=np.tile(
+                        np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32),
+                        (5, 1),
+                    ),
                 ),
             )
         ]

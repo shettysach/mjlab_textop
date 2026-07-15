@@ -52,8 +52,8 @@ class RollingMotionBuffer:
     def append_block(self, block: MotionBlock) -> None:
         block = validate_motion_block(block)
 
-        joint_pos = reindex_textop_g1_joints_to_mjlab(block.joint_pos)
-        joint_vel = reindex_textop_g1_joints_to_mjlab(block.joint_vel)
+        joint_pos = reindex_textop_g1_joints_to_mjlab(block.motion.joint_pos)
+        joint_vel = reindex_textop_g1_joints_to_mjlab(block.motion.joint_vel)
 
         for offset in range(joint_pos.shape[0]):
             frame = block.index + offset
@@ -65,12 +65,12 @@ class RollingMotionBuffer:
                     joint_vel[offset], dtype=torch.float32, device=self.device
                 ),
                 anchor_pos_w=torch.as_tensor(
-                    block.anchor_pos_w[offset],
+                    block.motion.anchor_pos_w[offset],
                     dtype=torch.float32,
                     device=self.device,
                 ),
                 anchor_quat_w=torch.as_tensor(
-                    block.anchor_quat_w[offset],
+                    block.motion.anchor_quat_w[offset],
                     dtype=torch.float32,
                     device=self.device,
                 ),

@@ -30,7 +30,6 @@ from mjlab_textop.core.mdp.online_commands import (
     use_online_textop_motion_command,
 )
 from mjlab_textop.core.online.buffer import (
-    MotionBlock,
     RollingMotionBuffer,
 )
 from mjlab_textop.core.online.live import SocketSourceCfg
@@ -38,6 +37,7 @@ from mjlab_textop.core.online.replay import (
     QueueOnlineSource,
     make_mjlab_npz_replay_source,
 )
+from mjlab_textop.core.online.source import MotionBlock, MotionFrames, StreamControl
 from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
 
 
@@ -252,10 +252,12 @@ def test_rolling_buffer_rejects_wrong_joint_count() -> None:
     block = motion_block(frames=1)
     bad = MotionBlock(
         index=0,
-        joint_pos=np.zeros((1, 28), dtype=np.float32),
-        joint_vel=block.joint_vel,
-        anchor_pos_w=block.anchor_pos_w,
-        anchor_quat_w=block.anchor_quat_w,
+        motion=MotionFrames(
+            joint_pos=np.zeros((1, 28), dtype=np.float32),
+            joint_vel=block.joint_vel,
+            anchor_pos_w=block.anchor_pos_w,
+            anchor_quat_w=block.anchor_quat_w,
+        ),
     )
 
     with pytest.raises(ValueError, match="29 joints"):
@@ -452,20 +454,21 @@ def test_online_command_discards_motion_until_fresh_stand_block(monkeypatch) -> 
     source.append(
         replace(
             motion_block(index=8, frames=8, offset=1000.0),
-            prompt="walk forward",
+            control=StreamControl(prompt="walk forward"),
         )
     )
     source.append(
         replace(
             motion_block(index=16, frames=8, offset=1500.0),
-            prompt="stand",
-            recovery_epoch=0,
+            control=StreamControl(prompt="stand"),
         )
     )
     stand_block = replace(
         motion_block(index=24, frames=8, offset=2000.0),
-        prompt="stand",
-        recovery_epoch=command._collision_epoch,
+        control=StreamControl(
+            prompt="stand",
+            recovery_epoch=command._collision_epoch,
+        ),
     )
     source.append(stand_block)
     monkeypatch.setattr(
@@ -489,7 +492,7 @@ def test_online_command_discards_motion_until_fresh_stand_block(monkeypatch) -> 
     source.append(
         replace(
             motion_block(index=32, frames=8, offset=3000.0),
-            prompt="walk forward",
+            control=StreamControl(prompt="walk forward"),
         )
     )
     monkeypatch.setattr(

@@ -8,6 +8,7 @@ from mjlab_textop.core.motion import (
 )
 from mjlab_textop.core.online.source import (
     MotionBlock,
+    MotionFrames,
     QueueOnlineSource,
 )
 from mjlab_textop.core.schema import ROOT_BODY_INDEX
@@ -33,10 +34,12 @@ def make_mjlab_npz_replay_source(
         blocks.append(
             MotionBlock(
                 index=start,
-                joint_pos=joint_pos_textop[start:stop],
-                joint_vel=joint_vel_textop[start:stop],
-                anchor_pos_w=anchor_pos_w[start:stop],
-                anchor_quat_w=anchor_quat_w[start:stop],
+                motion=MotionFrames(
+                    joint_pos=joint_pos_textop[start:stop],
+                    joint_vel=joint_vel_textop[start:stop],
+                    anchor_pos_w=anchor_pos_w[start:stop],
+                    anchor_quat_w=anchor_quat_w[start:stop],
+                ),
             )
         )
     return QueueOnlineSource(blocks)

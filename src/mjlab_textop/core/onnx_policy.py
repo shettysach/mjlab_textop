@@ -1,10 +1,9 @@
 from __future__ import annotations
 
+import importlib
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-import onnxruntime as ort
 import torch
 
 from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
@@ -14,14 +13,17 @@ class OnnxPolicy:
     """Run an ONNX actor and convert its action to MJLab joint order."""
 
     def __init__(self, policy_file: Path, device: str = "cpu"):
-        # FIXME: self.device = torch.device(device)
-        self.device = torch.device("cpu")  # FIX: Temporary
+        # RobotMDAR's ONNX policy is intentionally CPU-only. CUDA execution has
+        # been unstable in deployment, while inference output is copied back to
+        # the observation device below.
+        del device
+        self.device = torch.device("cpu")
 
-        if self.device.type == "cuda" and self.device.index is None:
-            self.onnx_device = torch.device("cuda:0")
-
-        providers = _onnx_providers_for_device(ort, self.device)
-        self.session = ort.InferenceSession(str(policy_file), providers=providers)
+        ort = _load_onnxruntime()
+        self.session = ort.InferenceSession(
+            str(policy_file),
+            providers=["CPUExecutionProvider"],
+        )
         self.input_name = self.session.get_inputs()[0].name
         self.output_name = self.session.get_outputs()[0].name
         self.textop_to_mjlab = torch.tensor(
@@ -54,8 +56,6 @@ class OnnxPolicy:
         return action_mjlab
 
     def _run(self, obs: torch.Tensor) -> torch.Tensor:
-        if self.device.type == "cuda":
-            return self._run_cuda_iobinding(obs)
         return self._run_cpu(obs)
 
     def _run_cpu(self, obs: torch.Tensor) -> torch.Tensor:
@@ -67,34 +67,6 @@ class OnnxPolicy:
 
         action_textop_np = self.session.run(None, {self.input_name: obs.numpy()})[0]
         return torch.from_numpy(action_textop_np).to(obs_device)
-
-    def _run_cuda_iobinding(self, obs: torch.Tensor) -> torch.Tensor:
-        _check_cuda_iobinding_obs(obs, expected_device=self.device)
-        action_textop = torch.empty(
-            (obs.shape[0], 29),
-            device=obs.device,
-            dtype=torch.float32,
-        )
-        binding = self.session.io_binding()
-        binding.bind_input(
-            name=self.input_name,
-            device_type="cuda",
-            device_id=_cuda_device_id(obs.device),
-            element_type=np.float32,
-            shape=tuple(obs.shape),
-            buffer_ptr=obs.data_ptr(),
-        )
-        binding.bind_output(
-            name=self.output_name,
-            device_type="cuda",
-            device_id=_cuda_device_id(obs.device),
-            element_type=np.float32,
-            shape=tuple(action_textop.shape),
-            buffer_ptr=action_textop.data_ptr(),
-        )
-        self.session.run_with_iobinding(binding)
-        return action_textop
-
 
 class OnnxPolicyRunner:
     """Runner adapter so MJLab's play script can load an ONNX policy."""
@@ -137,51 +109,12 @@ def _actor_obs(obs: torch.Tensor | Any) -> torch.Tensor:
     return actor_obs
 
 
-def _check_cuda_iobinding_obs(
-    obs: torch.Tensor,
-    *,
-    expected_device: torch.device,
-) -> None:
-    if obs.device != expected_device:
-        raise RuntimeError(
-            f"Expected ONNX CUDA obs on {expected_device}, got {obs.device}"
-        )
-    if obs.dtype != torch.float32:
-        raise RuntimeError(f"Expected ONNX CUDA obs dtype float32, got {obs.dtype}")
-    if not obs.is_contiguous():
-        raise RuntimeError("Expected ONNX CUDA obs to be contiguous")
-    if obs.requires_grad:
-        raise RuntimeError("Expected ONNX CUDA obs to be detached")
-
-
-def _onnx_providers_for_device(ort: Any, torch_device: torch.device) -> list[Any]:
-    if torch_device.type == "cpu":
-        return ["CPUExecutionProvider"]
-    if torch_device.type != "cuda":
-        raise RuntimeError(f"Unsupported ONNX Runtime device: {torch_device}")
-
-    available = set(ort.get_available_providers())
-    if "CUDAExecutionProvider" not in available:
-        raise RuntimeError(
-            "ONNX Runtime CUDA provider is not available. Install with the cu128 "
-            "extra and verify CUDA libraries are visible to onnxruntime-gpu."
-        )
-
-    with torch.cuda.device(torch_device):
-        stream_ptr = torch.cuda.current_stream(torch_device).cuda_stream
-
-    return [
-        (
-            "CUDAExecutionProvider",
-            {
-                "device_id": _cuda_device_id(torch_device),
-                "user_compute_stream": str(stream_ptr),
-                "do_copy_in_default_stream": "1",
-            },
-        ),
-        "CPUExecutionProvider",
-    ]
-
-
-def _cuda_device_id(device: torch.device) -> int:
-    return 0 if device.index is None else device.index
+def _load_onnxruntime() -> Any:
+    """Load the optional runtime only when an ONNX policy is constructed."""
+    try:
+        return importlib.import_module("onnxruntime")
+    except ImportError as exc:
+        raise ImportError(
+            "ONNX policy execution requires a working onnxruntime installation. "
+            "Task configuration and non-ONNX code can run without it."
+        ) from exc

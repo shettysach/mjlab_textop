@@ -5,8 +5,8 @@ from typing import Any
 
 import torch
 
-from mjlab_textop.core.mdp.online_types import FutureWindow
 from mjlab_textop.core.online.source import MotionBlock
+from mjlab_textop.core.online.window import FutureWindow
 
 
 @dataclass
@@ -37,9 +37,9 @@ class CollisionRecovery:
 
     def accepts(self, block: MotionBlock) -> bool:
         return (
-            block.prompt is not None
-            and block.prompt.strip().lower() == "stand"
-            and block.recovery_epoch == self.epoch
+            block.control.prompt is not None
+            and block.control.prompt.strip().lower() == "stand"
+            and block.control.recovery_epoch == self.epoch
         )
 
     def complete(self) -> None:

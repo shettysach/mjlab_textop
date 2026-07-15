@@ -11,6 +11,8 @@ import numpy as np
 
 from mjlab_textop.core.online.source import (
     MotionBlock,
+    MotionFrames,
+    StreamControl,
     validate_motion_block,
 )
 
@@ -41,10 +43,10 @@ def textop_block_to_ndjson_message(
         "joint_vel": np.asarray(block.joint_vel, dtype=np.float32).tolist(),
         "anchor_pos_w": np.asarray(block.anchor_pos_w, dtype=np.float32).tolist(),
         "anchor_quat_w": np.asarray(block.anchor_quat_w, dtype=np.float32).tolist(),
-        "recovery_epoch": int(block.recovery_epoch),
+        "recovery_epoch": int(block.control.recovery_epoch),
     }
-    if block.prompt is not None:
-        message["prompt"] = block.prompt
+    if block.control.prompt is not None:
+        message["prompt"] = block.control.prompt
     return json.dumps(message, separators=(",", ":")) + "\n"
 
 
@@ -69,12 +71,16 @@ def parse_textop_block_message(
     block = validate_motion_block(
         MotionBlock(
             index=int(data["index"]),
-            joint_pos=np.asarray(data["joint_pos"]),
-            joint_vel=np.asarray(data["joint_vel"]),
-            anchor_pos_w=np.asarray(data["anchor_pos_w"]),
-            anchor_quat_w=np.asarray(data["anchor_quat_w"]),
-            prompt=None if data.get("prompt") is None else str(data["prompt"]),
-            recovery_epoch=data.get("recovery_epoch", 0),
+            motion=MotionFrames(
+                joint_pos=np.asarray(data["joint_pos"]),
+                joint_vel=np.asarray(data["joint_vel"]),
+                anchor_pos_w=np.asarray(data["anchor_pos_w"]),
+                anchor_quat_w=np.asarray(data["anchor_quat_w"]),
+            ),
+            control=StreamControl(
+                prompt=None if data.get("prompt") is None else str(data["prompt"]),
+                recovery_epoch=data.get("recovery_epoch", 0),
+            ),
         )
     )
     return block

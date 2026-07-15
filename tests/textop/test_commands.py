@@ -86,10 +86,10 @@ def test_resolve_policy_rejects_multiple_policies(tmp_path) -> None:
 def test_play_live_without_images_uses_mjlab_run_play(monkeypatch, tmp_path) -> None:
     calls = {}
 
-    monkeypatch.setitem(
-        commands_module.LIVE_TASK_REGISTRY,
-        "default",
-        lambda **kwargs: _fake_register_task(calls, kwargs),
+    monkeypatch.setattr(
+        commands_module,
+        "register_task",
+        lambda task, **kwargs: _fake_register_task(calls, task, kwargs),
     )
     monkeypatch.setattr(
         "mjlab_textop.scripts.commands.run_play",
@@ -124,10 +124,10 @@ def test_play_live_with_images_does_not_enable_video_recording(
 ) -> None:
     calls = {}
 
-    monkeypatch.setitem(
-        commands_module.LIVE_TASK_REGISTRY,
-        "default",
-        lambda **kwargs: _fake_register_task(calls, kwargs),
+    monkeypatch.setattr(
+        commands_module,
+        "register_task",
+        lambda task, **kwargs: _fake_register_task(calls, task, kwargs),
     )
     monkeypatch.setattr(
         "mjlab_textop.scripts.commands.run_play",
@@ -168,10 +168,10 @@ def test_play_live_uses_custom_observation_camera_geometry(
 ) -> None:
     calls = {}
 
-    monkeypatch.setitem(
-        commands_module.LIVE_TASK_REGISTRY,
-        "default",
-        lambda **kwargs: _fake_register_task(calls, kwargs),
+    monkeypatch.setattr(
+        commands_module,
+        "register_task",
+        lambda task, **kwargs: _fake_register_task(calls, task, kwargs),
     )
     monkeypatch.setattr(
         "mjlab_textop.scripts.commands.run_play",
@@ -204,10 +204,10 @@ def test_straight_live_uses_straight_task_registration(
 ) -> None:
     calls = {}
 
-    monkeypatch.setitem(
-        commands_module.LIVE_TASK_REGISTRY,
-        "straight",
-        lambda **kwargs: _fake_register_task(calls, kwargs),
+    monkeypatch.setattr(
+        commands_module,
+        "register_task",
+        lambda task, **kwargs: _fake_register_task(calls, task, kwargs),
     )
     monkeypatch.setattr(
         "mjlab_textop.scripts.commands.run_play",
@@ -229,6 +229,7 @@ def test_straight_live_uses_straight_task_registration(
 
     task_name, play_cfg = calls["run_play"]
     assert task_name == "task"
+    assert calls["task"] == "straight"
     assert play_cfg.checkpoint_file == str(onnx_file)
     assert calls["task_kwargs"]["runner_cls"] is OnnxPolicyRunner
     assert calls["task_kwargs"]["source_mode"] == "live"
@@ -241,10 +242,10 @@ def test_blocked_straight_live_uses_blocked_straight_task_registration(
 ) -> None:
     calls = {}
 
-    monkeypatch.setitem(
-        commands_module.LIVE_TASK_REGISTRY,
-        "blocked-straight",
-        lambda **kwargs: _fake_register_task(calls, kwargs),
+    monkeypatch.setattr(
+        commands_module,
+        "register_task",
+        lambda task, **kwargs: _fake_register_task(calls, task, kwargs),
     )
     monkeypatch.setattr(
         "mjlab_textop.scripts.commands.run_play",
@@ -266,6 +267,7 @@ def test_blocked_straight_live_uses_blocked_straight_task_registration(
 
     task_name, play_cfg = calls["run_play"]
     assert task_name == "task"
+    assert calls["task"] == "blocked-straight"
     assert play_cfg.checkpoint_file == str(onnx_file)
     assert calls["task_kwargs"]["runner_cls"] is OnnxPolicyRunner
     assert calls["task_kwargs"]["source_mode"] == "live"
@@ -278,10 +280,10 @@ def test_side_goals_live_uses_side_goals_task_registration(
 ) -> None:
     calls = {}
 
-    monkeypatch.setitem(
-        commands_module.LIVE_TASK_REGISTRY,
-        "side-goals",
-        lambda **kwargs: _fake_register_task(calls, kwargs),
+    monkeypatch.setattr(
+        commands_module,
+        "register_task",
+        lambda task, **kwargs: _fake_register_task(calls, task, kwargs),
     )
     monkeypatch.setattr(
         "mjlab_textop.scripts.commands.run_play",
@@ -303,13 +305,15 @@ def test_side_goals_live_uses_side_goals_task_registration(
 
     task_name, play_cfg = calls["run_play"]
     assert task_name == "task"
+    assert calls["task"] == "side-goals"
     assert play_cfg.checkpoint_file == str(onnx_file)
     assert calls["task_kwargs"]["runner_cls"] is OnnxPolicyRunner
     assert calls["task_kwargs"]["source_mode"] == "live"
     assert calls["task_kwargs"]["observation"].publisher is not None
 
 
-def _fake_register_task(calls: dict, kwargs: dict) -> str:
+def _fake_register_task(calls: dict, task: str, kwargs: dict) -> str:
+    calls["task"] = task
     calls["task_kwargs"] = kwargs
     return "task"
 

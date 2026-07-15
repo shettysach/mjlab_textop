@@ -21,7 +21,6 @@ from mjlab_textop.core.mdp.online_cleanup import Closeable
 from mjlab_textop.core.mdp.online_reference_debug import OnlineReferenceGhost
 from mjlab_textop.core.mdp.online_types import (
     ONLINE_METRIC_NAMES,
-    FutureWindow,
     OnlineSourceMode,
 )
 from mjlab_textop.core.online.buffer import (
@@ -37,6 +36,7 @@ from mjlab_textop.core.online.source import (
     QueueOnlineSource,
     ResettableOnlineSource,
 )
+from mjlab_textop.core.online.window import FutureWindow, OnlineReferenceWindow
 from mjlab_textop.core.schema import FUTURE_STEPS, G1_JOINT_COUNT
 
 LIVE_BUFFER_LOW_WATERMARK_FRAMES = 150
@@ -91,22 +91,17 @@ class OnlineMotionCommand(CommandTerm):
         self.robot_anchor_body_index = self.robot.body_names.index(cfg.anchor_body_name)
         self.buffer = RollingMotionBuffer(device=self.device)
         self._clock = OnlineReferenceClock(int(self.cfg.start_frame))
-        self._last_stale_steps = 0
-        self._consecutive_stale_steps = 0
-        self._last_stale_frame: int | None = None
+        self._reference_window = OnlineReferenceWindow(
+            self.buffer,
+            num_envs=self.num_envs,
+            device=self.device,
+            future_steps=FUTURE_STEPS,
+        )
         self.observation_reporter = (
             None
             if cfg.observation is None
             else OnlineObservationReporter(cfg.observation, env)
         )
-        self._reference_start_anchor_pos_w = torch.zeros(
-            self.num_envs, 3, device=self.device
-        )
-        self._robot_start_anchor_pos_w = torch.zeros(
-            self.num_envs, 3, device=self.device
-        )
-        self._future_cache_frame: int | None = None
-        self._future_cache: FutureWindow | None = None
         self._collision = CollisionRecovery()
         self._live_index_offset = 0
         self._collision_detector = CollisionDetector(
@@ -159,6 +154,14 @@ class OnlineMotionCommand(CommandTerm):
     @_startup_wait_steps.setter
     def _startup_wait_steps(self, value: int) -> None:
         self._clock.startup_wait_steps = value
+
+    @property
+    def _last_stale_steps(self) -> int:
+        return self._reference_window.last_stale_steps
+
+    @property
+    def _consecutive_stale_steps(self) -> int:
+        return self._reference_window.consecutive_stale_steps
 
     @property
     def joint_pos(self) -> torch.Tensor:
@@ -299,13 +302,8 @@ class OnlineMotionCommand(CommandTerm):
                 recovery_epoch=self._collision_epoch,
             )
         self._clock.reset_runtime()
-        self._last_stale_steps = 0
-        self._consecutive_stale_steps = 0
-        self._last_stale_frame = None
         self._collision.reset()
-        self._reference_start_anchor_pos_w.zero_()
-        self._robot_start_anchor_pos_w.zero_()
-        self._clear_future_cache()
+        self._reference_window.reset()
 
     def _update_command(self) -> None:
         if self._collision.active:
@@ -400,37 +398,7 @@ class OnlineMotionCommand(CommandTerm):
             return self._collision.hold_window
         if not self._started:
             return self._startup_future_window()
-        if (
-            self._future_cache is not None
-            and self._future_cache_frame == self.current_frame
-        ):
-            return self._future_cache
-
-        joint_pos, joint_vel, anchor_pos_w, anchor_quat_w, stale_steps = (
-            self.buffer.get_future(self.current_frame, FUTURE_STEPS)
-        )
-
-        anchor_pos_w = self._fixed_start_reference_pos(anchor_pos_w)
-        window = FutureWindow(
-            joint_pos=joint_pos,
-            joint_vel=joint_vel,
-            anchor_pos_w=anchor_pos_w,
-            anchor_quat_w=anchor_quat_w,
-            stale_steps=stale_steps,
-        )
-        self._last_stale_steps = stale_steps
-        if self._last_stale_frame != self.current_frame:
-            if stale_steps > 0:
-                self._consecutive_stale_steps += 1
-            else:
-                self._consecutive_stale_steps = 0
-            self._last_stale_frame = self.current_frame
-
-        # Clamp stale future frames for now. Keep tracking consecutive stale
-        # windows so live deployments can surface underruns without aborting.
-        self._future_cache_frame = self.current_frame
-        self._future_cache = window
-        return window
+        return self._reference_window.get(self.current_frame)
 
     def _has_obstacle_collision(self) -> bool:
         if not self._collision_detector.enabled:
@@ -438,8 +406,8 @@ class OnlineMotionCommand(CommandTerm):
         return self._collision_detector.has_collision(self._env.sim.data)
 
     def _activate_collision_stop(self) -> None:
-        safe_window = self._future_cache
-        if safe_window is None or self._future_cache_frame != self.current_frame:
+        safe_window = self._reference_window.cached_for(self.current_frame)
+        if safe_window is None:
             # The current frame is the reference used during the step in which
             # contact occurred. It is therefore the latest pre-collision target.
             safe_window = self._future_window()
@@ -494,25 +462,16 @@ class OnlineMotionCommand(CommandTerm):
         )
 
     def _clear_future_cache(self) -> None:
-        self._future_cache_frame = None
-        self._future_cache = None
+        self._reference_window.clear_cache()
 
-    # Place the raw reference origin at the robot's startup anchor.
     def _fixed_start_reference_pos(self, anchor_pos_w: torch.Tensor) -> torch.Tensor:
-        return (
-            self._robot_start_anchor_pos_w[0]
-            + anchor_pos_w
-            - self._reference_start_anchor_pos_w[0]
-        )
+        return self._reference_window.translate_anchor(anchor_pos_w)
 
     def _align_reference_anchor(self) -> None:
-        _, _, anchor_pos_w, _, _ = self.buffer.get_future(
+        self._reference_window.align(
             self.current_frame,
-            1,
+            self.robot_anchor_pos_w,
         )
-        self._reference_start_anchor_pos_w = anchor_pos_w.expand(self.num_envs, -1)
-        self._robot_start_anchor_pos_w = self.robot_anchor_pos_w.clone()
-        self._clear_future_cache()
 
     def _reset_robot_to_reference(self, env_ids: torch.Tensor) -> None:
         joint_pos, joint_vel, anchor_pos_w, anchor_quat_w, _ = self.buffer.get_future(

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
 import numpy as np
@@ -14,20 +14,50 @@ from mjlab_textop.core.motion import (
 
 
 @dataclass(frozen=True)
+class MotionFrames:
+    """Numerical TextOp reference frames, independent of stream control."""
+
+    joint_pos: np.ndarray
+    joint_vel: np.ndarray
+    anchor_pos_w: np.ndarray
+    anchor_quat_w: np.ndarray
+
+
+@dataclass(frozen=True)
+class StreamControl:
+    """Producer metadata used to coordinate prompts and collision recovery."""
+
+    prompt: str | None = None
+    recovery_epoch: int = 0
+
+
+@dataclass(frozen=True)
 class MotionBlock:
-    """Block of online TextOp reference motion frames.
+    """Indexed stream envelope containing motion frames and control metadata.
 
     Joint arrays are in TextOp/IsaacLab order. The rolling buffer converts them
     to MJLab order when appending.
     """
 
     index: int
-    joint_pos: np.ndarray
-    joint_vel: np.ndarray
-    anchor_pos_w: np.ndarray
-    anchor_quat_w: np.ndarray
-    prompt: str | None = None
-    recovery_epoch: int = 0
+    motion: MotionFrames
+    control: StreamControl = field(default_factory=StreamControl)
+
+    @property
+    def joint_pos(self) -> np.ndarray:
+        return self.motion.joint_pos
+
+    @property
+    def joint_vel(self) -> np.ndarray:
+        return self.motion.joint_vel
+
+    @property
+    def anchor_pos_w(self) -> np.ndarray:
+        return self.motion.anchor_pos_w
+
+    @property
+    def anchor_quat_w(self) -> np.ndarray:
+        return self.motion.anchor_quat_w
 
 
 def validate_motion_block(block: MotionBlock) -> MotionBlock:
@@ -40,14 +70,14 @@ def validate_motion_block(block: MotionBlock) -> MotionBlock:
 
     if block.index < 0:
         raise ValueError(f"Block index must be non-negative, got {block.index}")
-    if block.prompt is not None and (
-        not isinstance(block.prompt, str) or not block.prompt.strip()
+    if block.control.prompt is not None and (
+        not isinstance(block.control.prompt, str) or not block.control.prompt.strip()
     ):
         raise ValueError("Block prompt must be a non-empty string or None")
     if (
-        not isinstance(block.recovery_epoch, int)
-        or isinstance(block.recovery_epoch, bool)
-        or block.recovery_epoch < 0
+        not isinstance(block.control.recovery_epoch, int)
+        or isinstance(block.control.recovery_epoch, bool)
+        or block.control.recovery_epoch < 0
     ):
         raise ValueError("Block recovery_epoch must be a non-negative integer")
     for name, value in (
@@ -63,12 +93,13 @@ def validate_motion_block(block: MotionBlock) -> MotionBlock:
 
     return MotionBlock(
         index=block.index,
-        joint_pos=joint_pos,
-        joint_vel=joint_vel,
-        anchor_pos_w=anchor_pos_w,
-        anchor_quat_w=anchor_quat_w,
-        prompt=block.prompt,
-        recovery_epoch=block.recovery_epoch,
+        motion=MotionFrames(
+            joint_pos=joint_pos,
+            joint_vel=joint_vel,
+            anchor_pos_w=anchor_pos_w,
+            anchor_quat_w=anchor_quat_w,
+        ),
+        control=block.control,
     )
 
 

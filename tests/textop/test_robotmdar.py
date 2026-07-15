@@ -9,7 +9,7 @@ from mjlab_textop.core.motion import (
     reindex_textop_g1_joints_to_mjlab,
 )
 from mjlab_textop.core.normalize import normalize
-from mjlab_textop.core.online.source import MotionBlock
+from mjlab_textop.core.online.source import MotionBlock, MotionFrames
 from mjlab_textop.core.robotmdar import (
     ROBOTMDAR_G1_DOF_INDEX,
     ROBOTMDAR_G1_DOF_LINK_NAMES,
@@ -107,8 +107,8 @@ def test_robotmdar_motion_dict_to_block_converts_to_textop_block() -> None:
     expected_mjlab_pos = expand_robotmdar_dof_to_mjlab_g1(dof_pos[0].numpy())
     expected_mjlab_vel = expand_robotmdar_dof_to_mjlab_g1(dof_vel[0].numpy())
     assert block.index == 11
-    assert block.prompt == "stand"
-    assert block.recovery_epoch == 3
+    assert block.control.prompt == "stand"
+    assert block.control.recovery_epoch == 3
     np.testing.assert_allclose(
         block.joint_pos, reindex_mjlab_g1_joints_to_textop(expected_mjlab_pos)
     )
@@ -147,10 +147,12 @@ def test_robotmdar_record_saves_raw_reference_terms(tmp_path) -> None:
         [
             MotionBlock(
                 index=0,
-                joint_pos=textop_joint_pos,
-                joint_vel=textop_joint_vel,
-                anchor_pos_w=anchor_pos_w,
-                anchor_quat_w=anchor_quat_w,
+                motion=MotionFrames(
+                    joint_pos=textop_joint_pos,
+                    joint_vel=textop_joint_vel,
+                    anchor_pos_w=anchor_pos_w,
+                    anchor_quat_w=anchor_quat_w,
+                ),
             )
         ],
         fps=50.0,
@@ -193,10 +195,14 @@ def test_robotmdar_record_preserves_textop_joint_order(tmp_path) -> None:
         [
             MotionBlock(
                 index=0,
-                joint_pos=textop_joint_pos,
-                joint_vel=textop_joint_pos + 100.0,
-                anchor_pos_w=np.zeros((1, 3), dtype=np.float32),
-                anchor_quat_w=np.array([[1.0, 0.0, 0.0, 0.0]], dtype=np.float32),
+                motion=MotionFrames(
+                    joint_pos=textop_joint_pos,
+                    joint_vel=textop_joint_pos + 100.0,
+                    anchor_pos_w=np.zeros((1, 3), dtype=np.float32),
+                    anchor_quat_w=np.array(
+                        [[1.0, 0.0, 0.0, 0.0]], dtype=np.float32
+                    ),
+                ),
             )
         ],
         fps=50.0,
@@ -220,10 +226,14 @@ def test_normalize_does_not_double_reindex_joints(tmp_path, monkeypatch) -> None
         [
             MotionBlock(
                 index=0,
-                joint_pos=textop_joint_pos,
-                joint_vel=textop_joint_vel,
-                anchor_pos_w=np.array([[0.0, 0.0, 1.0]], dtype=np.float32),
-                anchor_quat_w=np.array([[1.0, 0.0, 0.0, 0.0]], dtype=np.float32),
+                motion=MotionFrames(
+                    joint_pos=textop_joint_pos,
+                    joint_vel=textop_joint_vel,
+                    anchor_pos_w=np.array([[0.0, 0.0, 1.0]], dtype=np.float32),
+                    anchor_quat_w=np.array(
+                        [[1.0, 0.0, 0.0, 0.0]], dtype=np.float32
+                    ),
+                ),
             )
         ],
         fps=50.0,
@@ -251,11 +261,14 @@ def test_train_ready_robotmdar_npz_has_required_keys(tmp_path, monkeypatch) -> N
         [
             MotionBlock(
                 index=0,
-                joint_pos=np.zeros((2, 29), dtype=np.float32),
-                joint_vel=np.zeros((2, 29), dtype=np.float32),
-                anchor_pos_w=np.zeros((2, 3), dtype=np.float32),
-                anchor_quat_w=np.tile(
-                    np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32), (2, 1)
+                motion=MotionFrames(
+                    joint_pos=np.zeros((2, 29), dtype=np.float32),
+                    joint_vel=np.zeros((2, 29), dtype=np.float32),
+                    anchor_pos_w=np.zeros((2, 3), dtype=np.float32),
+                    anchor_quat_w=np.tile(
+                        np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32),
+                        (2, 1),
+                    ),
                 ),
             )
         ],

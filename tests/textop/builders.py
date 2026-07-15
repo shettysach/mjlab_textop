@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import numpy as np
 import torch
 
-from mjlab_textop.core.online.source import MotionBlock
+from mjlab_textop.core.online.source import MotionBlock, MotionFrames
 
 
 def motion_block(
@@ -28,10 +28,12 @@ def motion_block(
     )
     return MotionBlock(
         index=index,
-        joint_pos=joint_pos,
-        joint_vel=joint_vel,
-        anchor_pos_w=anchor_pos_w,
-        anchor_quat_w=anchor_quat_w,
+        motion=MotionFrames(
+            joint_pos=joint_pos,
+            joint_vel=joint_vel,
+            anchor_pos_w=anchor_pos_w,
+            anchor_quat_w=anchor_quat_w,
+        ),
     )
 
 

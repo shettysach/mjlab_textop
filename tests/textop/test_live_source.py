@@ -13,13 +13,13 @@ from mjlab_textop.core.online.live import (
     parse_textop_block_message,
     textop_block_to_ndjson_message,
 )
+from mjlab_textop.core.online.source import StreamControl
 
 
 def test_textop_block_ndjson_round_trip() -> None:
     block = replace(
         motion_block(index=100, frames=8),
-        prompt="stand",
-        recovery_epoch=3,
+        control=StreamControl(prompt="stand", recovery_epoch=3),
     )
 
     message = textop_block_to_ndjson_message(block)
@@ -27,8 +27,8 @@ def test_textop_block_ndjson_round_trip() -> None:
 
     assert '"fps"' not in message
     assert parsed.index == 100
-    assert parsed.prompt == "stand"
-    assert parsed.recovery_epoch == 3
+    assert parsed.control.prompt == "stand"
+    assert parsed.control.recovery_epoch == 3
     np.testing.assert_allclose(parsed.joint_pos, block.joint_pos)
     np.testing.assert_allclose(parsed.joint_vel, block.joint_vel)
     np.testing.assert_allclose(parsed.anchor_pos_w, block.anchor_pos_w)

@@ -11,8 +11,6 @@ import torch
 from mjlab_textop.core.onnx_policy import (
     OnnxPolicy,
     OnnxPolicyRunner,
-    _check_cuda_iobinding_obs,
-    _cuda_device_id,
 )
 from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
 
@@ -36,6 +34,14 @@ class _FakeSession:
         return [np.repeat(self.output, self.received.shape[0], axis=0)]
 
 
+def test_importing_policy_module_does_not_load_onnxruntime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delitem(sys.modules, "onnxruntime", raising=False)
+
+    assert "onnxruntime" not in sys.modules
+
+
 def _install_fake_onnxruntime(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_ort = SimpleNamespace(
         InferenceSession=_FakeSession,
@@ -45,23 +51,6 @@ def _install_fake_onnxruntime(monkeypatch: pytest.MonkeyPatch) -> None:
         ],
     )
     monkeypatch.setitem(sys.modules, "onnxruntime", fake_ort)
-
-
-def _install_fake_cuda_stream(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(torch.cuda, "device", lambda _device: _NullContext())
-    monkeypatch.setattr(
-        torch.cuda,
-        "current_stream",
-        lambda _device: SimpleNamespace(cuda_stream=1234),
-    )
-
-
-class _NullContext:
-    def __enter__(self) -> None:
-        return None
-
-    def __exit__(self, *_args: object) -> None:
-        return None
 
 
 def test_textop_onnx_policy_reindexes_action_to_mjlab_order(
@@ -84,74 +73,14 @@ def test_textop_onnx_policy_reindexes_action_to_mjlab_order(
     assert policy.session.received.shape == (2, 431)
 
 
-def test_textop_onnx_policy_uses_cuda_provider_for_cuda_device(
+def test_textop_onnx_policy_remains_cpu_only_when_runner_requests_cuda(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install_fake_onnxruntime(monkeypatch)
-    _install_fake_cuda_stream(monkeypatch)
     policy = OnnxPolicy(Path("latest.onnx"), device="cuda:1")
 
-    assert policy.session.providers == [
-        (
-            "CUDAExecutionProvider",
-            {
-                "device_id": 1,
-                "user_compute_stream": "1234",
-                "do_copy_in_default_stream": "1",
-            },
-        ),
-        "CPUExecutionProvider",
-    ]
-
-
-def test_textop_onnx_policy_requires_cuda_provider_for_cuda_device(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fake_ort = SimpleNamespace(
-        InferenceSession=_FakeSession,
-        get_available_providers=lambda: ["CPUExecutionProvider"],
-    )
-    monkeypatch.setitem(sys.modules, "onnxruntime", fake_ort)
-
-    with pytest.raises(RuntimeError, match="CUDA provider is not available"):
-        OnnxPolicy(Path("latest.onnx"), device="cuda:0")
-
-
-def test_textop_onnx_policy_accepts_cpu_obs_for_cuda_device(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _install_fake_onnxruntime(monkeypatch)
-    _install_fake_cuda_stream(monkeypatch)
-    policy = OnnxPolicy(Path("latest.onnx"), device="cuda:0")
-
-    with pytest.raises(RuntimeError, match="Expected ONNX CUDA obs on cuda:0"):
-        policy(torch.zeros(1, 431))
-
-
-def test_textop_onnx_policy_uses_zero_cuda_device_id_for_plain_cuda(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _install_fake_onnxruntime(monkeypatch)
-    _install_fake_cuda_stream(monkeypatch)
-    policy = OnnxPolicy(Path("latest.onnx"), device="cuda")
-
-    assert policy.onnx_device == torch.device("cuda:0")
-    assert policy.session.providers == [
-        (
-            "CUDAExecutionProvider",
-            {
-                "device_id": 0,
-                "user_compute_stream": "1234",
-                "do_copy_in_default_stream": "1",
-            },
-        ),
-        "CPUExecutionProvider",
-    ]
-
-
-def test_cuda_device_id_is_an_integer() -> None:
-    assert _cuda_device_id(torch.device("cuda")) == 0
-    assert _cuda_device_id(torch.device("cuda:1")) == 1
+    assert policy.device == torch.device("cpu")
+    assert policy.session.providers == ["CPUExecutionProvider"]
 
 
 def test_textop_onnx_policy_accepts_actor_observation_dict(
@@ -183,27 +112,6 @@ def test_textop_onnx_policy_rejects_wrong_obs_dim(
 
     with pytest.raises(RuntimeError, match="Expected ONNX obs dim 431"):
         policy(torch.zeros(1, 430))
-
-
-def test_cuda_iobinding_check_rejects_wrong_dtype() -> None:
-    obs = torch.zeros(1, 431, dtype=torch.float64)
-
-    with pytest.raises(RuntimeError, match="dtype float32"):
-        _check_cuda_iobinding_obs(obs, expected_device=torch.device("cpu"))
-
-
-def test_cuda_iobinding_check_rejects_noncontiguous_obs() -> None:
-    obs = torch.zeros(2, 862, dtype=torch.float32)[:, ::2]
-
-    with pytest.raises(RuntimeError, match="contiguous"):
-        _check_cuda_iobinding_obs(obs, expected_device=torch.device("cpu"))
-
-
-def test_cuda_iobinding_check_rejects_grad_obs() -> None:
-    obs = torch.zeros(1, 431, dtype=torch.float32, requires_grad=True)
-
-    with pytest.raises(RuntimeError, match="detached"):
-        _check_cuda_iobinding_obs(obs, expected_device=torch.device("cpu"))
 
 
 def test_textop_onnx_runner_loads_inference_policy(
