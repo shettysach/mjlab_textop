@@ -9,6 +9,10 @@ from mjlab.scene import Scene
 from mjlab.sim.sim import Simulation, SimulationCfg
 from mjlab.tasks.tracking.config.g1.env_cfgs import unitree_g1_flat_tracking_env_cfg
 
+from mjlab_textop.core.kinematics import (
+    differentiate_positions,
+    differentiate_quaternions,
+)
 from mjlab_textop.core.motion import reindex_textop_g1_joints_to_mjlab
 from mjlab_textop.core.robotmdar_record import load_robotmdar_raw_record
 from mjlab_textop.core.schema import MJLAB_G1_JOINT_NAMES
@@ -36,8 +40,16 @@ def normalize(
 
     joint_pos_mjlab = reindex_textop_g1_joints_to_mjlab(record.joint_pos)
     joint_vel_mjlab = reindex_textop_g1_joints_to_mjlab(record.joint_vel)
-    root_lin_vel_w = _finite_difference_linear_velocity(record.anchor_pos_w, record.fps)
-    root_ang_vel_w = np.zeros_like(root_lin_vel_w, dtype=np.float32)
+    root_pos_w = torch.as_tensor(record.anchor_pos_w, dtype=torch.float32)
+    root_quat_w = torch.as_tensor(record.anchor_quat_w, dtype=torch.float32)
+    root_lin_vel_w = differentiate_positions(
+        root_pos_w,
+        dt=1.0 / record.fps,
+    ).numpy()
+    root_ang_vel_w = differentiate_quaternions(
+        root_quat_w,
+        dt=1.0 / record.fps,
+    ).numpy()
 
     sim_cfg = SimulationCfg()
     sim_cfg.mujoco.timestep = 1.0 / record.fps
@@ -108,14 +120,6 @@ def normalize(
     print(f"Saved MJLab-native RobotMDAR motion to {output_motion_file}")
     print(f"Frames: {frame_count}, fps: {record.fps:g}")
     return output_motion_file
-
-
-def _finite_difference_linear_velocity(pos: np.ndarray, fps: float) -> np.ndarray:
-    vel = np.zeros_like(pos, dtype=np.float32)
-    if pos.shape[0] > 1:
-        vel[:-1] = (pos[1:] - pos[:-1]) * fps
-        vel[-1] = vel[-2]
-    return vel
 
 
 def _append_frame(

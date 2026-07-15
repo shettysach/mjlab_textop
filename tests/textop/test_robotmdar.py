@@ -295,6 +295,51 @@ def test_train_ready_robotmdar_npz_has_required_keys(tmp_path, monkeypatch) -> N
     assert data["body_quat_w"].shape == (2, 2, 4)
 
 
+def test_normalize_derives_root_angular_velocity_from_quaternions(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    raw_file = tmp_path / "rotating_raw.npz"
+    normalized_file = tmp_path / "rotating_normalized.npz"
+    yaw = np.array([0.0, 0.1, 0.2], dtype=np.float32)
+    anchor_quat_w = np.stack(
+        [
+            np.cos(yaw / 2.0),
+            np.zeros_like(yaw),
+            np.zeros_like(yaw),
+            np.sin(yaw / 2.0),
+        ],
+        axis=-1,
+    )
+    save_robotmdar_raw_record(
+        raw_file,
+        [
+            MotionBlock(
+                index=0,
+                motion=MotionFrames(
+                    joint_pos=np.zeros((3, 29), dtype=np.float32),
+                    joint_vel=np.zeros((3, 29), dtype=np.float32),
+                    anchor_pos_w=np.zeros((3, 3), dtype=np.float32),
+                    anchor_quat_w=anchor_quat_w,
+                ),
+            )
+        ],
+        fps=50.0,
+        prompt="turn",
+        guidance_scale=5.0,
+    )
+    _patch_fake_mjlab_normalizer(monkeypatch)
+
+    normalize(raw_file, normalized_file, device="cpu")
+
+    data = np.load(normalized_file)
+    np.testing.assert_allclose(
+        data["body_ang_vel_w"][:, 0],
+        np.tile(np.array([0.0, 0.0, 5.0], dtype=np.float32), (3, 1)),
+        atol=1.0e-5,
+    )
+
+
 def _patch_fake_mjlab_normalizer(monkeypatch) -> None:
     import torch
 
