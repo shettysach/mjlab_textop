@@ -1131,7 +1131,10 @@ def test_online_command_replay_reset_rewinds_source() -> None:
         dim=-1,
     )
     torch.testing.assert_close(robot.written_root_state[:, :7], expected_root)
-    torch.testing.assert_close(robot.written_root_state[:, 7:], torch.zeros(1, 6))
+    torch.testing.assert_close(
+        robot.written_root_state[:, 7:],
+        torch.tensor([[50.0, 0.0, 0.0, 0.0, 0.0, 0.0]]),
+    )
     torch.testing.assert_close(robot.reset_env_ids, torch.tensor([0]))
 
 
@@ -1203,7 +1206,10 @@ def test_online_command_live_attaches_to_earliest_full_future_window() -> None:
         dim=-1,
     )
     torch.testing.assert_close(robot.written_root_state[:, :7], expected_root)
-    torch.testing.assert_close(robot.written_root_state[:, 7:], torch.zeros(1, 6))
+    torch.testing.assert_close(
+        robot.written_root_state[:, 7:],
+        torch.tensor([[50.0, 0.0, 0.0, 0.0, 0.0, 0.0]]),
+    )
     torch.testing.assert_close(robot.reset_env_ids, torch.tensor([0]))
 
 

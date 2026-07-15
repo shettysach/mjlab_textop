@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
+import numpy as np
 import torch
 from builders import motion_block
 
@@ -66,3 +69,55 @@ def test_reference_window_reset_clears_alignment_cache_and_diagnostics() -> None
     assert windows.last_stale_steps == 0
     assert windows.consecutive_stale_steps == 0
     torch.testing.assert_close(windows.robot_start_anchor_pos_w, torch.zeros(1, 3))
+
+
+def test_reference_window_derives_world_root_velocity_from_adjacent_poses() -> None:
+    block = motion_block(frames=2)
+    angle = 0.1
+    block = replace(
+        block,
+        motion=replace(
+            block.motion,
+            anchor_quat_w=np.array(
+                [
+                    [1.0, 0.0, 0.0, 0.0],
+                    [np.cos(angle / 2), 0.0, 0.0, np.sin(angle / 2)],
+                ],
+                dtype=np.float32,
+            ),
+        ),
+    )
+    buffer = RollingMotionBuffer()
+    buffer.append_block(block)
+    windows = OnlineReferenceWindow(
+        buffer,
+        num_envs=1,
+        device="cpu",
+        future_steps=5,
+    )
+
+    expected = torch.tensor([50.0, 0.0, 0.0, 0.0, 0.0, 5.0])
+    torch.testing.assert_close(
+        windows.reference_root_velocity(0, dt=0.02),
+        expected,
+    )
+    torch.testing.assert_close(
+        windows.reference_root_velocity(1, dt=0.02),
+        expected,
+    )
+
+
+def test_reference_window_uses_zero_velocity_without_an_adjacent_pose() -> None:
+    buffer = RollingMotionBuffer()
+    buffer.append_block(motion_block(frames=1))
+    windows = OnlineReferenceWindow(
+        buffer,
+        num_envs=1,
+        device="cpu",
+        future_steps=5,
+    )
+
+    torch.testing.assert_close(
+        windows.reference_root_velocity(0, dt=0.02),
+        torch.zeros(6),
+    )

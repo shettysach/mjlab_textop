@@ -3,6 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import torch
+from mjlab.utils.lab_api.math import (
+    axis_angle_from_quat,
+    quat_conjugate,
+    quat_mul,
+)
 
 from mjlab_textop.core.online.buffer import RollingMotionBuffer
 
@@ -67,6 +72,26 @@ class OnlineReferenceWindow:
             + anchor_pos_w
             - self.reference_start_anchor_pos_w[0]
         )
+
+    def reference_root_velocity(self, frame: int, *, dt: float) -> torch.Tensor:
+        """Estimate world-frame root velocity from adjacent reference poses."""
+        if dt <= 0.0:
+            raise ValueError(f"dt must be positive, got {dt}")
+
+        pair_start = frame
+        if not self.buffer.can_start(pair_start, 2):
+            pair_start = frame - 1
+        if pair_start < 0 or not self.buffer.can_start(pair_start, 2):
+            return torch.zeros(6, device=self.buffer.device)
+
+        _, _, anchor_pos_w, anchor_quat_w, _ = self.buffer.get_future(pair_start, 2)
+        linear_velocity_w = (anchor_pos_w[1] - anchor_pos_w[0]) / dt
+        relative_quat = quat_mul(
+            anchor_quat_w[1:2],
+            quat_conjugate(anchor_quat_w[0:1]),
+        )
+        angular_velocity_w = axis_angle_from_quat(relative_quat)[0] / dt
+        return torch.cat([linear_velocity_w, angular_velocity_w], dim=-1)
 
     def get(self, frame: int) -> FutureWindow:
         cached = self.cached_for(frame)

@@ -37,7 +37,7 @@ from mjlab_textop.core.online.source import (
     ResettableOnlineSource,
 )
 from mjlab_textop.core.online.window import FutureWindow, OnlineReferenceWindow
-from mjlab_textop.core.schema import FUTURE_STEPS, G1_JOINT_COUNT
+from mjlab_textop.core.schema import FUTURE_STEPS, G1_JOINT_COUNT, TEXTOP_FPS
 
 LIVE_BUFFER_LOW_WATERMARK_FRAMES = 150
 LIVE_BUFFER_HIGH_WATERMARK_FRAMES = 350
@@ -487,9 +487,10 @@ class OnlineMotionCommand(CommandTerm):
         root_pos = self._fixed_start_reference_pos(anchor_pos_w)
         root_pos = root_pos[0].repeat(len(env_ids), 1)
         root_quat = anchor_quat_w[0].repeat(len(env_ids), 1)
-        root_vel = torch.zeros(
-            len(env_ids), 6, device=self.device, dtype=root_pos.dtype
-        )
+        root_vel = self._reference_window.reference_root_velocity(
+            self.current_frame,
+            dt=1.0 / TEXTOP_FPS,
+        ).repeat(len(env_ids), 1)
         root_state = torch.cat([root_pos, root_quat, root_vel], dim=-1)
         self.robot.write_root_state_to_sim(root_state, env_ids=env_ids)
         self.robot.reset(env_ids=env_ids)
