@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -35,20 +36,16 @@ class OnnxTensorModel:
         self.device_id: int | None = None
         self._binding: Any | None = None
         self._output: torch.Tensor | None = None
+        inference_session = _inference_session_factory()
 
         if self.device.type == "cuda":
+            _require_cuda_execution_provider()
             self.device_id = self.device.index
             assert self.device_id is not None
             stream = torch.cuda.current_stream(self.device_id)
-            session_options = ort.SessionOptions()
-            session_options.add_session_config_entry(
-                "session.disable_cpu_ep_fallback",
-                "1",
-            )
-            self.session = ort.InferenceSession(
-                str(model_file),
-                sess_options=session_options,
-                providers=[
+            session_options = _cuda_session_options()
+            session_kwargs: dict[str, Any] = {
+                "providers": [
                     (
                         "CUDAExecutionProvider",
                         {
@@ -56,11 +53,14 @@ class OnnxTensorModel:
                             "user_compute_stream": str(stream.cuda_stream),
                         },
                     )
-                ],
-            )
+                ]
+            }
+            if session_options is not None:
+                session_kwargs["sess_options"] = session_options
+            self.session = inference_session(str(model_file), **session_kwargs)
             self._binding = self.session.io_binding()
         else:
-            self.session = ort.InferenceSession(
+            self.session = inference_session(
                 str(model_file),
                 providers=["CPUExecutionProvider"],
             )
@@ -170,6 +170,59 @@ def _resolve_device(device: str | torch.device) -> torch.device:
         resolved.index if resolved.index is not None else torch.cuda.current_device()
     )
     return torch.device("cuda", device_id)
+
+
+def _inference_session_factory() -> Any:
+    factory = getattr(ort, "InferenceSession", None)
+    if callable(factory):
+        return factory
+    raise RuntimeError(
+        "The imported ONNX Runtime module does not expose InferenceSession "
+        f"({_onnxruntime_description()}). This is not a usable ONNX Runtime "
+        "installation. Make sure a local module is not shadowing onnxruntime and "
+        "that onnxruntime and onnxruntime-gpu are not installed together."
+    )
+
+
+def _require_cuda_execution_provider() -> None:
+    get_available_providers = getattr(ort, "get_available_providers", None)
+    if not callable(get_available_providers):
+        return
+
+    available_providers = get_available_providers()
+    if "CUDAExecutionProvider" not in available_providers:
+        raise RuntimeError(
+            "CUDAExecutionProvider is unavailable in the imported ONNX Runtime "
+            f"installation ({_onnxruntime_description()}). Available providers: "
+            f"{available_providers}. Install the project's 'cu128' extra rather "
+            "than the CPU-only 'cpu' extra."
+        )
+
+
+def _cuda_session_options() -> Any | None:
+    session_options_factory = getattr(ort, "SessionOptions", None)
+    if not callable(session_options_factory):
+        warnings.warn(
+            "The imported ONNX Runtime module does not expose SessionOptions "
+            f"({_onnxruntime_description()}); continuing without explicitly "
+            "disabling CPU execution-provider fallback.",
+            RuntimeWarning,
+            stacklevel=3,
+        )
+        return None
+
+    session_options = session_options_factory()
+    session_options.add_session_config_entry(
+        "session.disable_cpu_ep_fallback",
+        "1",
+    )
+    return session_options
+
+
+def _onnxruntime_description() -> str:
+    version = getattr(ort, "__version__", "unknown version")
+    location = getattr(ort, "__file__", "unknown location")
+    return f"version {version!r}, imported from {location!r}"
 
 
 def _validate_node(

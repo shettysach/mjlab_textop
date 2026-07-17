@@ -129,6 +129,54 @@ def test_textop_onnx_policy_configures_cuda_provider_and_torch_stream(
     }
 
 
+def test_cuda_policy_allows_missing_optional_session_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_ort = SimpleNamespace(
+        InferenceSession=_FakeSession,
+        __file__="/test/onnxruntime/__init__.py",
+        __version__="test",
+    )
+    monkeypatch.setattr(onnx_runtime, "ort", fake_ort)
+    stream = SimpleNamespace(cuda_stream=12345)
+    monkeypatch.setattr(torch.cuda, "current_stream", lambda _device: stream)
+
+    with pytest.warns(RuntimeWarning, match="does not expose SessionOptions"):
+        policy = TextOpOnnxPolicy(Path("latest.onnx"), device="cuda:0")
+
+    assert policy.session.sess_options is None
+    assert policy.session.providers[0][0] == "CUDAExecutionProvider"
+
+
+def test_cuda_policy_rejects_runtime_without_cuda_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_ort = SimpleNamespace(
+        InferenceSession=_FakeSession,
+        SessionOptions=_FakeSessionOptions,
+        get_available_providers=lambda: ["CPUExecutionProvider"],
+        __file__="/test/onnxruntime/__init__.py",
+        __version__="test",
+    )
+    monkeypatch.setattr(onnx_runtime, "ort", fake_ort)
+
+    with pytest.raises(RuntimeError, match="CUDAExecutionProvider is unavailable"):
+        TextOpOnnxPolicy(Path("latest.onnx"), device="cuda:0")
+
+
+def test_policy_rejects_invalid_onnxruntime_module(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_ort = SimpleNamespace(
+        __file__="/test/onnxruntime.py",
+        __version__="test",
+    )
+    monkeypatch.setattr(onnx_runtime, "ort", fake_ort)
+
+    with pytest.raises(RuntimeError, match="does not expose InferenceSession"):
+        TextOpOnnxPolicy(Path("latest.onnx"))
+
+
 def test_cuda_run_binds_torch_buffers_and_reuses_output() -> None:
     model = object.__new__(OnnxTensorModel)
     model.device = torch.device("cpu")
