@@ -38,7 +38,11 @@ from mjlab_textop.core.online.source import (
     ResettableOnlineSource,
 )
 from mjlab_textop.core.online.window import FutureWindow, OnlineReferenceWindow
-from mjlab_textop.core.schema import FUTURE_STEPS, G1_JOINT_COUNT, TEXTOP_FPS
+from mjlab_textop.core.schema import G1_JOINT_COUNT, TEXTOP_FPS
+from mjlab_textop.trackers.spec import (
+    DEFAULT_REFERENCE_WINDOW,
+    ReferenceWindowSpec,
+)
 
 LIVE_BUFFER_LOW_WATERMARK_FRAMES = 150
 LIVE_BUFFER_HIGH_WATERMARK_FRAMES = 350
@@ -59,6 +63,7 @@ class OnlineMotionCommandCfg(CommandTermCfg):
     reset_robot_to_reference: bool = True
     observation: OnlineObservationCfg | None = None
     collision_stop_geom_suffix: str | None = "_collision"
+    reference_window: ReferenceWindowSpec = DEFAULT_REFERENCE_WINDOW
 
     def __post_init__(self) -> None:
         if self.source_mode not in ("replay", "live"):
@@ -101,7 +106,7 @@ class OnlineMotionCommand(CommandTerm):
             self.buffer,
             num_envs=self.num_envs,
             device=self.device,
-            future_steps=FUTURE_STEPS,
+            spec=self.cfg.reference_window,
         )
         self.observation_reporter = (
             None
@@ -240,7 +245,10 @@ class OnlineMotionCommand(CommandTerm):
             self._poll_source()
 
             self.current_frame = int(self.cfg.start_frame)
-            if self.buffer.can_start(self.current_frame, FUTURE_STEPS):
+            if self.buffer.can_start(
+                self.current_frame,
+                self.cfg.reference_window.required_span,
+            ):
                 self._align_reference_anchor()
                 if self.cfg.reset_robot_to_reference:
                     self._reset_robot_to_reference(env_ids)
@@ -299,7 +307,8 @@ class OnlineMotionCommand(CommandTerm):
             if self._clock.startup_wait_steps > self.cfg.startup_timeout_steps:
                 raise RuntimeError(
                     "Online TextOp buffer did not receive enough contiguous "
-                    f"frames for future_steps={FUTURE_STEPS}"
+                    "frames for reference offsets "
+                    f"{self.cfg.reference_window.frame_offsets}"
                 )
             return
 
@@ -331,19 +340,19 @@ class OnlineMotionCommand(CommandTerm):
         return self._clock.startup_frame(
             self.buffer,
             source_mode=self.cfg.source_mode,
-            future_steps=FUTURE_STEPS,
+            future_steps=self.cfg.reference_window.required_span,
         )
 
     def _live_start_or_resync_frame(self) -> int | None:
         return self._clock.resample_live_frame(
             self.buffer,
-            future_steps=FUTURE_STEPS,
+            future_steps=self.cfg.reference_window.required_span,
         )
 
     def _can_advance_live_frame(self) -> bool:
         return self._clock.can_advance_live(
             self.buffer,
-            future_steps=FUTURE_STEPS,
+            future_steps=self.cfg.reference_window.required_span,
         )
 
     def _future_window(self) -> FutureWindow:
@@ -380,7 +389,7 @@ class OnlineMotionCommand(CommandTerm):
         ready = self._ingestor.poll_recovery(
             max_blocks=self.cfg.max_poll_blocks,
             current_frame=self.current_frame,
-            future_steps=FUTURE_STEPS,
+            future_steps=self.cfg.reference_window.required_span,
             accepts=self._collision.accepts,
         )
         if not ready:
@@ -397,11 +406,12 @@ class OnlineMotionCommand(CommandTerm):
 
     def _startup_future_window(self) -> FutureWindow:
         dtype = self.robot_anchor_pos_w.dtype
-        joint_shape = (FUTURE_STEPS, G1_JOINT_COUNT)
+        sample_count = self.cfg.reference_window.sample_count
+        joint_shape = (sample_count, G1_JOINT_COUNT)
         joint_pos = torch.zeros(joint_shape, device=self.device, dtype=dtype)
         joint_vel = torch.zeros(joint_shape, device=self.device, dtype=dtype)
-        anchor_pos_w = self.robot_anchor_pos_w[0].expand(FUTURE_STEPS, -1)
-        anchor_quat_w = self.robot_anchor_quat_w[0].expand(FUTURE_STEPS, -1)
+        anchor_pos_w = self.robot_anchor_pos_w[0].expand(sample_count, -1)
+        anchor_quat_w = self.robot_anchor_quat_w[0].expand(sample_count, -1)
         return FutureWindow(
             joint_pos=joint_pos,
             joint_vel=joint_vel,
@@ -414,22 +424,19 @@ class OnlineMotionCommand(CommandTerm):
         self._reference_window.align(
             self.current_frame,
             self.robot_anchor_pos_w,
+            self.robot_anchor_quat_w,
         )
 
     def _reset_robot_to_reference(self, env_ids: torch.Tensor) -> None:
-        joint_pos, joint_vel, anchor_pos_w, anchor_quat_w, _ = self.buffer.get_future(
-            self.current_frame,
-            1,
-        )
-        joint_pos = joint_pos[0].repeat(len(env_ids), 1)
-        joint_vel = joint_vel[0].repeat(len(env_ids), 1)
+        window = self._reference_window.get(self.current_frame)
+        joint_pos = window.joint_pos[0].repeat(len(env_ids), 1)
+        joint_vel = window.joint_vel[0].repeat(len(env_ids), 1)
         soft_limits = self.robot.data.soft_joint_pos_limits[env_ids]
         joint_pos = torch.clip(joint_pos, soft_limits[:, :, 0], soft_limits[:, :, 1])
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
 
-        root_pos = self._reference_window.translate_anchor(anchor_pos_w)
-        root_pos = root_pos[0].repeat(len(env_ids), 1)
-        root_quat = anchor_quat_w[0].repeat(len(env_ids), 1)
+        root_pos = window.anchor_pos_w[0].repeat(len(env_ids), 1)
+        root_quat = window.anchor_quat_w[0].repeat(len(env_ids), 1)
         root_vel = self._reference_window.reference_root_velocity(
             self.current_frame,
             dt=1.0 / TEXTOP_FPS,
@@ -437,6 +444,9 @@ class OnlineMotionCommand(CommandTerm):
         root_state = torch.cat([root_pos, root_quat, root_vel], dim=-1)
         self.robot.write_root_state_to_sim(root_state, env_ids=env_ids)
         self.robot.reset(env_ids=env_ids)
+        # The reset mutates the measured robot pose used by relative reference
+        # observations. Keep only the alignment transform, not the cached window.
+        self._reference_window.clear_cache()
 
     def _debug_vis_impl(self, visualizer: DebugVisualizer) -> None:
         if not self._clock.started:
@@ -480,6 +490,7 @@ def use_online_textop_motion_command(
     debug_vis: bool | None = None,
     observation: OnlineObservationCfg | None = None,
     collision_stop_geom_suffix: str | None = "_collision",
+    reference_window: ReferenceWindowSpec = DEFAULT_REFERENCE_WINDOW,
 ) -> OnlineMotionCommandCfg:
     motion_cfg = env_cfg.commands[command_name]
     entity_name = motion_cfg.entity_name
@@ -498,6 +509,7 @@ def use_online_textop_motion_command(
         reset_robot_to_reference=reset_robot_to_reference,
         observation=observation,
         collision_stop_geom_suffix=collision_stop_geom_suffix,
+        reference_window=reference_window,
         debug_vis=debug_vis,
     )
     env_cfg.commands[command_name] = online_cfg

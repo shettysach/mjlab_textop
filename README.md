@@ -156,10 +156,49 @@ TextOpTracker/logs/rsl_rl/Pretrained/checkpoints/latest.onnx \
 --repo-type dataset \
 --local-dir /tmp
 
-$ONNX_PATH=/tmp/TextOpTracker/logs/rsl_rl/Pretrained/checkpoints/latest.onnx
+export ONNX_PATH=/tmp/TextOpTracker/logs/rsl_rl/Pretrained/checkpoints/latest.onnx
 ```
 
-The `--checkpoint-file` and `--onnx-file` options are mutually exclusive.
+#### SONIC Setup
+
+Download NVIDIA's released low-latency
+[GEAR-SONIC](https://huggingface.co/nvidia/GEAR-SONIC) encoder/decoder bundle:
+
+```bash
+uvx hf download nvidia/GEAR-SONIC \
+  --local-dir /tmp/gear-sonic \
+  --include 'low_latency/*'
+
+export SONIC_MODEL_DIR=/tmp/gear-sonic/low_latency
+```
+
+Use the bundle with either online replay or the live RobotMDAR source:
+
+```bash
+uv run --extra cu128 mjlab-textop play-online \
+  --sonic-model-dir "$SONIC_MODEL_DIR" \
+  --motion-file ./outputs/walk_forward.npz \
+  --device cuda:0 \
+  --num-envs 1
+```
+
+```bash
+uv run --extra cu128 mjlab-textop play-live \
+  --sonic-model-dir "$SONIC_MODEL_DIR" \
+  --host 127.0.0.1 \
+  --port 8765 \
+  --device cuda:0 \
+  --num-envs 1
+```
+
+This backend implements the released G1 encoder mode, 10-frame reference and
+proprioceptive histories, 50 Hz policy timing, heading alignment, joint-order
+conversion, and SONIC's G1 gains/action scales. The six wrist targets are held
+at their zero default for RobotMDAR's 23-DoF references. The released ONNX
+graphs have a fixed batch size of one.
+
+The `--checkpoint-file`, `--onnx-file`, and `--sonic-model-dir` policy options
+are mutually exclusive.
 
 #### `play-live`
 

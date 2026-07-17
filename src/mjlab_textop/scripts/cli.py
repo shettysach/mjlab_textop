@@ -44,6 +44,7 @@ def run_command(cfg: Command) -> None:
                 tracker=resolve_tracker(
                     checkpoint_file=cfg.checkpoint_file,
                     onnx_file=cfg.onnx_file,
+                    sonic_model_dir=cfg.sonic_model_dir,
                 ),
             )
             return
@@ -54,6 +55,7 @@ def run_command(cfg: Command) -> None:
                 tracker=resolve_tracker(
                     checkpoint_file=cfg.checkpoint_file,
                     onnx_file=cfg.onnx_file,
+                    sonic_model_dir=cfg.sonic_model_dir,
                 ),
             )
             return

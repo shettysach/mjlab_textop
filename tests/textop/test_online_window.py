@@ -8,6 +8,7 @@ from builders import motion_block
 
 from mjlab_textop.core.online.buffer import RollingMotionBuffer
 from mjlab_textop.core.online.window import OnlineReferenceWindow
+from mjlab_textop.trackers.spec import ReferenceWindowSpec
 
 
 def test_reference_window_aligns_and_caches_future_motion() -> None:
@@ -120,4 +121,49 @@ def test_reference_window_uses_zero_velocity_without_an_adjacent_pose() -> None:
     torch.testing.assert_close(
         windows.reference_root_velocity(0, dt=0.02),
         torch.zeros(6),
+    )
+
+
+def test_reference_window_can_align_reference_heading_to_robot() -> None:
+    half_sqrt = np.sqrt(0.5)
+    block = motion_block(frames=2)
+    block = replace(
+        block,
+        motion=replace(
+            block.motion,
+            anchor_quat_w=np.tile(
+                np.array([half_sqrt, 0.0, 0.0, half_sqrt], dtype=np.float32),
+                (2, 1),
+            ),
+        ),
+    )
+    buffer = RollingMotionBuffer()
+    buffer.append_block(block)
+    windows = OnlineReferenceWindow(
+        buffer,
+        num_envs=1,
+        device="cpu",
+        spec=ReferenceWindowSpec(
+            frame_offsets=(0, 1),
+            align_heading=True,
+        ),
+    )
+    robot_pos = torch.tensor([[10.0, 20.0, 30.0]])
+    robot_quat = torch.tensor([[0.0, 0.0, 0.0, 1.0]])
+
+    windows.align(0, robot_pos, robot_quat)
+    window = windows.get(0)
+
+    torch.testing.assert_close(window.anchor_pos_w[0], robot_pos[0])
+    torch.testing.assert_close(
+        window.anchor_pos_w[1],
+        torch.tensor([10.0, 21.0, 30.0]),
+        atol=1.0e-6,
+        rtol=1.0e-6,
+    )
+    torch.testing.assert_close(
+        window.anchor_quat_w[0],
+        robot_quat[0],
+        atol=1.0e-6,
+        rtol=1.0e-6,
     )

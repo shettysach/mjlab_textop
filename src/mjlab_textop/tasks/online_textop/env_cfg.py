@@ -39,6 +39,7 @@ def make_online_textop_g1_env_cfg(
         reset_robot_to_reference=reset_robot_to_reference,
         debug_vis=reference_debug_vis,
         observation=observation,
+        reference_window=tracker.reference_window,
     )
     motion_cfg.anchor_body_name = "pelvis"
 

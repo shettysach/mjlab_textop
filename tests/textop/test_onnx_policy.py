@@ -8,8 +8,9 @@ import pytest
 import torch
 from tensordict import TensorDict
 
-import mjlab_textop.trackers.textop.onnx as textop_onnx
+import mjlab_textop.trackers.onnx as onnx_runtime
 from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
+from mjlab_textop.trackers.onnx import OnnxModelSpec, OnnxTensorModel
 from mjlab_textop.trackers.textop.onnx import (
     TextOpOnnxPolicy,
     TextOpOnnxPolicyRunner,
@@ -84,7 +85,7 @@ def _install_fake_onnxruntime(
         InferenceSession=_FakeSession,
         SessionOptions=_FakeSessionOptions,
     )
-    monkeypatch.setattr(textop_onnx, "ort", fake_ort)
+    monkeypatch.setattr(onnx_runtime, "ort", fake_ort)
 
 
 def test_textop_onnx_policy_reindexes_action_to_mjlab_order(
@@ -129,23 +130,24 @@ def test_textop_onnx_policy_configures_cuda_provider_and_torch_stream(
 
 
 def test_cuda_run_binds_torch_buffers_and_reuses_output() -> None:
-    policy = object.__new__(TextOpOnnxPolicy)
-    policy.device = torch.device("cpu")
-    policy.device_id = 0
-    policy.input_name = "actor_obs"
-    policy.output_name = "action"
-    policy._binding = _RecordingBinding()
-    policy._output = None
-    policy.session = _RecordingCudaSession()
+    model = object.__new__(OnnxTensorModel)
+    model.device = torch.device("cpu")
+    model.device_id = 0
+    model.spec = OnnxModelSpec(output_width=29)
+    model.input_name = "actor_obs"
+    model.output_name = "action"
+    model._binding = _RecordingBinding()
+    model._output = None
+    model.session = _RecordingCudaSession()
     obs = torch.zeros(2, 431)
 
-    first = policy._run_cuda(obs)
-    second = policy._run_cuda(obs)
+    first = model._run_cuda(obs)
+    second = model._run_cuda(obs)
 
     assert first.data_ptr() == second.data_ptr()
     assert first.shape == (2, 29)
-    assert policy.session.run_count == 2
-    assert policy._binding.inputs == [
+    assert model.session.run_count == 2
+    assert model._binding.inputs == [
         {
             "name": "actor_obs",
             "device_type": "cuda",
@@ -155,9 +157,9 @@ def test_cuda_run_binds_torch_buffers_and_reuses_output() -> None:
             "buffer_ptr": obs.data_ptr(),
         }
     ]
-    assert policy._binding.outputs[0]["name"] == "action"
-    assert policy._binding.outputs[0]["shape"] == (2, 29)
-    assert policy._binding.outputs[0]["buffer_ptr"] == first.data_ptr()
+    assert model._binding.outputs[0]["name"] == "action"
+    assert model._binding.outputs[0]["shape"] == (2, 29)
+    assert model._binding.outputs[0]["buffer_ptr"] == first.data_ptr()
 
 
 def test_textop_onnx_policy_accepts_actor_observation_group(

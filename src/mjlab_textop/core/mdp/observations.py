@@ -8,7 +8,7 @@ from mjlab.utils.lab_api.math import matrix_from_quat, subtract_frame_transforms
 from mjlab_textop.core.mdp.future_reference import FutureReferenceCommand
 from mjlab_textop.core.motion import MJLAB_TO_TEXTOP_G1_JOINT_INDEX
 
-_MJLAB_TO_TEXTOP_INDEX_CACHE: dict[torch.device, torch.Tensor] = {}
+_MJLAB_TO_ISAACLAB_INDEX_CACHE: dict[torch.device, torch.Tensor] = {}
 
 
 def _get_future_reference_command(
@@ -42,12 +42,12 @@ def future_joint_window(
     )
 
 
-def future_joint_window_textop_order(
+def future_joint_window_isaaclab_order(
     env: ManagerBasedRlEnv,
     command_name: str = "motion",
 ) -> torch.Tensor:
     command = _get_future_reference_command(env, command_name)
-    index = _mjlab_to_textop_index(command.future_joint_pos.device)
+    index = _mjlab_to_isaaclab_index(command.future_joint_pos.device)
 
     joint_pos = command.future_joint_pos.index_select(-1, index)
     joint_vel = command.future_joint_vel.index_select(-1, index)
@@ -99,29 +99,37 @@ def _future_anchor_pose_b(
     )
 
 
-def _mjlab_to_textop_index(device: torch.device | str) -> torch.Tensor:
+def _mjlab_to_isaaclab_index(device: torch.device | str) -> torch.Tensor:
     torch_device = torch.device(device)
-    index = _MJLAB_TO_TEXTOP_INDEX_CACHE.get(torch_device)
+    index = _MJLAB_TO_ISAACLAB_INDEX_CACHE.get(torch_device)
     if index is None:
         index = torch.tensor(
             MJLAB_TO_TEXTOP_G1_JOINT_INDEX,
             device=torch_device,
             dtype=torch.long,
         )
-        _MJLAB_TO_TEXTOP_INDEX_CACHE[torch_device] = index
+        _MJLAB_TO_ISAACLAB_INDEX_CACHE[torch_device] = index
     return index
 
 
-def joint_pos_rel_textop_order(env: ManagerBasedRlEnv) -> torch.Tensor:
+def joint_pos_rel_isaaclab_order(env: ManagerBasedRlEnv) -> torch.Tensor:
     value = joint_pos_rel(env, biased=False)
-    return value.index_select(-1, _mjlab_to_textop_index(value.device))
+    return value.index_select(-1, _mjlab_to_isaaclab_index(value.device))
 
 
-def joint_vel_rel_textop_order(env: ManagerBasedRlEnv) -> torch.Tensor:
+def joint_vel_rel_isaaclab_order(env: ManagerBasedRlEnv) -> torch.Tensor:
     value = joint_vel_rel(env)
-    return value.index_select(-1, _mjlab_to_textop_index(value.device))
+    return value.index_select(-1, _mjlab_to_isaaclab_index(value.device))
 
 
-def last_action_textop_order(env: ManagerBasedRlEnv) -> torch.Tensor:
+def last_action_isaaclab_order(env: ManagerBasedRlEnv) -> torch.Tensor:
     value = last_action(env)
-    return value.index_select(-1, _mjlab_to_textop_index(value.device))
+    return value.index_select(-1, _mjlab_to_isaaclab_index(value.device))
+
+
+# TextOp uses the same G1 joint order as Isaac Lab. Keep these names as stable
+# compatibility aliases while tracker-neutral code uses the canonical names.
+future_joint_window_textop_order = future_joint_window_isaaclab_order
+joint_pos_rel_textop_order = joint_pos_rel_isaaclab_order
+joint_vel_rel_textop_order = joint_vel_rel_isaaclab_order
+last_action_textop_order = last_action_isaaclab_order

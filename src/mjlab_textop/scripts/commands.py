@@ -35,6 +35,7 @@ class PlayLiveCommand:
     task: TextOpTask = "default"
     checkpoint_file: str | None = None
     onnx_file: str | None = None
+    sonic_model_dir: str | None = None
     host: str = "127.0.0.1"
     port: int = 8765
     device: str = "cuda:0"
@@ -115,6 +116,7 @@ class PlayOnlineCommand:
     motion_file: str = field(default=tyro.MISSING)
     checkpoint_file: str | None = None
     onnx_file: str | None = None
+    sonic_model_dir: str | None = None
     device: str = "cuda:0"
     num_envs: int = 1
     block_size: int = 8

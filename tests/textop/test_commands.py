@@ -20,6 +20,10 @@ from mjlab_textop.scripts.commands import (
     play_live_textop_motion,
 )
 from mjlab_textop.scripts.utils import ResolvedTracker, resolve_tracker
+from mjlab_textop.trackers.sonic import SONIC_LOW_LATENCY_TRACKER
+from mjlab_textop.trackers.sonic.onnx import (
+    SONIC_LOW_LATENCY_OBSERVATION_NAMES,
+)
 from mjlab_textop.trackers.textop import (
     TEXTOP_ONNX_TRACKER,
     TEXTOP_PYTORCH_TRACKER,
@@ -65,6 +69,27 @@ def test_resolve_tracker_accepts_onnx_file(tmp_path) -> None:
 
     assert tracker.spec is TEXTOP_ONNX_TRACKER
     assert tracker.artifact == onnx_file.resolve()
+
+
+def test_resolve_tracker_accepts_sonic_model_directory(tmp_path) -> None:
+    for filename in (
+        "model_encoder.onnx",
+        "model_decoder.onnx",
+    ):
+        (tmp_path / filename).write_text(filename)
+    config = "\n".join(
+        f'- name: "{name}"' for name in SONIC_LOW_LATENCY_OBSERVATION_NAMES
+    )
+    (tmp_path / "observation_config.yaml").write_text(config)
+
+    tracker = resolve_tracker(
+        checkpoint_file=None,
+        onnx_file=None,
+        sonic_model_dir=tmp_path,
+    )
+
+    assert tracker.spec is SONIC_LOW_LATENCY_TRACKER
+    assert tracker.artifact == tmp_path.resolve()
 
 
 def test_resolve_tracker_rejects_missing_policy() -> None:
