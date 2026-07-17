@@ -16,7 +16,6 @@ from mjlab_textop.trackers.sonic.constants import (
     SONIC_TOKEN_DIM,
 )
 from mjlab_textop.trackers.sonic.onnx import (
-    FROZEN_WRIST_JOINT_INDEX,
     SONIC_LOW_LATENCY_OBSERVATION_NAMES,
     SonicLowLatencyPolicy,
     SonicModelBundle,
@@ -94,7 +93,6 @@ def test_policy_runs_encoder_decoder_and_reindexes_action(
     expected = torch.arange(29, dtype=torch.float32)[
         list(ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)
     ].unsqueeze(0)
-    expected[:, list(FROZEN_WRIST_JOINT_INDEX)] = 0.0
     torch.testing.assert_close(action, expected)
 
 

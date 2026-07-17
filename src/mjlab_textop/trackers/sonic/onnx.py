@@ -8,10 +8,7 @@ from typing import Any
 import torch
 from tensordict import TensorDict
 
-from mjlab_textop.core.schema import (
-    ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
-    MJLAB_G1_JOINT_NAMES,
-)
+from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
 from mjlab_textop.trackers.onnx import OnnxModelSpec, OnnxTensorModel
 from mjlab_textop.trackers.sonic.constants import (
     SONIC_DECODER_INPUT_DIM,
@@ -48,11 +45,6 @@ _CONFIG_NAME_PATTERN = re.compile(
     r"""^\s*-\s+name:\s*["']?([^"'#\s]+)""",
     flags=re.MULTILINE,
 )
-FROZEN_WRIST_JOINT_INDEX = tuple(
-    index for index, name in enumerate(MJLAB_G1_JOINT_NAMES) if "_wrist_" in name
-)
-
-
 @dataclass(frozen=True)
 class SonicModelBundle:
     directory: Path
@@ -126,7 +118,6 @@ class SonicLowLatencyPolicy:
         self._last_episode_steps: torch.Tensor | None = None
         self._last_policy_action: torch.Tensor | None = None
         self._sonic_to_mjlab: dict[torch.device, torch.Tensor] = {}
-        self._wrist_index: dict[torch.device, torch.Tensor] = {}
 
     def __call__(self, obs: TensorDict) -> torch.Tensor:
         actor_obs = obs["actor"]
@@ -147,15 +138,11 @@ class SonicLowLatencyPolicy:
             last_policy_action=last_policy_action,
         )
         raw_action = self.decoder(decoder_input)
-        # SONIC feeds the unmodified policy output back into its action history.
-        # Wrist targets are frozen only on the separate action sent to MJLab.
         self._last_policy_action = raw_action.detach().clone()
-        action = raw_action.index_select(
+        return raw_action.index_select(
             -1,
             self._joint_order_index(raw_action.device),
         )
-        action[:, self._frozen_wrist_index(action.device)] = 0.0
-        return action
 
     def reset(self) -> None:
         self.input_builder.reset()
@@ -187,18 +174,6 @@ class SonicLowLatencyPolicy:
             )
             self._sonic_to_mjlab[device] = index
         return index
-
-    def _frozen_wrist_index(self, device: torch.device) -> torch.Tensor:
-        index = self._wrist_index.get(device)
-        if index is None:
-            index = torch.tensor(
-                FROZEN_WRIST_JOINT_INDEX,
-                dtype=torch.long,
-                device=device,
-            )
-            self._wrist_index[device] = index
-        return index
-
 
 class SonicOnnxPolicyRunner:
     """MJLab runner adapter for the released low-latency SONIC model bundle."""
