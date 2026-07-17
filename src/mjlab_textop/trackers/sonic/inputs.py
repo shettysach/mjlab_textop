@@ -6,6 +6,7 @@ from mjlab_textop.trackers.sonic.constants import (
     SONIC_DECODER_INPUT_DIM,
     SONIC_ENCODER_INPUT_DIM,
     SONIC_HISTORY_FRAMES,
+    SONIC_JOINT_COUNT,
     SONIC_RAW_OBSERVATION_DIM,
     SONIC_TOKEN_DIM,
 )
@@ -69,6 +70,8 @@ class SonicInputBuilder:
         self,
         token: torch.Tensor,
         actor_obs: torch.Tensor,
+        *,
+        last_policy_action: torch.Tensor | None = None,
     ) -> torch.Tensor:
         self._validate_actor_obs(actor_obs)
         if token.ndim != 2 or token.shape != (
@@ -82,6 +85,10 @@ class SonicInputBuilder:
             )
 
         current = actor_obs[:, RAW_BASE_ANG_VEL.start : RAW_GRAVITY.stop]
+        if last_policy_action is not None:
+            self._validate_last_policy_action(last_policy_action, actor_obs)
+            current = current.clone()
+            current[:, PROPRIO_LAST_ACTION] = last_policy_action
         self._append_history(current)
         assert self._history is not None
         history = self._history
@@ -127,4 +134,21 @@ class SonicInputBuilder:
             raise ValueError(
                 "SONIC actor observation must be shaped "
                 f"[B, {SONIC_RAW_OBSERVATION_DIM}], got {tuple(actor_obs.shape)}"
+            )
+
+    @staticmethod
+    def _validate_last_policy_action(
+        value: torch.Tensor,
+        actor_obs: torch.Tensor,
+    ) -> None:
+        expected_shape = (actor_obs.shape[0], SONIC_JOINT_COUNT)
+        if value.shape != expected_shape:
+            raise ValueError(
+                "SONIC last policy action must be shaped "
+                f"{expected_shape}, got {tuple(value.shape)}"
+            )
+        if value.device != actor_obs.device:
+            raise ValueError(
+                "SONIC last policy action and actor observation must be on the "
+                f"same device, got {value.device} and {actor_obs.device}"
             )

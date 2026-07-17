@@ -23,6 +23,8 @@ from mjlab_textop.trackers.sonic.onnx import (
     SonicOnnxPolicyRunner,
 )
 
+DECODER_LAST_ACTION = slice(674, 964)
+
 
 class _FakeModel:
     instances: list[_FakeModel] = []
@@ -96,6 +98,24 @@ def test_policy_runs_encoder_decoder_and_reindexes_action(
     torch.testing.assert_close(action, expected)
 
 
+def test_policy_feedback_keeps_unmodified_decoder_action(
+    monkeypatch: pytest.MonkeyPatch,
+    model_dir: Path,
+) -> None:
+    _FakeModel.instances.clear()
+    monkeypatch.setattr(sonic_onnx, "OnnxTensorModel", _FakeModel)
+    policy = SonicLowLatencyPolicy(SonicModelBundle.from_directory(model_dir))
+    observations = _observations(0.0)
+
+    policy(observations)
+    policy(observations)
+
+    decoder_input = _FakeModel.instances[1].calls[-1]
+    action_history = decoder_input[:, DECODER_LAST_ACTION].reshape(1, 10, 29)
+    expected = torch.arange(29, dtype=torch.float32).unsqueeze(0)
+    torch.testing.assert_close(action_history[:, -1], expected)
+
+
 def test_runner_loads_policy_bundle(
     monkeypatch: pytest.MonkeyPatch,
     model_dir: Path,
@@ -154,6 +174,12 @@ def test_policy_clears_history_after_environment_reset(
         base_angular_velocity_history[:, -1],
         torch.full((1, 3), 3.0),
     )
+    last_action_history = decoder_input[:, DECODER_LAST_ACTION].reshape(
+        1,
+        10,
+        29,
+    )
+    assert torch.count_nonzero(last_action_history) == 0
 
 
 def _observations(value: float) -> TensorDict:

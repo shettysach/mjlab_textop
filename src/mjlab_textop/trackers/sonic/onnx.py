@@ -16,6 +16,7 @@ from mjlab_textop.trackers.onnx import OnnxModelSpec, OnnxTensorModel
 from mjlab_textop.trackers.sonic.constants import (
     SONIC_DECODER_INPUT_DIM,
     SONIC_ENCODER_INPUT_DIM,
+    SONIC_JOINT_COUNT,
     SONIC_TOKEN_DIM,
 )
 from mjlab_textop.trackers.sonic.inputs import SonicInputBuilder
@@ -115,7 +116,7 @@ class SonicLowLatencyPolicy:
                 input_name="obs_dict",
                 input_width=SONIC_DECODER_INPUT_DIM,
                 output_name="action",
-                output_width=29,
+                output_width=SONIC_JOINT_COUNT,
                 batch_size=1,
             ),
         )
@@ -123,6 +124,7 @@ class SonicLowLatencyPolicy:
         self.input_builder = SonicInputBuilder()
         self._env = base_env
         self._last_episode_steps: torch.Tensor | None = None
+        self._last_policy_action: torch.Tensor | None = None
         self._sonic_to_mjlab: dict[torch.device, torch.Tensor] = {}
         self._wrist_index: dict[torch.device, torch.Tensor] = {}
 
@@ -133,15 +135,32 @@ class SonicLowLatencyPolicy:
         self._reset_finished_histories()
         encoder_input = self.input_builder.build_encoder_input(actor_obs)
         token = self.encoder(encoder_input)
-        decoder_input = self.input_builder.build_decoder_input(token, actor_obs)
-        action = self.decoder(decoder_input)
-        action = action.index_select(-1, self._joint_order_index(action.device))
+        last_policy_action = self._last_policy_action
+        if last_policy_action is None:
+            last_policy_action = actor_obs.new_zeros(
+                actor_obs.shape[0],
+                SONIC_JOINT_COUNT,
+            )
+        decoder_input = self.input_builder.build_decoder_input(
+            token,
+            actor_obs,
+            last_policy_action=last_policy_action,
+        )
+        raw_action = self.decoder(decoder_input)
+        # SONIC feeds the unmodified policy output back into its action history.
+        # Wrist targets are frozen only on the separate action sent to MJLab.
+        self._last_policy_action = raw_action.detach().clone()
+        action = raw_action.index_select(
+            -1,
+            self._joint_order_index(raw_action.device),
+        )
         action[:, self._frozen_wrist_index(action.device)] = 0.0
         return action
 
     def reset(self) -> None:
         self.input_builder.reset()
         self._last_episode_steps = None
+        self._last_policy_action = None
 
     def _reset_finished_histories(self) -> None:
         if self._env is None or not hasattr(self._env, "episode_length_buf"):
@@ -154,6 +173,8 @@ class SonicLowLatencyPolicy:
             ).flatten()
             if reset_ids.numel():
                 self.input_builder.reset(reset_ids)
+                if self._last_policy_action is not None:
+                    self._last_policy_action[reset_ids] = 0.0
         self._last_episode_steps = episode_steps.clone()
 
     def _joint_order_index(self, device: torch.device) -> torch.Tensor:

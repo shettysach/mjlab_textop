@@ -82,6 +82,23 @@ def test_decoder_history_can_be_reset() -> None:
     _assert_history(decoder_input, leading_zeros=9, values=(4.0,))
 
 
+def test_decoder_history_accepts_raw_policy_action_feedback() -> None:
+    builder = SonicInputBuilder()
+    token = torch.zeros(1, SONIC_TOKEN_DIM)
+    actor_obs = _actor_observation(1.0)
+    raw_policy_action = torch.arange(29, dtype=torch.float32).unsqueeze(0)
+
+    decoder_input = builder.build_decoder_input(
+        token,
+        actor_obs,
+        last_policy_action=raw_policy_action,
+    )
+
+    action_history = decoder_input[:, DECODER_LAST_ACTION].reshape(1, 10, 29)
+    assert torch.count_nonzero(action_history[:, :-1]) == 0
+    torch.testing.assert_close(action_history[:, -1], raw_policy_action)
+
+
 @pytest.mark.parametrize(
     ("actor_shape", "token_shape"),
     [
