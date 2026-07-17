@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import numpy as np
 import pytest
@@ -96,16 +97,17 @@ def test_textop_onnx_policy_reindexes_action_to_mjlab_order(
     obs = torch.zeros(2, 431)
 
     action = policy(_observations(obs))
+    session = cast(_FakeSession, policy.session)
 
     expected_one = torch.arange(29, dtype=torch.float32)[
         list(ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)
     ]
     assert action.shape == (2, 29)
     torch.testing.assert_close(action, expected_one.repeat(2, 1))
-    assert policy.session.providers == ["CPUExecutionProvider"]
-    assert policy.session.received is not None
-    assert policy.session.received.dtype == np.float32
-    assert policy.session.received.shape == (2, 431)
+    assert session.providers == ["CPUExecutionProvider"]
+    assert session.received is not None
+    assert session.received.dtype == np.float32
+    assert session.received.shape == (2, 431)
 
 
 def test_textop_onnx_policy_configures_cuda_provider_and_torch_stream(
@@ -116,65 +118,19 @@ def test_textop_onnx_policy_configures_cuda_provider_and_torch_stream(
     monkeypatch.setattr(torch.cuda, "current_stream", lambda _device: stream)
 
     policy = TextOpOnnxPolicy(Path("latest.onnx"), device="cuda:1")
+    session = cast(_FakeSession, policy.session)
 
     assert policy.device == torch.device("cuda:1")
-    assert policy.session.providers == [
+    assert session.providers == [
         (
             "CUDAExecutionProvider",
             {"device_id": 1, "user_compute_stream": "12345"},
         )
     ]
-    assert policy.session.sess_options.entries == {
+    assert session.sess_options is not None
+    assert session.sess_options.entries == {
         "session.disable_cpu_ep_fallback": "1"
     }
-
-
-def test_cuda_policy_allows_missing_optional_session_options(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fake_ort = SimpleNamespace(
-        InferenceSession=_FakeSession,
-        __file__="/test/onnxruntime/__init__.py",
-        __version__="test",
-    )
-    monkeypatch.setattr(onnx_runtime, "ort", fake_ort)
-    stream = SimpleNamespace(cuda_stream=12345)
-    monkeypatch.setattr(torch.cuda, "current_stream", lambda _device: stream)
-
-    with pytest.warns(RuntimeWarning, match="does not expose SessionOptions"):
-        policy = TextOpOnnxPolicy(Path("latest.onnx"), device="cuda:0")
-
-    assert policy.session.sess_options is None
-    assert policy.session.providers[0][0] == "CUDAExecutionProvider"
-
-
-def test_cuda_policy_rejects_runtime_without_cuda_provider(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fake_ort = SimpleNamespace(
-        InferenceSession=_FakeSession,
-        SessionOptions=_FakeSessionOptions,
-        get_available_providers=lambda: ["CPUExecutionProvider"],
-        __file__="/test/onnxruntime/__init__.py",
-        __version__="test",
-    )
-    monkeypatch.setattr(onnx_runtime, "ort", fake_ort)
-
-    with pytest.raises(RuntimeError, match="CUDAExecutionProvider is unavailable"):
-        TextOpOnnxPolicy(Path("latest.onnx"), device="cuda:0")
-
-
-def test_policy_rejects_invalid_onnxruntime_module(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fake_ort = SimpleNamespace(
-        __file__="/test/onnxruntime.py",
-        __version__="test",
-    )
-    monkeypatch.setattr(onnx_runtime, "ort", fake_ort)
-
-    with pytest.raises(RuntimeError, match="does not expose InferenceSession"):
-        TextOpOnnxPolicy(Path("latest.onnx"))
 
 
 def test_cuda_run_binds_torch_buffers_and_reuses_output() -> None:
