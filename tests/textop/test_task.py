@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
-from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
+from mjlab.tasks.registry import load_env_cfg, load_runner_cls
 
 from mjlab_textop.core.feedback.observation import OnlineObservationCfg
 from mjlab_textop.core.mdp.offline_commands import OfflineMotionCommandCfg
@@ -12,13 +12,16 @@ from mjlab_textop.core.online.source import (
     MotionFrames,
     QueueOnlineSource,
 )
-from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
 from mjlab_textop.tasks.online_textop.env_cfg import (
     make_online_textop_g1_env_cfg,
 )
 from mjlab_textop.tasks.registration import register_task
 from mjlab_textop.tasks.textop_tracking.env_cfg import (
     make_textop_g1_flat_tracking_env_cfg,
+)
+from mjlab_textop.trackers.textop import (
+    TEXTOP_ONNX_TRACKER,
+    TextOpOnnxPolicyRunner,
 )
 
 
@@ -41,7 +44,10 @@ def test_online_textop_env_cfg_uses_online_motion_command() -> None:
 
 
 def test_online_textop_onnx_env_cfg_uses_online_motion_command() -> None:
-    env_cfg = make_online_textop_g1_env_cfg(play=True, policy_format="onnx")
+    env_cfg = make_online_textop_g1_env_cfg(
+        play=True,
+        tracker=TEXTOP_ONNX_TRACKER,
+    )
     motion_cmd = env_cfg.commands["motion"]
 
     assert isinstance(motion_cmd, OnlineMotionCommandCfg)
@@ -92,25 +98,15 @@ def test_online_textop_onnx_replay_task_uses_replay_source_mode() -> None:
     )
 
     task_name = register_task(
-        "default", runner_cls=OnnxPolicyRunner, source=source, source_mode="replay"
+        "default",
+        tracker=TEXTOP_ONNX_TRACKER,
+        source=source,
+        source_mode="replay",
     )
     env_cfg = load_env_cfg(task_name, play=True)
 
     assert env_cfg.commands["motion"].source_mode == "replay"
-    assert load_runner_cls(task_name) is OnnxPolicyRunner
-
-
-def test_online_textop_onnx_task_carries_cuda_provider_in_runner_cfg() -> None:
-    task_name = register_task(
-        "default",
-        runner_cls=OnnxPolicyRunner,
-        onnx_provider="cuda",
-        source=QueueOnlineSource(),
-        source_mode="replay",
-    )
-
-    assert load_runner_cls(task_name) is OnnxPolicyRunner
-    assert load_rl_cfg(task_name).onnx_execution_provider == "cuda"
+    assert load_runner_cls(task_name) is TextOpOnnxPolicyRunner
 
 
 def test_online_textop_replay_task_can_disable_reference_reset() -> None:
@@ -164,7 +160,10 @@ def test_online_textop_onnx_env_cfg_uses_textop_deploy_timing() -> None:
         make_online_textop_g1_env_cfg,
     )
 
-    env_cfg = make_online_textop_g1_env_cfg(play=True, policy_format="onnx")
+    env_cfg = make_online_textop_g1_env_cfg(
+        play=True,
+        tracker=TEXTOP_ONNX_TRACKER,
+    )
 
     assert env_cfg.sim.mujoco.timestep == 0.002
     assert env_cfg.decimation == 10
@@ -201,7 +200,10 @@ def test_textop_actor_observation_order() -> None:
 
 
 def test_textop_onnx_actor_observation_order_and_no_corruption() -> None:
-    env_cfg = make_online_textop_g1_env_cfg(play=True, policy_format="onnx")
+    env_cfg = make_online_textop_g1_env_cfg(
+        play=True,
+        tracker=TEXTOP_ONNX_TRACKER,
+    )
 
     assert list(env_cfg.observations["actor"].terms) == [
         "future_joint_window",

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
 
 import tyro
 from mjlab.scripts.play import PlayConfig, run_play
@@ -15,7 +14,7 @@ from mjlab_textop.core.feedback.observation import (
 from mjlab_textop.core.online.live import SocketSourceCfg
 from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
 from mjlab_textop.scripts.utils import (
-    ResolvedPolicy,
+    ResolvedTracker,
 )
 from mjlab_textop.tasks.registration import TextOpTask, register_task
 
@@ -36,7 +35,6 @@ class PlayLiveCommand:
     task: TextOpTask = "default"
     checkpoint_file: str | None = None
     onnx_file: str | None = None
-    onnx_provider: Literal["cpu", "cuda"] = "cpu"
     host: str = "127.0.0.1"
     port: int = 8765
     device: str = "cuda:0"
@@ -62,12 +60,11 @@ class ObservationParams:
 def play_live_textop_motion(
     cfg: PlayLiveCommand,
     *,
-    policy: ResolvedPolicy,
+    tracker: ResolvedTracker,
 ) -> None:
     task_name = register_task(
         cfg.task,
-        runner_cls=policy.runner_cls,
-        onnx_provider=policy.onnx_provider,
+        tracker=tracker.spec,
         live_source_cfg=SocketSourceCfg(
             host=cfg.host,
             port=cfg.port,
@@ -81,7 +78,7 @@ def play_live_textop_motion(
     )
     play_cfg = PlayConfig(
         agent="trained",
-        checkpoint_file=str(policy.file),
+        checkpoint_file=str(tracker.artifact),
         num_envs=cfg.num_envs,
         device=cfg.device,
         video_width=cfg.observation.image_width if cfg.observation else None,
@@ -94,22 +91,19 @@ def _make_online_observation(cfg: PlayLiveCommand) -> OnlineObservationCfg | Non
     if cfg.observation is None:
         return None
 
-    publisher = HttpObservationPublisher(
-        url=cfg.observation.url,
-        timeout_sec=cfg.observation.timeout_sec,
-    )
-    camera = make_torso_observation_camera(
-        width=cfg.observation.image_width,
-        height=cfg.observation.image_height,
-        distance=cfg.observation.camera_distance,
-        azimuth=cfg.observation.camera_azimuth,
-        elevation=cfg.observation.camera_elevation,
-    )
-
     return OnlineObservationCfg(
-        publisher=publisher,
+        publisher=HttpObservationPublisher(
+            url=cfg.observation.url,
+            timeout_sec=cfg.observation.timeout_sec,
+        ),
         publish_interval=cfg.observation.every_frames,
-        camera=camera,
+        camera=make_torso_observation_camera(
+            width=cfg.observation.image_width,
+            height=cfg.observation.image_height,
+            distance=cfg.observation.camera_distance,
+            azimuth=cfg.observation.camera_azimuth,
+            elevation=cfg.observation.camera_elevation,
+        ),
     )
 
 
@@ -121,7 +115,6 @@ class PlayOnlineCommand:
     motion_file: str = field(default=tyro.MISSING)
     checkpoint_file: str | None = None
     onnx_file: str | None = None
-    onnx_provider: Literal["cpu", "cuda"] = "cpu"
     device: str = "cuda:0"
     num_envs: int = 1
     block_size: int = 8
@@ -132,21 +125,22 @@ def play_online_textop_motion(
     cfg: PlayOnlineCommand,
     *,
     motion_file: Path,
-    policy: ResolvedPolicy,
+    tracker: ResolvedTracker,
 ) -> None:
-    source = make_mjlab_npz_replay_source(motion_file, block_size=cfg.block_size)
     task_name = register_task(
         "default",
-        runner_cls=policy.runner_cls,
-        onnx_provider=policy.onnx_provider,
-        source=source,
+        tracker=tracker.spec,
+        source=make_mjlab_npz_replay_source(
+            motion_file,
+            block_size=cfg.block_size,
+        ),
         source_mode="replay",
         num_envs=cfg.num_envs,
         reset_robot_to_reference=cfg.reset_robot_to_reference,
     )
     play_cfg = PlayConfig(
         agent="trained",
-        checkpoint_file=str(policy.file),
+        checkpoint_file=str(tracker.artifact),
         num_envs=cfg.num_envs,
         device=cfg.device,
     )

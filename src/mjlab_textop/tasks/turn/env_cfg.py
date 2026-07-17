@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
 
 from mjlab_textop.core.feedback.observation import OnlineObservationCfg
 from mjlab_textop.core.mdp.online_commands import OnlineSourceMode
@@ -12,6 +11,8 @@ from mjlab_textop.tasks.online_textop.env_cfg import (
     make_online_textop_g1_env_cfg,
 )
 from mjlab_textop.tasks.turn.assets import make_turn_task_spec_fn
+from mjlab_textop.trackers.spec import TrackerSpec
+from mjlab_textop.trackers.textop.specs import TEXTOP_PYTORCH_TRACKER
 
 
 @dataclass(frozen=True)
@@ -39,7 +40,7 @@ def make_turn_task_g1_env_cfg(
     reset_robot_to_reference: bool = True,
     reference_debug_vis: bool | None = None,
     observation: OnlineObservationCfg | None = None,
-    policy_format: Literal["pt", "onnx"] = "pt",
+    tracker: TrackerSpec = TEXTOP_PYTORCH_TRACKER,
     task_cfg: TurnTaskCfg = TURN_TASK_CFG,
 ):
     cfg = make_online_textop_g1_env_cfg(
@@ -50,7 +51,7 @@ def make_turn_task_g1_env_cfg(
         reset_robot_to_reference=reset_robot_to_reference,
         reference_debug_vis=reference_debug_vis,
         observation=observation,
-        policy_format=policy_format,
+        tracker=tracker,
     )
     return _configure_turn_task_cfg(cfg, task_cfg=task_cfg)
 

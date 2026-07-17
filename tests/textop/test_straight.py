@@ -7,12 +7,15 @@ import torch
 from mjlab.tasks.registry import load_env_cfg, load_runner_cls
 
 from mjlab_textop.core.mdp.observations import future_joint_window_textop_order
-from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
 from mjlab_textop.tasks.registration import register_task
 from mjlab_textop.tasks.straight import mdp
 from mjlab_textop.tasks.straight.env_cfg import (
     STRAIGHT_TASK_CFG,
     make_straight_g1_env_cfg,
+)
+from mjlab_textop.trackers.textop import (
+    TEXTOP_ONNX_TRACKER,
+    TextOpOnnxPolicyRunner,
 )
 
 
@@ -37,12 +40,12 @@ def test_straight_play_task_uses_onnx_runner(tmp_path) -> None:
 
     task_name = register_task(
         "straight",
-        runner_cls=OnnxPolicyRunner,
+        tracker=TEXTOP_ONNX_TRACKER,
         source_mode="live",
         num_envs=1,
     )
 
-    assert load_runner_cls(task_name) is OnnxPolicyRunner
+    assert load_runner_cls(task_name) is TextOpOnnxPolicyRunner
     env_cfg = load_env_cfg(task_name, play=True)
     assert env_cfg.scene.num_envs == 1
     assert "straight_success" in env_cfg.terminations

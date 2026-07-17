@@ -143,16 +143,8 @@ uv run --extra cu128 mjlab-textop play-online \
   --motion-file ./outputs/walk_forward.npz
 ```
 
-ONNX inference remains CPU-backed by default for deployment stability. To run
-the actor on the MJLab CUDA device with direct GPU input/output binding, add
-`--onnx-provider cuda`:
-
-```bash
-uv run --extra cu128 mjlab-textop play-online \
-  --onnx-file $ONNX_PATH \
-  --onnx-provider cuda \
-  --motion-file ./outputs/walk_forward.npz
-```
+ONNX inference follows `--device`: CUDA devices use direct GPU input/output
+binding, while CPU devices use `CPUExecutionProvider`.
 
 #### ONNX Setup
 
@@ -250,7 +242,6 @@ Setup - [ONNX Setup](#onnx-setup)
 ```bash
 uv run --extra cu128 mjlab-textop play-live \
   --onnx-file $ONNX_PATH \
-  --onnx-provider cuda \
   --host 127.0.0.1 \
   --port 8765 \
   observation:observation-params \

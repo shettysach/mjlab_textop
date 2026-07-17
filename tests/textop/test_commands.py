@@ -5,7 +5,6 @@ from types import SimpleNamespace
 import pytest
 import torch
 from mjlab.tasks.tracking.mdp.commands import MotionCommand, MotionCommandCfg
-from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
 from mjlab_textop.core.mdp.offline_commands import (
     OfflineMotionCommand,
@@ -14,14 +13,17 @@ from mjlab_textop.core.mdp.offline_commands import (
     textop_motion_command_cfg_from,
     use_textop_motion_command,
 )
-from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
 from mjlab_textop.scripts import commands as commands_module
 from mjlab_textop.scripts.commands import (
     ObservationParams,
     PlayLiveCommand,
     play_live_textop_motion,
 )
-from mjlab_textop.scripts.utils import ResolvedPolicy, resolve_policy
+from mjlab_textop.scripts.utils import ResolvedTracker, resolve_tracker
+from mjlab_textop.trackers.textop import (
+    TEXTOP_ONNX_TRACKER,
+    TEXTOP_PYTORCH_TRACKER,
+)
 
 
 def test_make_future_time_steps_clamps_at_end() -> None:
@@ -39,60 +41,45 @@ def test_make_future_time_steps_clamps_at_end() -> None:
     ]
 
 
-def test_resolve_policy_accepts_checkpoint_file(tmp_path) -> None:
+def test_resolve_tracker_accepts_checkpoint_file(tmp_path) -> None:
     checkpoint_file = tmp_path / "model.pt"
     checkpoint_file.write_text("checkpoint")
 
-    policy = resolve_policy(
+    tracker = resolve_tracker(
         checkpoint_file=str(checkpoint_file),
         onnx_file=None,
     )
 
-    assert policy.runner_cls is MotionTrackingOnPolicyRunner
-    assert policy.file == checkpoint_file.resolve()
+    assert tracker.spec is TEXTOP_PYTORCH_TRACKER
+    assert tracker.artifact == checkpoint_file.resolve()
 
 
-def test_resolve_policy_accepts_onnx_file(tmp_path) -> None:
+def test_resolve_tracker_accepts_onnx_file(tmp_path) -> None:
     onnx_file = tmp_path / "latest.onnx"
     onnx_file.write_text("onnx")
 
-    policy = resolve_policy(
+    tracker = resolve_tracker(
         checkpoint_file=None,
         onnx_file=str(onnx_file),
     )
 
-    assert policy.runner_cls is OnnxPolicyRunner
-    assert policy.file == onnx_file.resolve()
+    assert tracker.spec is TEXTOP_ONNX_TRACKER
+    assert tracker.artifact == onnx_file.resolve()
 
 
-def test_resolve_policy_selects_cuda_onnx_provider(tmp_path) -> None:
-    onnx_file = tmp_path / "latest.onnx"
-    onnx_file.write_text("onnx")
-
-    policy = resolve_policy(
-        checkpoint_file=None,
-        onnx_file=str(onnx_file),
-        onnx_provider="cuda",
-    )
-
-    assert policy.runner_cls is OnnxPolicyRunner
-    assert policy.onnx_provider == "cuda"
-    assert policy.file == onnx_file.resolve()
-
-
-def test_resolve_policy_rejects_missing_policy() -> None:
+def test_resolve_tracker_rejects_missing_policy() -> None:
     with pytest.raises(ValueError, match="exactly one"):
-        resolve_policy(checkpoint_file=None, onnx_file=None)
+        resolve_tracker(checkpoint_file=None, onnx_file=None)
 
 
-def test_resolve_policy_rejects_multiple_policies(tmp_path) -> None:
+def test_resolve_tracker_rejects_multiple_policies(tmp_path) -> None:
     checkpoint_file = tmp_path / "model.pt"
     onnx_file = tmp_path / "latest.onnx"
     checkpoint_file.write_text("checkpoint")
     onnx_file.write_text("onnx")
 
     with pytest.raises(ValueError, match="exactly one"):
-        resolve_policy(
+        resolve_tracker(
             checkpoint_file=str(checkpoint_file),
             onnx_file=str(onnx_file),
         )
@@ -114,7 +101,7 @@ def test_play_live_without_images_uses_mjlab_run_play(monkeypatch, tmp_path) -> 
     policy_file.write_text("checkpoint")
     play_live_textop_motion(
         PlayLiveCommand(checkpoint_file=str(policy_file)),
-        policy=ResolvedPolicy(MotionTrackingOnPolicyRunner, policy_file),
+        tracker=ResolvedTracker(TEXTOP_PYTORCH_TRACKER, policy_file),
     )
 
     task_name, play_cfg = calls["run_play"]
@@ -122,7 +109,7 @@ def test_play_live_without_images_uses_mjlab_run_play(monkeypatch, tmp_path) -> 
     assert play_cfg.video is False
     assert play_cfg.video_width is None
     assert play_cfg.video_height is None
-    assert calls["task_kwargs"]["runner_cls"] is MotionTrackingOnPolicyRunner
+    assert calls["task_kwargs"]["tracker"] is TEXTOP_PYTORCH_TRACKER
     assert calls["task_kwargs"]["reference_debug_vis"] is False
     assert calls["task_kwargs"]["observation"] is None
 
@@ -157,7 +144,7 @@ def test_play_live_with_images_does_not_enable_video_recording(
                 url="http://127.0.0.1:8766/observation",
             ),
         ),
-        policy=ResolvedPolicy(MotionTrackingOnPolicyRunner, policy_file),
+        tracker=ResolvedTracker(TEXTOP_PYTORCH_TRACKER, policy_file),
     )
 
     task_name, play_cfg = calls["run_play"]
@@ -204,7 +191,7 @@ def test_play_live_uses_custom_observation_camera_geometry(
                 camera_elevation=-8.0,
             ),
         ),
-        policy=ResolvedPolicy(MotionTrackingOnPolicyRunner, policy_file),
+        tracker=ResolvedTracker(TEXTOP_PYTORCH_TRACKER, policy_file),
     )
 
     observation_camera = calls["task_kwargs"]["observation"].camera
@@ -239,14 +226,14 @@ def test_straight_live_uses_straight_task_registration(
                 url="http://127.0.0.1:8766/observation",
             ),
         ),
-        policy=ResolvedPolicy(OnnxPolicyRunner, onnx_file),
+        tracker=ResolvedTracker(TEXTOP_ONNX_TRACKER, onnx_file),
     )
 
     task_name, play_cfg = calls["run_play"]
     assert task_name == "task"
     assert calls["task"] == "straight"
     assert play_cfg.checkpoint_file == str(onnx_file)
-    assert calls["task_kwargs"]["runner_cls"] is OnnxPolicyRunner
+    assert calls["task_kwargs"]["tracker"] is TEXTOP_ONNX_TRACKER
     assert calls["task_kwargs"]["source_mode"] == "live"
     assert calls["task_kwargs"]["observation"].publisher is not None
 
@@ -277,14 +264,14 @@ def test_blocked_straight_live_uses_blocked_straight_task_registration(
                 url="http://127.0.0.1:8766/observation",
             ),
         ),
-        policy=ResolvedPolicy(OnnxPolicyRunner, onnx_file),
+        tracker=ResolvedTracker(TEXTOP_ONNX_TRACKER, onnx_file),
     )
 
     task_name, play_cfg = calls["run_play"]
     assert task_name == "task"
     assert calls["task"] == "blocked-straight"
     assert play_cfg.checkpoint_file == str(onnx_file)
-    assert calls["task_kwargs"]["runner_cls"] is OnnxPolicyRunner
+    assert calls["task_kwargs"]["tracker"] is TEXTOP_ONNX_TRACKER
     assert calls["task_kwargs"]["source_mode"] == "live"
     assert calls["task_kwargs"]["observation"].publisher is not None
 
@@ -315,14 +302,14 @@ def test_side_goals_live_uses_side_goals_task_registration(
                 url="http://127.0.0.1:8766/observation",
             ),
         ),
-        policy=ResolvedPolicy(OnnxPolicyRunner, onnx_file),
+        tracker=ResolvedTracker(TEXTOP_ONNX_TRACKER, onnx_file),
     )
 
     task_name, play_cfg = calls["run_play"]
     assert task_name == "task"
     assert calls["task"] == "side-goals"
     assert play_cfg.checkpoint_file == str(onnx_file)
-    assert calls["task_kwargs"]["runner_cls"] is OnnxPolicyRunner
+    assert calls["task_kwargs"]["tracker"] is TEXTOP_ONNX_TRACKER
     assert calls["task_kwargs"]["source_mode"] == "live"
     assert calls["task_kwargs"]["observation"].publisher is not None
 

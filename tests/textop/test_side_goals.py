@@ -4,11 +4,14 @@ import mujoco
 from mjlab.tasks.registry import load_env_cfg, load_runner_cls
 
 from mjlab_textop.core.mdp.observations import future_joint_window_textop_order
-from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
 from mjlab_textop.tasks.registration import register_task
 from mjlab_textop.tasks.side_goals.env_cfg import (
     SIDE_GOALS_TASK_CFG,
     make_side_goals_g1_env_cfg,
+)
+from mjlab_textop.trackers.textop import (
+    TEXTOP_ONNX_TRACKER,
+    TextOpOnnxPolicyRunner,
 )
 
 
@@ -38,12 +41,12 @@ def test_side_goals_play_task_uses_onnx_runner(tmp_path) -> None:
 
     task_name = register_task(
         "side-goals",
-        runner_cls=OnnxPolicyRunner,
+        tracker=TEXTOP_ONNX_TRACKER,
         source_mode="live",
         num_envs=1,
     )
 
-    assert load_runner_cls(task_name) is OnnxPolicyRunner
+    assert load_runner_cls(task_name) is TextOpOnnxPolicyRunner
     env_cfg = load_env_cfg(task_name, play=True)
     assert env_cfg.scene.num_envs == 1
     assert "side_goals_success" in env_cfg.terminations

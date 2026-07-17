@@ -13,7 +13,7 @@ from mjlab_textop.scripts.commands import (
     play_live_textop_motion,
     play_online_textop_motion,
 )
-from mjlab_textop.scripts.utils import resolve_policy, verify_resolved
+from mjlab_textop.scripts.utils import resolve_tracker, verify_resolved
 
 Command: TypeAlias = NormalizeCommand | PlayOnlineCommand | PlayLiveCommand
 
@@ -35,31 +35,26 @@ def run_command(cfg: Command) -> None:
             return
 
         case PlayOnlineCommand():
-            motion_file = verify_resolved(
-                Path(cfg.motion_file).expanduser().resolve(),
-                "Normalized motion file",
-            )
-            policy = resolve_policy(
-                checkpoint_file=cfg.checkpoint_file,
-                onnx_file=cfg.onnx_file,
-                onnx_provider=cfg.onnx_provider,
-            )
             play_online_textop_motion(
                 cfg,
-                motion_file=motion_file,
-                policy=policy,
+                motion_file=verify_resolved(
+                    Path(cfg.motion_file).expanduser().resolve(),
+                    "Normalized motion file",
+                ),
+                tracker=resolve_tracker(
+                    checkpoint_file=cfg.checkpoint_file,
+                    onnx_file=cfg.onnx_file,
+                ),
             )
             return
 
         case PlayLiveCommand():
-            policy = resolve_policy(
-                checkpoint_file=cfg.checkpoint_file,
-                onnx_file=cfg.onnx_file,
-                onnx_provider=cfg.onnx_provider,
-            )
             play_live_textop_motion(
                 cfg,
-                policy=policy,
+                tracker=resolve_tracker(
+                    checkpoint_file=cfg.checkpoint_file,
+                    onnx_file=cfg.onnx_file,
+                ),
             )
             return
 

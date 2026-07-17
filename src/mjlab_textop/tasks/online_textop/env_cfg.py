@@ -1,21 +1,9 @@
 from __future__ import annotations
 
-from typing import Literal
-
-from mjlab.envs.mdp.observations import projected_gravity
-from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
 from mjlab.managers.recorder_manager import RecorderTermCfg
 from mjlab.tasks.tracking.config.g1.env_cfgs import unitree_g1_flat_tracking_env_cfg
 
 from mjlab_textop.core.feedback.observation import OnlineObservationCfg
-from mjlab_textop.core.mdp.observations import (
-    future_anchor_ori_b,
-    future_anchor_pos_b,
-    future_joint_window_textop_order,
-    joint_pos_rel_textop_order,
-    joint_vel_rel_textop_order,
-    last_action_textop_order,
-)
 from mjlab_textop.core.mdp.online_cleanup import OnlineTextOpCleanup
 from mjlab_textop.core.mdp.online_commands import (
     OnlineSourceMode,
@@ -23,13 +11,10 @@ from mjlab_textop.core.mdp.online_commands import (
 )
 from mjlab_textop.core.online.live import SocketSourceCfg
 from mjlab_textop.core.online.source import OnlineSource
-from mjlab_textop.tasks.textop_tracking.env_cfg import (
-    configure_textop_actor_observations,
-    configure_textop_critic_observations,
+from mjlab_textop.trackers.spec import TrackerSpec
+from mjlab_textop.trackers.textop.specs import (
+    TEXTOP_PYTORCH_TRACKER,
 )
-
-TEXTOP_DEPLOY_SIM_TIMESTEP = 0.002
-TEXTOP_DEPLOY_DECIMATION = 10
 
 
 def make_online_textop_g1_env_cfg(
@@ -41,7 +26,7 @@ def make_online_textop_g1_env_cfg(
     reset_robot_to_reference: bool = True,
     reference_debug_vis: bool | None = None,
     observation: OnlineObservationCfg | None = None,
-    policy_format: Literal["pt", "onnx"] = "pt",
+    tracker: TrackerSpec = TEXTOP_PYTORCH_TRACKER,
 ):
     cfg = unitree_g1_flat_tracking_env_cfg(play=play)
 
@@ -56,15 +41,8 @@ def make_online_textop_g1_env_cfg(
         observation=observation,
     )
     motion_cfg.anchor_body_name = "pelvis"
-    cfg.sim.mujoco.timestep = TEXTOP_DEPLOY_SIM_TIMESTEP
-    cfg.decimation = TEXTOP_DEPLOY_DECIMATION
 
-    if policy_format == "onnx":
-        configure_textop_onnx_actor_observations(cfg)
-        cfg.events.pop("push_robot", None)
-    else:
-        configure_textop_actor_observations(cfg)
-        configure_textop_critic_observations(cfg)
+    tracker.configure_env(cfg)
 
     configure_online_textop_tracking_terms(cfg)
     cfg.recorders["online_textop_cleanup"] = RecorderTermCfg(
@@ -73,36 +51,6 @@ def make_online_textop_g1_env_cfg(
     )
 
     return cfg
-
-
-def configure_textop_onnx_actor_observations(cfg) -> None:
-    old_actor = cfg.observations["actor"]
-    terms = {
-        "future_joint_window": ObservationTermCfg(
-            func=future_joint_window_textop_order,
-            params={"command_name": "motion"},
-        ),
-        "future_anchor_pos_b": ObservationTermCfg(
-            func=future_anchor_pos_b,
-            params={"command_name": "motion"},
-        ),
-        "future_anchor_ori_b": ObservationTermCfg(
-            func=future_anchor_ori_b,
-            params={"command_name": "motion"},
-        ),
-        "projected_gravity": ObservationTermCfg(func=projected_gravity),
-        "base_lin_vel": old_actor.terms["base_lin_vel"],
-        "base_ang_vel": old_actor.terms["base_ang_vel"],
-        "joint_pos": ObservationTermCfg(func=joint_pos_rel_textop_order),
-        "joint_vel": ObservationTermCfg(func=joint_vel_rel_textop_order),
-        "actions": ObservationTermCfg(func=last_action_textop_order),
-    }
-
-    cfg.observations["actor"] = ObservationGroupCfg(
-        terms=terms,
-        concatenate_terms=True,
-        enable_corruption=False,
-    )
 
 
 def configure_online_textop_tracking_terms(cfg) -> None:
