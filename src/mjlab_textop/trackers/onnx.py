@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import importlib
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-import onnxruntime as ort
 import torch
+
+# Loading torch first makes its bundled CUDA and cuDNN libraries available to
+# ONNX Runtime. This is required when both libraries share the same CUDA runtime.
+ort = importlib.import_module("onnxruntime")
 
 
 @dataclass(frozen=True)
