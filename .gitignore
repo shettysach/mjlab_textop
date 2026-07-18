@@ -8,6 +8,8 @@ __pycache__/
 .ruff_cache/
 .venv/
 
+*.npz
+
 TASK.md
 PLAN.md
 UPDATED.md

@@ -9,6 +9,10 @@ from tensordict import TensorDict
 
 import mjlab_textop.trackers.sonic.onnx as sonic_onnx
 from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
+from mjlab_textop.trackers.sonic.actions import (
+    SonicActionBounds,
+    SonicActionPostprocessor,
+)
 from mjlab_textop.trackers.sonic.constants import (
     SONIC_DECODER_INPUT_DIM,
     SONIC_ENCODER_INPUT_DIM,
@@ -96,13 +100,19 @@ def test_policy_runs_encoder_decoder_and_reindexes_action(
     torch.testing.assert_close(action, expected)
 
 
-def test_policy_feedback_keeps_unmodified_decoder_action(
+def test_policy_feedback_uses_applied_safe_action(
     monkeypatch: pytest.MonkeyPatch,
     model_dir: Path,
 ) -> None:
     _FakeModel.instances.clear()
     monkeypatch.setattr(sonic_onnx, "OnnxTensorModel", _FakeModel)
     policy = SonicLowLatencyPolicy(SonicModelBundle.from_directory(model_dir))
+    policy.action_postprocessor = SonicActionPostprocessor(
+        SonicActionBounds(
+            lower=torch.full((29,), -1.0),
+            upper=torch.full((29,), 1.0),
+        )
+    )
     observations = _observations(0.0)
 
     policy(observations)
@@ -110,7 +120,7 @@ def test_policy_feedback_keeps_unmodified_decoder_action(
 
     decoder_input = _FakeModel.instances[1].calls[-1]
     action_history = decoder_input[:, DECODER_LAST_ACTION].reshape(1, 10, 29)
-    expected = torch.arange(29, dtype=torch.float32).unsqueeze(0)
+    expected = torch.arange(29, dtype=torch.float32).clamp(-1.0, 1.0).unsqueeze(0)
     torch.testing.assert_close(action_history[:, -1], expected)
 
 

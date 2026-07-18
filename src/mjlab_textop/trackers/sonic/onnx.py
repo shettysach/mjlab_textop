@@ -10,6 +10,10 @@ from tensordict import TensorDict
 
 from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
 from mjlab_textop.trackers.onnx import OnnxModelSpec, OnnxTensorModel
+from mjlab_textop.trackers.sonic.actions import (
+    SonicActionPostprocessor,
+    resolve_sonic_action_bounds,
+)
 from mjlab_textop.trackers.sonic.constants import (
     SONIC_DECODER_INPUT_DIM,
     SONIC_ENCODER_INPUT_DIM,
@@ -45,6 +49,8 @@ _CONFIG_NAME_PATTERN = re.compile(
     r"""^\s*-\s+name:\s*["']?([^"'#\s]+)""",
     flags=re.MULTILINE,
 )
+
+
 @dataclass(frozen=True)
 class SonicModelBundle:
     directory: Path
@@ -118,6 +124,15 @@ class SonicLowLatencyPolicy:
         self._last_episode_steps: torch.Tensor | None = None
         self._last_policy_action: torch.Tensor | None = None
         self._sonic_to_mjlab: dict[torch.device, torch.Tensor] = {}
+        self._mjlab_to_sonic: dict[torch.device, torch.Tensor] = {}
+        action_bounds = (
+            resolve_sonic_action_bounds(base_env)
+            if base_env is not None
+            and hasattr(base_env, "action_manager")
+            and hasattr(base_env, "scene")
+            else None
+        )
+        self.action_postprocessor = SonicActionPostprocessor(action_bounds)
 
     def __call__(self, obs: TensorDict) -> torch.Tensor:
         actor_obs = obs["actor"]
@@ -138,14 +153,20 @@ class SonicLowLatencyPolicy:
             last_policy_action=last_policy_action,
         )
         raw_action = self.decoder(decoder_input)
-        self._last_policy_action = raw_action.detach().clone()
-        return raw_action.index_select(
+        action = raw_action.index_select(
             -1,
             self._joint_order_index(raw_action.device),
         )
+        action = self.action_postprocessor(action)
+        self._last_policy_action = action.index_select(
+            -1,
+            self._feedback_joint_order_index(action.device),
+        ).detach().clone()
+        return action
 
     def reset(self) -> None:
         self.input_builder.reset()
+        self.action_postprocessor.reset()
         self._last_episode_steps = None
         self._last_policy_action = None
 
@@ -160,6 +181,7 @@ class SonicLowLatencyPolicy:
             ).flatten()
             if reset_ids.numel():
                 self.input_builder.reset(reset_ids)
+                self.action_postprocessor.reset(reset_ids)
                 if self._last_policy_action is not None:
                     self._last_policy_action[reset_ids] = 0.0
         self._last_episode_steps = episode_steps.clone()
@@ -174,6 +196,14 @@ class SonicLowLatencyPolicy:
             )
             self._sonic_to_mjlab[device] = index
         return index
+
+    def _feedback_joint_order_index(self, device: torch.device) -> torch.Tensor:
+        index = self._mjlab_to_sonic.get(device)
+        if index is None:
+            index = torch.argsort(self._joint_order_index(device))
+            self._mjlab_to_sonic[device] = index
+        return index
+
 
 class SonicOnnxPolicyRunner:
     """MJLab runner adapter for the released low-latency SONIC model bundle."""
