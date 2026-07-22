@@ -8,9 +8,13 @@ import onnxruntime as ort
 import torch
 from tensordict import TensorDict
 
-from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
+from mjlab_textop.core.schema import (
+    G1_JOINT_COUNT,
+    ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
+)
 
 OnnxExecutionProvider = Literal["cpu", "cuda"]
+_TEXTOP_ONNX_OBS_DIM = 431
 
 
 class OnnxPolicy:
@@ -62,6 +66,7 @@ class OnnxPolicy:
 
     def __call__(self, obs: TensorDict) -> torch.Tensor:
         actor_obs = cast(torch.Tensor, obs["actor"])
+        _validate_actor_obs(actor_obs)
         action_textop = (
             self._run_cuda(actor_obs)
             if self.execution_provider == "cuda"
@@ -70,6 +75,7 @@ class OnnxPolicy:
         action_mjlab = action_textop.index_select(
             -1, self._joint_order_index(action_textop.device)
         )
+        _validate_action(action_mjlab)
 
         return action_mjlab
 
@@ -87,7 +93,7 @@ class OnnxPolicy:
             )
 
         obs = obs.detach().to(dtype=torch.float32).contiguous()
-        output_shape = (int(obs.shape[0]), 29)
+        output_shape = (int(obs.shape[0]), G1_JOINT_COUNT)
         if self._output is None or self._output.shape != output_shape:
             self._output = torch.empty(
                 output_shape,
@@ -127,6 +133,30 @@ class OnnxPolicy:
             )
             self._textop_to_mjlab[device] = index
         return index
+
+
+def _validate_actor_obs(obs: torch.Tensor) -> None:
+    if obs.ndim != 2:
+        raise RuntimeError(
+            f"Expected batched ONNX obs shaped [N, {_TEXTOP_ONNX_OBS_DIM}], "
+            f"got {obs.shape}"
+        )
+    if obs.shape[-1] != _TEXTOP_ONNX_OBS_DIM:
+        raise RuntimeError(
+            f"Expected ONNX obs dim {_TEXTOP_ONNX_OBS_DIM}, got {obs.shape[-1]}"
+        )
+
+
+def _validate_action(action: torch.Tensor) -> None:
+    if action.ndim != 2:
+        raise RuntimeError(
+            f"Expected batched ONNX action shaped [N, {G1_JOINT_COUNT}], "
+            f"got {action.shape}"
+        )
+    if action.shape[-1] != G1_JOINT_COUNT:
+        raise RuntimeError(
+            f"Expected ONNX action dim {G1_JOINT_COUNT}, got {action.shape[-1]}"
+        )
 
 
 class OnnxPolicyRunner:
