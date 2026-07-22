@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import socket
 import time
+from collections import OrderedDict
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -19,6 +20,7 @@ from mjlab_textop.core.schema import TEXTOP_FPS
 PROMPT_DIR = Path(__file__).resolve().parents[3] / "prompt"
 DEFAULT_VLM_SYSTEM_PROMPT_FILE = PROMPT_DIR / "SYSTEM.md"
 DEFAULT_VLM_USER_PROMPT_FILE = PROMPT_DIR / "USER.md"
+_TEXT_EMBEDDING_CACHE_SIZE = 16
 
 
 class PromptController(Protocol):
@@ -75,6 +77,11 @@ class RobotMdarGenerator:
     history_len: int
     future_len: int
     abs_pose: Any
+    _text_embeddings: OrderedDict[str, Any] = field(
+        default_factory=OrderedDict,
+        init=False,
+        repr=False,
+    )
 
     def next_block(
         self,
@@ -86,14 +93,13 @@ class RobotMdarGenerator:
     ) -> MotionBlock:
         future_motion, motion_dict, self.abs_pose = generate_motion_block(
             runtime=self.runtime,
-            clip_model=self.clip_model,
             vae=self.vae,
             cfg_denoiser=self.cfg_denoiser,
             diffusion=self.diffusion,
             val_data=self.val_data,
             history_motion=self.history_motion,
             abs_pose=self.abs_pose,
-            prompt=prompt,
+            text_embedding=self._text_embedding(prompt),
             future_len=self.future_len,
             guidance_scale=guidance_scale,
         )
@@ -104,6 +110,23 @@ class RobotMdarGenerator:
             prompt=prompt,
             recovery_epoch=recovery_epoch,
         )
+
+    def _text_embedding(self, prompt: str) -> Any:
+        try:
+            cached = self._text_embeddings[prompt]
+        except KeyError:
+            pass
+        else:
+            self._text_embeddings.move_to_end(prompt)
+            return cached
+
+        with self.runtime.torch.no_grad():
+            embedding = self.runtime.encode_text(self.clip_model, [prompt]).float()
+
+        if len(self._text_embeddings) >= _TEXT_EMBEDDING_CACHE_SIZE:
+            self._text_embeddings.popitem(last=False)
+        self._text_embeddings[prompt] = embedding
+        return embedding
 
 
 @dataclass(frozen=True)
@@ -209,19 +232,17 @@ def make_robotmdar_generator(
 def generate_motion_block(
     *,
     runtime: RobotMdarRuntime,
-    clip_model: Any,
     vae: Any,
     cfg_denoiser: Any,
     diffusion: Any,
     val_data: Any,
     history_motion: Any,
     abs_pose: Any,
-    prompt: str,
+    text_embedding: Any,
     future_len: int,
     guidance_scale: float,
 ) -> tuple[Any, Any, Any]:
     with runtime.torch.no_grad():
-        text_embedding = runtime.encode_text(clip_model, [prompt]).float()
         return runtime.generate_next_motion(
             vae=vae,
             denoiser=cfg_denoiser,
