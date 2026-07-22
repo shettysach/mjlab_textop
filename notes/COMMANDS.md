@@ -32,7 +32,6 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --planner vlm \
   --prompt "stand" \
   --observation-listen-port 8766 \
-  --query-every-blocks 4 \
   --vlm-base-url http://127.0.0.1:9379 \
   --vlm-model gemma-4-E4B-it \
   --vlm-system-prompt ./sys.md \
@@ -40,14 +39,11 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --vlm-max-tokens 320
 ```
 
-The important changes are:
-
-```text
---query-every-blocks 20  →  4
---vlm-max-tokens 1024    →  320
-```
-
-The server reserves up to 256 of those tokens for reasoning, leaving room for the final command.
+The producer only queries when a new image is available and coalesces images
+that arrive while a request is in flight. The `play-live`
+`--observation.every-frames` option controls the maximum query rate. The server
+reserves up to 256 of the 320 completion tokens for reasoning, leaving room for
+the final command.
 
 ### 3. `play-live`
 
@@ -64,24 +60,14 @@ uv run --extra cu128 mjlab-textop play-live \
 
 ### More conservative VLM cadence
 
-Use this only if querying every four blocks noticeably slows the overall system:
+If VLM inference noticeably slows the shared GPU, publish images less often:
 
 ```bash
-uv run python -m mjlab_textop.robotmdar.produce \
-  --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
-  --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/PRIVATE-DATA/ \
-  --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1 \
-  --planner vlm \
-  --prompt "stand" \
-  --observation-listen-port 8766 \
-  --query-every-blocks 8 \
-  --vlm-base-url http://127.0.0.1:9379 \
-  --vlm-model gemma-4-E4B-it \
-  --vlm-system-prompt ./sys.md \
-  --vlm-user-prompt ./user.md \
-  --vlm-max-tokens 320
+uv run --extra cu128 mjlab-textop play-live \
+  --onnx-file "$ONNX_PATH" \
+  --task straight \
+  observation:observation-params \
+  --observation.every-frames 40
 ```
-
-Start with **four blocks**. Switch to **eight** only if requests overlap or the VLM cannot keep up.
 
 [1]: https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md?utm_source=chatgpt.com "llama.cpp/tools/server/README.md at master · ggml-org ..."

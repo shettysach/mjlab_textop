@@ -33,18 +33,12 @@ class VlmPromptPlanner:
         feedback: ObservationProvider,
         selector: "OpenAIChatPromptSelector",
         initial_prompt: str,
-        query_every_blocks: int,
         command_hold_blocks: int = 1,
     ) -> None:
-        if query_every_blocks <= 0:
-            raise ValueError(
-                f"query_every_blocks must be positive, got {query_every_blocks}"
-            )
         self.feedback = feedback
         self.selector = selector
         self.current_prompt = initial_prompt
         self.current_prompt_source = "initial"
-        self.query_every_blocks = query_every_blocks
         self.last_error: str | None = None
         self._pending_reasoning: str | None = None
         self._stop = False
@@ -55,6 +49,7 @@ class VlmPromptPlanner:
         self._recovery_epoch = 0
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._last_query_block: int | None = None
+        self._last_query_image_revision: int | None = None
         self._sequencer = CommandSequencer(
             initial_prompt, hold_blocks=command_hold_blocks
         )
@@ -77,6 +72,10 @@ class VlmPromptPlanner:
         suffix = f" vlm_state={state}"
         if self._last_query_block is not None:
             suffix += f" vlm_last_query_block={self._last_query_block}"
+        if self._last_query_image_revision is not None:
+            suffix += (
+                f" vlm_last_query_image_revision={self._last_query_image_revision}"
+            )
         if self.last_error is not None:
             suffix += f" vlm_last_error={self.last_error!r}"
         return suffix
@@ -101,7 +100,6 @@ class VlmPromptPlanner:
         if self._collision_recovery:
             self._collision_recovery = False
             self._sequencer.release()
-            self._last_query_block = None
 
         if self._collect_finished_request():
             command = self._sequencer.activate(
@@ -122,15 +120,15 @@ class VlmPromptPlanner:
             or self._future is not None
             or self._collision_recovery
             or self._sequencer.busy
-            or not self._should_query_selector(block_count)
         ):
             return
 
         observation = self.feedback.latest()
-        if observation is None or observation.collision_stop:
+        if observation is None or not self._is_unqueried_image(observation):
             return
 
         self._last_query_block = block_count
+        self._last_query_image_revision = observation.image_revision
         self._future_epoch = self._selection_epoch
         self._future = self._executor.submit(
             self.selector.choose_prompt_with_debug,
@@ -177,10 +175,16 @@ class VlmPromptPlanner:
             self._future_epoch = None
         return received_command
 
-    def _should_query_selector(self, block_count: int) -> bool:
-        if self._last_query_block is None:
+    def _is_unqueried_image(self, observation: FeedbackObservation) -> bool:
+        if (
+            observation.collision_stop
+            or observation.image_bytes is None
+            or observation.image_mime_type is None
+        ):
+            return False
+        if self._last_query_image_revision is None:
             return True
-        return block_count - self._last_query_block >= self.query_every_blocks
+        return observation.image_revision > self._last_query_image_revision
 
 
 class OpenAIChatPromptSelector:

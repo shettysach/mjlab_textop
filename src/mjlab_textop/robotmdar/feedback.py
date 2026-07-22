@@ -13,6 +13,7 @@ from typing import Any
 class FeedbackObservation:
     image_bytes: bytes | None = None
     image_mime_type: str | None = None
+    image_revision: int = 0
     collision_stop: bool = False
     recovery_epoch: int = 0
 
@@ -141,13 +142,17 @@ def merge_feedback_message(
     image = message.get("image") if "image" in message else None
     image_bytes = previous.image_bytes
     image_mime_type = previous.image_mime_type
+    image_revision = previous.image_revision
     if "image" in message:
         image_bytes = None if image is None else image["data"]
         image_mime_type = None if image is None else image["mime_type"]
+        if image is not None:
+            image_revision += 1
 
     return FeedbackObservation(
         image_bytes=image_bytes,
         image_mime_type=image_mime_type,
+        image_revision=image_revision,
         collision_stop=message.get("collision_stop", previous.collision_stop),
         recovery_epoch=message.get("recovery_epoch", previous.recovery_epoch),
     )

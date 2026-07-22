@@ -95,10 +95,15 @@ class _BlockingSelector:
         self.started = threading.Event()
         self.release = threading.Event()
         self.finished = threading.Event()
+        self.image_revisions: list[int] = []
 
-    def choose_prompt_with_debug(self, **kwargs) -> VlmPromptSelection:
-        del kwargs
+    def choose_prompt_with_debug(
+        self,
+        *,
+        observation: FeedbackObservation,
+    ) -> VlmPromptSelection:
         self.calls += 1
+        self.image_revisions.append(observation.image_revision)
         self.started.set()
         self.release.wait(timeout=1)
         self.finished.set()
@@ -125,14 +130,16 @@ def _choose_and_mark_block_sent(
 
 def _observation(
     *,
-    image_bytes: bytes | None = None,
-    image_mime_type: str | None = None,
+    image_bytes: bytes | None = b"jpeg bytes",
+    image_mime_type: str | None = "image/jpeg",
+    image_revision: int = 1,
     collision_stop: bool = False,
     recovery_epoch: int = 0,
 ) -> FeedbackObservation:
     return FeedbackObservation(
         image_bytes=image_bytes,
         image_mime_type=image_mime_type,
+        image_revision=image_revision,
         collision_stop=collision_stop,
         recovery_epoch=recovery_epoch,
     )
@@ -154,6 +161,7 @@ def test_parse_feedback_observation() -> None:
 
     assert observation.image_bytes == b"jpeg bytes"
     assert observation.image_mime_type == "image/jpeg"
+    assert observation.image_revision == 1
     assert observation.collision_stop is False
 
 
@@ -163,6 +171,7 @@ def test_parse_collision_feedback_without_image() -> None:
     )
 
     assert observation.image_bytes is None
+    assert observation.image_revision == 0
     assert observation.collision_stop is True
     assert observation.recovery_epoch == 7
 
@@ -176,6 +185,7 @@ def test_observation_receiver_merges_images_without_clearing_collision() -> None
     observation = receiver.latest()
     assert observation is not None
     assert observation.image_bytes == b"jpeg"
+    assert observation.image_revision == 1
     assert observation.collision_stop is True
     assert observation.recovery_epoch == 7
 
@@ -184,8 +194,15 @@ def test_observation_receiver_merges_images_without_clearing_collision() -> None
     observation = receiver.latest()
     assert observation is not None
     assert observation.image_bytes == b"jpeg"
+    assert observation.image_revision == 1
     assert observation.collision_stop is False
     assert observation.recovery_epoch == 7
+
+    receiver.handle_post(b'{"image":{"mime_type":"image/jpeg","data":"anBlZw=="}}')
+
+    observation = receiver.latest()
+    assert observation is not None
+    assert observation.image_revision == 2
 
 
 def test_manual_prompt_planner_uses_current_prompt_without_starting_thread() -> None:
@@ -235,14 +252,13 @@ def test_command_followups_match_direction_words_only() -> None:
     assert command_followups("leftover motion") == []
 
 
-def test_vlm_planner_queries_selector_on_cadence() -> None:
+def test_vlm_planner_queries_each_image_once() -> None:
     provider = _FakeObservationProvider(_observation())
     selector = _FixedSelector("turn left")
     planner = VlmPromptPlanner(
         feedback=provider,
         selector=selector,
         initial_prompt="walk forward",
-        query_every_blocks=2,
     )
 
     planner.start()
@@ -257,6 +273,10 @@ def test_vlm_planner_queries_selector_on_cadence() -> None:
     assert planner.current_prompt_source == "followup"
     assert selector.calls == 1
     assert _choose_and_mark_block_sent(planner, 3) == "stand"
+
+    assert selector.calls == 1
+    provider.observation = _observation(image_revision=2)
+    assert _choose_and_mark_block_sent(planner, 4) == "stand"
     _wait_for(lambda: selector.calls == 2)
 
     planner.request_stop()
@@ -273,7 +293,6 @@ def test_vlm_planner_forces_stand_until_collision_recovery_clears() -> None:
         feedback=provider,
         selector=selector,
         initial_prompt="walk forward",
-        query_every_blocks=1,
     )
 
     assert _choose_and_mark_block_sent(planner, 0) == "stand"
@@ -282,7 +301,7 @@ def test_vlm_planner_forces_stand_until_collision_recovery_clears() -> None:
     assert _choose_and_mark_block_sent(planner, 1) == "stand"
     assert selector.calls == 0
 
-    provider.observation = _observation(collision_stop=False)
+    provider.observation = _observation(image_revision=2, collision_stop=False)
 
     assert _choose_and_mark_block_sent(planner, 2) == "stand"
     assert selector.finished.wait(timeout=1)
@@ -298,7 +317,6 @@ def test_vlm_planner_locally_schedules_stand_after_lateral_command() -> None:
         feedback=provider,
         selector=selector,
         initial_prompt="walk forward",
-        query_every_blocks=1,
         command_hold_blocks=3,
     )
 
@@ -319,6 +337,7 @@ def test_vlm_planner_locally_schedules_stand_after_lateral_command() -> None:
     assert _choose_and_mark_block_sent(planner, 6) == "stand"
     assert selector.calls == 1
 
+    provider.observation = _observation(image_revision=2)
     assert _choose_and_mark_block_sent(planner, 7) == "stand"
     _wait_for(lambda: selector.calls == 2)
 
@@ -332,7 +351,6 @@ def test_vlm_planner_does_not_block_while_selector_runs() -> None:
         feedback=provider,
         selector=selector,
         initial_prompt="walk forward",
-        query_every_blocks=10,
     )
 
     assert planner.choose_prompt(block_count=0) == "walk forward"
@@ -341,14 +359,66 @@ def test_vlm_planner_does_not_block_while_selector_runs() -> None:
     planner.on_block_sent(block_count=0)
 
     assert selector.started.wait(timeout=1)
-    assert planner.log_suffix == " vlm_state=inflight vlm_last_query_block=0"
+    assert planner.log_suffix == (
+        " vlm_state=inflight vlm_last_query_block=0 vlm_last_query_image_revision=1"
+    )
     assert _choose_and_mark_block_sent(planner, 1) == "walk forward"
     assert selector.calls == 1
 
     selector.release.set()
     assert selector.finished.wait(timeout=1)
     assert _choose_and_mark_block_sent(planner, 2) == "turn right"
-    assert planner.log_suffix == " vlm_state=idle vlm_last_query_block=0"
+    assert planner.log_suffix == (
+        " vlm_state=idle vlm_last_query_block=0 vlm_last_query_image_revision=1"
+    )
+
+    planner.request_stop()
+
+
+def test_vlm_planner_coalesces_images_while_request_is_inflight() -> None:
+    provider = _FakeObservationProvider(_observation(image_revision=1))
+    selector = _BlockingSelector("turn right")
+    planner = VlmPromptPlanner(
+        feedback=provider,
+        selector=selector,
+        initial_prompt="walk forward",
+    )
+
+    assert _choose_and_mark_block_sent(planner, 0) == "walk forward"
+    assert selector.started.wait(timeout=1)
+
+    provider.observation = _observation(image_revision=2)
+    assert _choose_and_mark_block_sent(planner, 1) == "walk forward"
+    provider.observation = _observation(image_revision=3)
+
+    selector.release.set()
+    assert selector.finished.wait(timeout=1)
+    assert _choose_and_mark_block_sent(planner, 2) == "turn right"
+    assert _choose_and_mark_block_sent(planner, 3) == "stand"
+    assert _choose_and_mark_block_sent(planner, 4) == "stand"
+    _wait_for(lambda: selector.calls == 2)
+
+    assert selector.image_revisions == [1, 3]
+    planner.request_stop()
+
+
+def test_vlm_planner_ignores_observations_without_images() -> None:
+    provider = _FakeObservationProvider(
+        _observation(
+            image_bytes=None,
+            image_mime_type=None,
+            image_revision=0,
+        )
+    )
+    selector = _FixedSelector("turn right")
+    planner = VlmPromptPlanner(
+        feedback=provider,
+        selector=selector,
+        initial_prompt="walk forward",
+    )
+
+    assert _choose_and_mark_block_sent(planner, 0) == "walk forward"
+    assert selector.calls == 0
 
     planner.request_stop()
 
@@ -360,7 +430,6 @@ def test_vlm_planner_keeps_current_prompt_on_selector_errors() -> None:
         feedback=provider,
         selector=selector,
         initial_prompt="walk forward",
-        query_every_blocks=3,
     )
 
     assert _choose_and_mark_block_sent(planner, 0) == "walk forward"
@@ -370,8 +439,9 @@ def test_vlm_planner_keeps_current_prompt_on_selector_errors() -> None:
     assert planner.last_error == "TimeoutError: vlm timed out"
     assert planner.current_prompt_source == "initial"
     assert (
-        planner.log_suffix
-        == " vlm_state=idle vlm_last_query_block=0 vlm_last_error='TimeoutError: vlm timed out'"
+        planner.log_suffix == " vlm_state=idle vlm_last_query_block=0"
+        " vlm_last_query_image_revision=1"
+        " vlm_last_error='TimeoutError: vlm timed out'"
     )
 
     planner.request_stop()
@@ -384,7 +454,6 @@ def test_vlm_planner_keeps_last_good_prompt_on_empty_selector_result() -> None:
         feedback=provider,
         selector=selector,
         initial_prompt="walk forward",
-        query_every_blocks=2,
     )
 
     assert _choose_and_mark_block_sent(planner, 0) == "walk forward"
@@ -392,7 +461,9 @@ def test_vlm_planner_keeps_last_good_prompt_on_empty_selector_result() -> None:
     assert _choose_and_mark_block_sent(planner, 1) == "   "
     assert planner.last_error is None
     assert planner.current_prompt_source == "vlm"
-    assert planner.log_suffix == " vlm_state=idle vlm_last_query_block=0"
+    assert planner.log_suffix == (
+        " vlm_state=idle vlm_last_query_block=0 vlm_last_query_image_revision=1"
+    )
 
     planner.request_stop()
 
@@ -404,7 +475,6 @@ def test_vlm_planner_recovers_after_empty_selector_result() -> None:
         feedback=provider,
         selector=selector,
         initial_prompt="stand",
-        query_every_blocks=1,
     )
 
     assert _choose_and_mark_block_sent(planner, 0) == "stand"
@@ -413,6 +483,7 @@ def test_vlm_planner_recovers_after_empty_selector_result() -> None:
 
     selector.prompt = " wave "
     selector.finished.clear()
+    provider.observation = _observation(image_revision=2)
     assert _choose_and_mark_block_sent(planner, 2) == "   "
     assert selector.finished.wait(timeout=1)
     assert _choose_and_mark_block_sent(planner, 3) == " wave "
@@ -431,7 +502,6 @@ def test_producer_log_prints_vlm_reasoning_once_when_enabled(monkeypatch) -> Non
             reasoning="The robot is stable, so waving is feasible.",
         ),
         initial_prompt="stand",
-        query_every_blocks=1,
     )
 
     monkeypatch.setattr(produce, "_log_producer_message", messages.append)
@@ -481,7 +551,9 @@ def test_stream_submits_planner_work_after_generation_and_send(monkeypatch) -> N
         "mjlab_textop.robotmdar.runtime.textop_block_to_ndjson_message",
         lambda _block: "block\n",
     )
-    monkeypatch.setattr("mjlab_textop.robotmdar.runtime.time.sleep", lambda _delay: None)
+    monkeypatch.setattr(
+        "mjlab_textop.robotmdar.runtime.time.sleep", lambda _delay: None
+    )
 
     stream_robotmdar_blocks(
         conn=Connection(),
@@ -506,7 +578,6 @@ def test_producer_log_includes_vlm_prompt_source(monkeypatch) -> None:
         feedback=_FakeObservationProvider(_observation()),
         selector=_FixedSelector("wave"),
         initial_prompt="stand",
-        query_every_blocks=1,
     )
 
     monkeypatch.setattr(produce, "_log_producer_message", messages.append)
@@ -580,7 +651,11 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     )
 
     prompt = selector.choose_prompt(
-        observation=_observation(),
+        observation=_observation(
+            image_bytes=None,
+            image_mime_type=None,
+            image_revision=0,
+        ),
     )
 
     assert prompt == "wave"
@@ -811,7 +886,6 @@ def test_make_prompt_planner_reads_vlm_prompt_files(tmp_path) -> None:
             vlm_timeout_sec=1.0,
             vlm_max_tokens=128,
             vlm_history=True,
-            query_every_blocks=4,
             command_hold_blocks=4,
         )
     )

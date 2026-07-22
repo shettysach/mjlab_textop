@@ -192,8 +192,19 @@ uvx litert-lm serve --host 127.0.0.1 --port 9379
 ```
 
 Then have the producer listen for MJLab HTTP observations and point it at that
-server. The producer queries the VLM on a fixed block cadence and keeps the
-last selected prompt between queries. The default VLM prompts are read from
+server. The first VLM query starts after the initial motion block has been sent.
+After that, the producer queries only when a new image is available and never
+queries the same image twice. Only one request is in flight at a time; images
+that arrive during inference are coalesced so the next request uses the newest
+one. Collision-only observations do not trigger a query. The producer keeps the
+last selected prompt between queries.
+
+The `play-live` publisher owns the image cadence. Control the maximum query rate
+with `--observation.every-frames`; for example, a value of `20` at the 50 Hz
+reference rate sends at most 2.5 images per second. There is no separate
+producer-side every-N-blocks query setting.
+
+The default VLM prompts are read from
 [`prompt/SYSTEM.md`](prompt/SYSTEM.md) and [`prompt/USER.md`](prompt/USER.md).
 Override them with `--vlm-system-prompt` and `--vlm-user-prompt` file paths
 if needed. Add `--vlm-history` to send previous VLM-selected prompts back to
@@ -208,26 +219,9 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --planner vlm \
   --prompt "walk" \
   --observation-listen-port 8766 \
-  --query-every-blocks 4 \
   --vlm-base-url http://127.0.0.1:9379 \
-  --vlm-model gemma-4-e2b-it
-```
-
-To keep manual prompt control while asking the VLM to describe the robot and
-scene observations, use `--planner describe`. This mode logs VLM descriptions
-but still uses the manual stdin prompt for motion generation:
-
-```bash
-uv run python -m mjlab_textop.robotmdar.produce \
-  --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
-  --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/PRIVATE-DATA \
-  --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1 \
-  --planner describe \
-  --prompt "stand" \
-  --observation-listen-port 8766 \
-  --query-every-blocks 4 \
-  --vlm-base-url http://127.0.0.1:9379 \
-  --vlm-model gemma-4-e2b-it
+  --vlm-model gemma-4-E4B-it \
+  --vlm-max-tokens 320
 ```
 
 ```bash
@@ -239,8 +233,8 @@ uv run --extra cu128 mjlab-textop play-live \
   observation:observation-params \
   --observation.url http://127.0.0.1:8766/observation \
   --observation.every-frames 20 \
-  --observation.image-width 640 \
-  --observation.image-height 480
+  --observation.image-width 320 \
+  --observation.image-height 240
 ```
 
 To run the same live source with TextOp's released `latest.onnx` policy:
@@ -256,17 +250,17 @@ uv run --extra cu128 mjlab-textop play-live \
   observation:observation-params \
   --observation.url http://127.0.0.1:8766/observation \
   --observation.every-frames 20 \
-  --observation.image-width 640 \
-  --observation.image-height 480
+  --observation.image-width 320 \
+  --observation.image-height 240
 ```
 
 The live producer sends 50 Hz-indexed motion chunks. MJLab consumes them at the
 online command rate, clamps stale future frames during underruns, and reports
 online buffer/source diagnostics through command metrics.
 
-MJLab observations are HTTP JSON posts containing the TextOp frame, buffer
-status, stale-step counters, tracked robot anchor pose, and base64 JPEG render
-bytes in the same request.
+MJLab observations are HTTP JSON posts containing a base64 JPEG render. Safety
+updates may also include collision-stop state and a recovery epoch without an
+image; these updates do not cause a VLM query.
 
 The ONNX path uses the online source and the ONNX actor directly, without a
 `.pt` checkpoint.
@@ -294,8 +288,8 @@ uv run --extra cu128 mjlab-textop play-live \
   observation:observation-params \
   --observation.url http://127.0.0.1:8766/observation \
   --observation.every-frames 20 \
-  --observation.image-width 640 \
-  --observation.image-height 480 \
+  --observation.image-width 320 \
+  --observation.image-height 240
 ```
 
 This demo uses the `Mjlab-VLA-Straight-G1` task. The environment owns the
@@ -314,16 +308,15 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --planner vlm \
   --prompt "stand" \
   --observation-listen-port 8766 \
-  --query-every-blocks 4 \
   --vlm-base-url http://127.0.0.1:9379 \
-  --vlm-model gemma-4-E4B-it-Q4_K_M.gguf \
+  --vlm-model gemma-4-E4B-it \
   --vlm-system-prompt ./sys.md \
   --vlm-user-prompt ./user.md
 ```
 
 > [!NOTE]
-> ONNX policy inference uses the ONNX Runtime provider selected by `--device`
-> (`CPUExecutionProvider` for `cpu`, `CUDAExecutionProvider` for `cuda:*`).
-> CPU inference copies through NumPy. CUDA inference uses strict ONNX Runtime
-> I/O binding: actor observations must already be float32, contiguous, detached
-> CUDA tensors on the same device as `--device`.
+> ONNX policy inference uses the ONNX Runtime provider selected by
+> `--onnx-provider`. CPU inference copies through NumPy. The `cuda` provider
+> requires a CUDA `--device` and uses strict ONNX Runtime I/O binding: actor
+> observations must already be float32, contiguous, detached CUDA tensors on
+> the same device as `--device`.

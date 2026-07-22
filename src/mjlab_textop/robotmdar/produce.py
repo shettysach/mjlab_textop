@@ -82,7 +82,6 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print VLM reasoning when the server returns it.",
     )
-    parser.add_argument("--query-every-blocks", type=int, default=20)
     parser.add_argument(
         "--command-hold-blocks",
         type=int,
@@ -90,10 +89,6 @@ def parse_args() -> argparse.Namespace:
         help="Generate each received command before activating a queued follow-up.",
     )
     args = parser.parse_args()
-    if args.planner == "vlm" and args.query_every_blocks <= 0:
-        raise ValueError(
-            f"--query-every-blocks must be positive, got {args.query_every_blocks}"
-        )
     if args.command_hold_blocks <= 0:
         raise ValueError(
             f"--command-hold-blocks must be positive, got {args.command_hold_blocks}"
@@ -155,7 +150,6 @@ def make_prompt_planner(
             feedback=receiver,
             selector=selector,
             initial_prompt=args.prompt,
-            query_every_blocks=args.query_every_blocks,
             command_hold_blocks=args.command_hold_blocks,
         )
     return ManualPromptPlanner(
