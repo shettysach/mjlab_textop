@@ -12,7 +12,9 @@ def differentiate_positions(positions_w: torch.Tensor, *, dt: float) -> torch.Te
     return torch.gradient(positions_w, spacing=dt, dim=0)[0]
 
 
-def differentiate_quaternions(quaternions_w: torch.Tensor, *, dt: float) -> torch.Tensor:
+def differentiate_quaternions(
+    quaternions_w: torch.Tensor, *, dt: float
+) -> torch.Tensor:
     """Differentiate a world-frame wxyz quaternion sequence into angular velocity."""
     _validate_sequence(quaternions_w, width=4, dt=dt)
     frame_count = quaternions_w.shape[0]
@@ -31,9 +33,9 @@ def differentiate_quaternions(quaternions_w: torch.Tensor, *, dt: float) -> torc
         quat_box_minus(quaternions_w[-1:], quaternions_w[-2:-1])[0] / dt
     )
     if frame_count > 2:
-        angular_velocity_w[1:-1] = (
-            quat_box_minus(quaternions_w[2:], quaternions_w[:-2]) / (2.0 * dt)
-        )
+        angular_velocity_w[1:-1] = quat_box_minus(
+            quaternions_w[2:], quaternions_w[:-2]
+        ) / (2.0 * dt)
     return angular_velocity_w
 
 

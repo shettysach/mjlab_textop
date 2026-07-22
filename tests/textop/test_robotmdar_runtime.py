@@ -31,9 +31,7 @@ class _FakeRobotMdarRuntime:
         motion_dict = {
             "dof_pos": torch.zeros((1, 1, 23), dtype=torch.float32),
             "dof_vel": torch.zeros((1, 1, 23), dtype=torch.float32),
-            "root_rot": torch.tensor(
-                [[[0.0, 0.0, 0.0, 1.0]]], dtype=torch.float32
-            ),
+            "root_rot": torch.tensor([[[0.0, 0.0, 0.0, 1.0]]], dtype=torch.float32),
             "root_trans_offset": torch.zeros((1, 1, 3), dtype=torch.float32),
         }
         return future_motion, motion_dict, SimpleNamespace()

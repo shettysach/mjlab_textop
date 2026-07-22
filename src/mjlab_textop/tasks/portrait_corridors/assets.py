@@ -12,8 +12,8 @@ if TYPE_CHECKING:
     from mujoco import MjSpec  # ty: ignore[unresolved-import]
 
 MJGEOM_MESH = mujoco.mjtGeom.mjGEOM_MESH  # ty: ignore[unresolved-attribute]
-MJMESH_INERTIA_SHELL = (  # ty: ignore[unresolved-attribute]
-    mujoco.mjtMeshInertia.mjMESH_INERTIA_SHELL
+MJMESH_INERTIA_SHELL = (
+    mujoco.mjtMeshInertia.mjMESH_INERTIA_SHELL  # ty: ignore[unresolved-attribute]
 )
 MJTEXTURE_2D = mujoco.mjtTexture.mjTEXTURE_2D  # ty: ignore[unresolved-attribute]
 

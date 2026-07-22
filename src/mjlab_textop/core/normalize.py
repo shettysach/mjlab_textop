@@ -120,9 +120,7 @@ def normalize(
     return output_motion_file
 
 
-def _append_frame(
-    log: dict[str, list[np.ndarray]], robot: Entity
-) -> None:
+def _append_frame(log: dict[str, list[np.ndarray]], robot: Entity) -> None:
     log["joint_pos"].append(robot.data.joint_pos[0, :].cpu().numpy().copy())
     log["joint_vel"].append(robot.data.joint_vel[0, :].cpu().numpy().copy())
     log["body_pos_w"].append(robot.data.body_link_pos_w[0, :].cpu().numpy().copy())

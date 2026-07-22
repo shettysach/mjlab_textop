@@ -199,9 +199,7 @@ def test_robotmdar_record_preserves_textop_joint_order(tmp_path) -> None:
                     joint_pos=textop_joint_pos,
                     joint_vel=textop_joint_pos + 100.0,
                     anchor_pos_w=np.zeros((1, 3), dtype=np.float32),
-                    anchor_quat_w=np.array(
-                        [[1.0, 0.0, 0.0, 0.0]], dtype=np.float32
-                    ),
+                    anchor_quat_w=np.array([[1.0, 0.0, 0.0, 0.0]], dtype=np.float32),
                 ),
             )
         ],
@@ -230,9 +228,7 @@ def test_normalize_does_not_double_reindex_joints(tmp_path, monkeypatch) -> None
                     joint_pos=textop_joint_pos,
                     joint_vel=textop_joint_vel,
                     anchor_pos_w=np.array([[0.0, 0.0, 1.0]], dtype=np.float32),
-                    anchor_quat_w=np.array(
-                        [[1.0, 0.0, 0.0, 0.0]], dtype=np.float32
-                    ),
+                    anchor_quat_w=np.array([[1.0, 0.0, 0.0, 0.0]], dtype=np.float32),
                 ),
             )
         ],

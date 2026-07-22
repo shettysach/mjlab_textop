@@ -96,9 +96,7 @@ class RollingMotionBuffer:
                 del self._frames[index]
 
     def can_start(self, frame: int, future_steps: int) -> bool:
-        return all(
-            (frame + offset) in self._frames for offset in range(future_steps)
-        )
+        return all((frame + offset) in self._frames for offset in range(future_steps))
 
     def earliest_start_frame(self, future_steps: int) -> int | None:
         if future_steps <= 0:
@@ -139,9 +137,7 @@ class RollingMotionBuffer:
             torch.stack([self._frames[idx].joint_pos for idx in frames], dim=0),
             torch.stack([self._frames[idx].joint_vel for idx in frames], dim=0),
             torch.stack([self._frames[idx].anchor_pos_w for idx in frames], dim=0),
-            torch.stack(
-                [self._frames[idx].anchor_quat_w for idx in frames], dim=0
-            ),
+            torch.stack([self._frames[idx].anchor_quat_w for idx in frames], dim=0),
             stale_steps,
         )
 

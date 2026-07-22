@@ -88,8 +88,9 @@ def _install_fake_onnxruntime(
     fake_ort = SimpleNamespace(
         InferenceSession=_FakeSession,
         SessionOptions=_FakeSessionOptions,
-        get_available_providers=lambda: available_providers
-        or ["CUDAExecutionProvider", "CPUExecutionProvider"],
+        get_available_providers=lambda: (
+            available_providers or ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        ),
     )
     monkeypatch.setattr(onnx_policy, "ort", fake_ort)
 
