@@ -1,43 +1,56 @@
 # MJLab TextOp
 
-## Dependencies
+MJLab TextOp connects TextOp/RobotMDAR motion generation to MJLab for motion
+normalization, policy training, offline replay, and live text-to-motion control.
 
-This package uses upstream MJLab pinned to the latest verified `main` commit.
-Dependency selection follows MJLab's upstream uv extras pattern:
+## Workflow
+
+| Stage | Environment | Command | Output |
+| --- | --- | --- | --- |
+| Record | TextOp/RobotMDAR | `python -m mjlab_textop.robotmdar.record` | Raw RobotMDAR NPZ |
+| Normalize | MJLab TextOp | `mjlab-textop normalize` | MJLab train-ready NPZ |
+| Train | MJLab TextOp | `train` | RSL-RL checkpoint |
+| Replay | MJLab TextOp | `play` or `mjlab-textop play-online` | Offline simulation |
+| Run live | Both environments | `robotmdar.produce` and `mjlab-textop play-live` | Live simulation |
+
+## Environments
+
+The project uses two Python environments:
+
+- The MJLab TextOp environment handles normalization, training, replay, and
+  simulation.
+- The TextOp/RobotMDAR environment generates raw motion records and live motion
+  blocks.
+
+### MJLab TextOp dependencies
+
+MJLab is pinned in `pyproject.toml` to the latest verified upstream `main`
+commit. Select exactly one hardware extra when running MJLab commands:
 
 ```text
 cpu   -> mjlab + torch from pytorch-cpu
 cu128 -> mjlab + torch from pytorch-cu128
 ```
 
-Use exactly one extra at a time. For local CPU verification `pyproject.toml` declares the extras as conflicting, so uv rejects selecting
-both CPU and CUDA dependencies in the same environment.
+The extras are mutually exclusive, so `uv` rejects selecting CPU and CUDA
+dependencies together.
 
-The extras depend on plain `mjlab`, not `mjlab[cpu]` or `mjlab[cu128]`. This
-repo is the top-level uv project, so it owns the torch wheel selection through
-`tool.uv.sources`. Pulling MJLab's own extras transitively causes uv to merge
-CPU and CUDA torch indexes during lock resolution.
+Both extras depend on plain `mjlab`, rather than `mjlab[cpu]` or
+`mjlab[cu128]`. This repository is the top-level `uv` project and owns the
+Torch wheel selection through `tool.uv.sources`. Pulling MJLab's extras
+transitively would cause `uv` to merge CPU and CUDA Torch indexes during lock
+resolution.
 
----
+### TextOp/RobotMDAR environment
 
-## Commands
-
-### TextOpRobotMDAR
-
-#### `robotmdar-record`
-
-Generate a raw RobotMDAR reference record without starting an MJLab socket consumer. 
-Run this in the TextOp/RobotMDAR Python environment with this package on `PYTHONPATH`:
-
-##### TextOpRobotMDAR Setup
+Create this environment outside the `mjlab_textop` repository:
 
 ```bash
-cd .. # Don't clone within the mjlab_textop repo
+cd ..
 git clone --recurse-submodules https://github.com/TeleHuman/TextOp.git
 cd TextOp
 
 uv venv --python 3.10
-
 uv pip install torch
 uv pip install -e ./deps/isaac_utils
 uv pip install git+https://github.com/openai/CLIP.git
@@ -51,8 +64,33 @@ uvx hf download Yochish/TextOp-Data \
   --include 'TextOpRobotMDAR/description/**'
 ```
 
+RobotMDAR commands below run from this `TextOp` directory with the
+`mjlab_textop` package available on `PYTHONPATH`.
+
+### ONNX policy
+
+Download TextOp's released `latest.onnx` policy before using an
+`--onnx-file` option:
+
 ```bash
-# In TextOp directory
+uvx hf download Yochish/TextOp-Data \
+  TextOpTracker/logs/rsl_rl/Pretrained/checkpoints/latest.onnx \
+  --repo-type dataset \
+  --local-dir /tmp
+
+export ONNX_PATH=/tmp/TextOpTracker/logs/rsl_rl/Pretrained/checkpoints/latest.onnx
+```
+
+`--checkpoint-file` and `--onnx-file` are mutually exclusive.
+
+## Offline workflow
+
+### 1. Record raw RobotMDAR motion
+
+Generate a raw reference record without starting an MJLab socket consumer:
+
+```bash
+# Run from the TextOp directory.
 uv run python -m mjlab_textop.robotmdar.record \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
   --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/PRIVATE-DATA \
@@ -65,25 +103,23 @@ uv run python -m mjlab_textop.robotmdar.record \
 The raw record stores `joint_pos`, `joint_vel`, `anchor_pos_w`, and
 `anchor_quat_w`. Joint arrays remain in TextOp/IsaacLab G1 order.
 
-#### `normalize`
+### 2. Normalize the motion
 
-Convert a raw RobotMDAR record into the full MJLab train-ready NPZ. Run this in
-the MJLab environment:
+Convert the raw record into a complete MJLab train-ready NPZ:
 
 ```bash
+# Run from the mjlab_textop directory.
 uv run --extra cu128 mjlab-textop normalize \
   --input-motion-file /tmp/walk_forward.npz \
   --output-motion-file ./outputs/walk_forward.npz
 ```
 
-This command reindexes RobotMDAR raw joints from TextOp/IsaacLab order into
-MJLab order exactly once, uses the raw anchor trajectory as the robot root, runs
-MJLab forward kinematics, and saves full MJLab body position, orientation, and
-velocity arrays.
+Normalization reindexes the joints from TextOp/IsaacLab order into MJLab order
+exactly once, uses the raw anchor trajectory as the robot root, runs MJLab
+forward kinematics, and saves full MJLab body positions, orientations, and
+velocities.
 
-#### `train`
-
-Train the TextOp tracking task on the normalized motion using MJLab's `train` command: 
+### 3. Train a tracking policy
 
 ```bash
 uv run --extra cu128 train Mjlab-TextOp-Flat-Unitree-G1 \
@@ -95,12 +131,15 @@ uv run --extra cu128 train Mjlab-TextOp-Flat-Unitree-G1 \
   --env.commands.motion.anchor-body-name pelvis
 ```
 
+Checkpoints are written under
+`logs/rsl_rl/textop_tracking/<timestamp>_<run-name>/`. Set the checkpoint used
+by the replay commands:
+
 ```bash
-# Checkpoint saved to: logs/rsl_rl/textop_tracking/<timestamp>_robotmdar_walk_forward/model_<iteration>.pt
 export CHECKPOINT=logs/rsl_rl/textop_tracking/2026-06-25_00-20-00_robotmdar_walk_forward/model_5000.pt
 ```
 
-To finetune from a previous run:
+To fine-tune from an earlier run:
 
 ```bash
 uv run --extra cu128 train Mjlab-TextOp-Flat-Unitree-G1 \
@@ -115,107 +154,73 @@ uv run --extra cu128 train Mjlab-TextOp-Flat-Unitree-G1 \
   --env.commands.motion.anchor-body-name pelvis
 ```
 
-#### `play`
+### 4. Replay a checkpoint
 
-View a trained checkpoint using MJLab's `play` command: 
+Use MJLab's standard player:
 
 ```bash
 uv run --extra cu128 play Mjlab-TextOp-Flat-Unitree-G1 \
-  --checkpoint-file $CHECKPOINT \
+  --checkpoint-file "${CHECKPOINT}" \
   --motion-file ./outputs/walk_forward.npz
 ```
 
-#### `play-online`
-
-Replay the normalized motion through the online TextOp reference buffer:
+To exercise the online reference buffer with a recorded motion:
 
 ```bash
 uv run --extra cu128 mjlab-textop play-online \
-  --checkpoint-file $CHECKPOINT \
+  --checkpoint-file "${CHECKPOINT}" \
   --motion-file ./outputs/walk_forward.npz
 ```
 
-To replay with TextOp's released `latest.onnx` policy instead:
+The same replay can use the released ONNX policy:
 
 ```bash
 uv run --extra cu128 mjlab-textop play-online \
-  --onnx-file $ONNX_PATH \
+  --onnx-file "${ONNX_PATH}" \
   --motion-file ./outputs/walk_forward.npz
 ```
 
-ONNX inference remains CPU-backed by default for deployment stability. To run
-the actor on the MJLab CUDA device with direct GPU input/output binding, add
-`--onnx-provider cuda`:
+ONNX inference uses the CPU provider by default. To run the actor on the MJLab
+CUDA device with direct GPU input/output binding:
 
 ```bash
 uv run --extra cu128 mjlab-textop play-online \
-  --onnx-file $ONNX_PATH \
+  --onnx-file "${ONNX_PATH}" \
   --onnx-provider cuda \
   --motion-file ./outputs/walk_forward.npz
 ```
 
-#### ONNX Setup
+## Live workflow
 
-Use this setup before running a `play-*` command with `--onnx-file`:
+Live control uses a RobotMDAR producer and an MJLab consumer connected over
+localhost NDJSON. When VLM prompt selection is enabled, the producer also
+receives MJLab observations over HTTP and queries an OpenAI-compatible chat
+server.
+
+### 1. Start a chat server
+
+This component is only required for the VLM planner. With LiteRT-LM:
 
 ```bash
-uvx hf download Yochish/TextOp-Data \
-TextOpTracker/logs/rsl_rl/Pretrained/checkpoints/latest.onnx \
---repo-type dataset \
---local-dir /tmp
-
-$ONNX_PATH=/tmp/TextOpTracker/logs/rsl_rl/Pretrained/checkpoints/latest.onnx
+uvx litert-lm serve --host 127.0.0.1 --port 9379
 ```
 
-The `--checkpoint-file` and `--onnx-file` options are mutually exclusive.
+### 2. Start the RobotMDAR producer
 
-#### `play-live`
-
-Run a live text-to-motion demo over localhost NDJSON. 
-Start the RobotMDAR producer in the TextOp/RobotMDAR Python environment:
-
-Setup - [TextOpRobotMDAR Setup](#textoprobotmdar-setup)
+For the default planner:
 
 ```bash
-# In TextOp directory
+# Run from the TextOp directory.
 uv run python -m mjlab_textop.robotmdar.produce \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
   --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/PRIVATE-DATA \
   --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1
 ```
 
-For VLM prompt selection, run an OpenAI-compatible chat server separately. With
-LiteRT-LM, for example:
+For VLM prompt selection:
 
 ```bash
-uvx litert-lm serve --host 127.0.0.1 --port 9379
-```
-
-Then have the producer listen for MJLab HTTP observations and point it at that
-server. The first VLM query starts after the initial motion block has been sent.
-After that, the producer queries only when a new image is available and never
-queries the same image twice. Only one request is in flight at a time; images
-that arrive during inference are coalesced so the next request uses the newest
-one. Collision-only observations do not trigger a query. The producer keeps the
-last selected prompt between queries.
-
-The `play-live` publisher owns the image cadence. Control the maximum query rate
-with `--observation.every-frames`; for example, a value of `20` at the 50 Hz
-reference rate sends at most 2.5 images per second. There is no separate
-producer-side every-N-blocks query setting.
-
-The default VLM prompts are read from
-[`prompt/SYSTEM.md`](prompt/SYSTEM.md) and [`prompt/USER.md`](prompt/USER.md).
-Override them with `--vlm-system-prompt` and `--vlm-user-prompt` file paths
-if needed. `--vlm-history-length` bounds the number of user-image turns in each
-request, including the current turn. Its default of `5` sends four completed
-user-image/assistant pairs before the current user-image turn. Assistant
-reasoning is preserved in those pairs when the server returns it, as required
-by thinking models such as Gemma 4. Set the history length to `1` for stateless
-requests. `--vlm-reasoning` prints any reasoning field returned with a VLM
-response:
-
-```bash
+# Run from the TextOp directory.
 uv run python -m mjlab_textop.robotmdar.produce \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
   --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/PRIVATE-DATA \
@@ -228,10 +233,26 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --vlm-history-length 5
 ```
 
+The default VLM prompts come from
+[`prompt/SYSTEM.md`](prompt/SYSTEM.md) and
+[`prompt/USER.md`](prompt/USER.md). Override them with
+`--vlm-system-prompt` and `--vlm-user-prompt`.
+
+`--vlm-history-length` bounds the number of user-image turns in a request,
+including the current turn. Its default of `5` sends four completed
+user-image/assistant pairs before the current user-image turn. Use `1` for
+stateless requests. Assistant reasoning is preserved when the server returns
+it, as required by thinking models such as Gemma 4. Add `--vlm-reasoning` to
+print returned reasoning.
+
+### 3. Start the MJLab consumer
+
+Run with a trained checkpoint:
+
 ```bash
-# In mjlab_textop directory
+# Run from the mjlab_textop directory.
 uv run --extra cu128 mjlab-textop play-live \
-  --checkpoint-file $CHECKPOINT \
+  --checkpoint-file "${CHECKPOINT}" \
   --host 127.0.0.1 \
   --port 8765 \
   observation:observation-params \
@@ -241,13 +262,11 @@ uv run --extra cu128 mjlab-textop play-live \
   --observation.image-height 240
 ```
 
-To run the same live source with TextOp's released `latest.onnx` policy:
-
-Setup - [ONNX Setup](#onnx-setup)
+Or run with the released ONNX policy:
 
 ```bash
 uv run --extra cu128 mjlab-textop play-live \
-  --onnx-file $ONNX_PATH \
+  --onnx-file "${ONNX_PATH}" \
   --onnx-provider cuda \
   --host 127.0.0.1 \
   --port 8765 \
@@ -258,34 +277,54 @@ uv run --extra cu128 mjlab-textop play-live \
   --observation.image-height 240
 ```
 
-The live producer sends 50 Hz-indexed motion chunks. MJLab consumes them at the
-online command rate, clamps stale future frames during underruns, and reports
-online buffer/source diagnostics through command metrics.
+Live observations are disabled by default. The
+`observation:observation-params` subcommand enables the HTTP observation
+publisher.
+
+### Live scheduling and feedback
+
+The producer sends motion chunks indexed at 50 Hz. MJLab consumes them at the
+online command rate, clamps stale future frames during underruns, and exposes
+buffer and source diagnostics through command metrics.
+
+The first VLM query starts after the initial motion block is sent. Later queries
+run only when a new image is available, and the same image is never queried
+twice. Only one request can be in flight; images arriving during inference are
+coalesced so the next request uses the newest one. The last selected prompt
+remains active between queries.
+
+The `play-live` publisher controls the image cadence with
+`--observation.every-frames`. A value of `20` at the 50 Hz reference rate
+sends at most 2.5 images per second. There is no separate producer-side
+every-N-blocks query option.
 
 MJLab observations are HTTP JSON posts containing a base64 JPEG render. Safety
-updates may also include collision-stop state and a recovery epoch without an
-image; these updates do not cause a VLM query.
+updates can carry collision-stop state and a recovery epoch without an image.
+Collision-only observations do not trigger VLM queries.
 
-The ONNX path uses the online source and the ONNX actor directly, without a
-`.pt` checkpoint.
+Enable `--reference-debug-vis true` to render the live RobotMDAR reference as
+a translucent ghost beside the simulated robot.
 
-The `play-live` viewer can render the live RobotMDAR reference as a
-translucent ghost robot. Enable that overlay with `--reference-debug-vis true`
-if you want it alongside the simulated robot.
+### ONNX runtime behavior
 
-Live MJLab observations are off by default. Select
-`observation:observation-params` to enable the HTTP observation publisher.
+The ONNX path uses the online source and ONNX actor directly, without a `.pt`
+checkpoint. The provider is selected with `--onnx-provider`:
 
-#### Straight live task
+- CPU inference copies inputs and outputs through NumPy.
+- The `cuda` provider requires a CUDA `--device` and uses strict ONNX Runtime
+  I/O binding. Actor observations must already be float32, contiguous, detached
+  CUDA tensors on the same device as `--device`.
 
-Run the fixed straight navigation demo with the same live transport fields
-as `play-live`. Use either `--checkpoint-file` or `--onnx-file` and select the
-task with `--task straight`. Use `--task blocked-straight` for the same straight
-corridor with a centered middle block that requires a left/right bypass:
+## Live navigation tasks
+
+The live command supports fixed navigation tasks through `--task`. The
+`straight` task uses `Mjlab-VLA-Straight-G1`. The `blocked-straight`
+variant uses `Mjlab-VLA-BlockedStraight-G1` and adds a centered obstacle that
+requires a left or right bypass.
 
 ```bash
 uv run --extra cu128 mjlab-textop play-live \
-  --onnx-file $ONNX_PATH \
+  --onnx-file "${ONNX_PATH}" \
   --host 127.0.0.1 \
   --port 8765 \
   --task straight \
@@ -296,15 +335,16 @@ uv run --extra cu128 mjlab-textop play-live \
   --observation.image-height 240
 ```
 
-This demo uses the `Mjlab-VLA-Straight-G1` task. The environment owns the
-success and termination logic; the producer still supplies the motion prompt
-stream. Start with `stand` or `walk` depending on the prompt policy you are
-testing. The blocked variant uses `Mjlab-VLA-BlockedStraight-G1`; its obstacle
-is centered and wide so normal `walk` veer should not count as solving the
-avoidance behavior.
+The environment owns success and termination logic while the producer supplies
+the motion prompt stream. Start with `stand` or `walk`, depending on the
+prompt policy being tested. In the blocked variant, the obstacle is centered
+and wide enough that ordinary walking drift does not count as successful
+avoidance.
 
+The producer can use task-specific VLM prompts:
 
 ```bash
+# Run from the TextOp directory.
 uv run python -m mjlab_textop.robotmdar.produce \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
   --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/PRIVATE-DATA \
@@ -317,10 +357,3 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --vlm-system-prompt ./sys.md \
   --vlm-user-prompt ./user.md
 ```
-
-> [!NOTE]
-> ONNX policy inference uses the ONNX Runtime provider selected by
-> `--onnx-provider`. CPU inference copies through NumPy. The `cuda` provider
-> requires a CUDA `--device` and uses strict ONNX Runtime I/O binding: actor
-> observations must already be float32, contiguous, detached CUDA tensors on
-> the same device as `--device`.
