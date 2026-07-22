@@ -162,6 +162,21 @@ def test_rolling_buffer_reindexes_and_slices_first_five_frames() -> None:
     )
 
 
+def test_rolling_buffer_stages_each_motion_field_once_per_block(monkeypatch) -> None:
+    tensor_shapes: list[tuple[int, ...]] = []
+    as_tensor = torch.as_tensor
+
+    def record_as_tensor(data, *args, **kwargs):
+        tensor_shapes.append(np.asarray(data).shape)
+        return as_tensor(data, *args, **kwargs)
+
+    monkeypatch.setattr(torch, "as_tensor", record_as_tensor)
+
+    RollingMotionBuffer().append_block(motion_block(frames=8))
+
+    assert tensor_shapes == [(8, 29), (8, 29), (8, 3), (8, 4)]
+
+
 def test_rolling_buffer_overwrites_overlapping_block_frames() -> None:
     buffer = RollingMotionBuffer()
     buffer.append_block(motion_block(index=0, frames=8, offset=0.0))

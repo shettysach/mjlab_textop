@@ -55,25 +55,30 @@ class RollingMotionBuffer:
         joint_pos = reindex_textop_g1_joints_to_mjlab(block.motion.joint_pos)
         joint_vel = reindex_textop_g1_joints_to_mjlab(block.motion.joint_vel)
 
+        joint_pos_tensor = torch.as_tensor(
+            joint_pos, dtype=torch.float32, device=self.device
+        )
+        joint_vel_tensor = torch.as_tensor(
+            joint_vel, dtype=torch.float32, device=self.device
+        )
+        anchor_pos_w_tensor = torch.as_tensor(
+            block.motion.anchor_pos_w,
+            dtype=torch.float32,
+            device=self.device,
+        )
+        anchor_quat_w_tensor = torch.as_tensor(
+            block.motion.anchor_quat_w,
+            dtype=torch.float32,
+            device=self.device,
+        )
+
         for offset in range(joint_pos.shape[0]):
             frame = block.index + offset
             self._frames[frame] = BufferedMotionFrame(
-                joint_pos=torch.as_tensor(
-                    joint_pos[offset], dtype=torch.float32, device=self.device
-                ),
-                joint_vel=torch.as_tensor(
-                    joint_vel[offset], dtype=torch.float32, device=self.device
-                ),
-                anchor_pos_w=torch.as_tensor(
-                    block.motion.anchor_pos_w[offset],
-                    dtype=torch.float32,
-                    device=self.device,
-                ),
-                anchor_quat_w=torch.as_tensor(
-                    block.motion.anchor_quat_w[offset],
-                    dtype=torch.float32,
-                    device=self.device,
-                ),
+                joint_pos=joint_pos_tensor[offset],
+                joint_vel=joint_vel_tensor[offset],
+                anchor_pos_w=anchor_pos_w_tensor[offset],
+                anchor_quat_w=anchor_quat_w_tensor[offset],
             )
 
         block_latest = block.index + joint_pos.shape[0] - 1
