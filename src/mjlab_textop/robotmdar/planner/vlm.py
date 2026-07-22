@@ -38,6 +38,7 @@ class _VlmUserTurn:
 class _VlmConversationTurn:
     user: _VlmUserTurn
     assistant_prompt: str
+    assistant_reasoning: str | None
 
 
 class VlmPromptPlanner:
@@ -210,7 +211,6 @@ class OpenAIChatPromptSelector:
         system_prompt: str,
         user_prompt: str,
         timeout_sec: float = 30.0,
-        max_tokens: int = 32,
         history_length: int = 5,
     ) -> None:
         if not model:
@@ -219,8 +219,6 @@ class OpenAIChatPromptSelector:
             raise ValueError("user_prompt must be a non-empty string")
         if timeout_sec <= 0:
             raise ValueError(f"timeout_sec must be positive, got {timeout_sec}")
-        if max_tokens <= 0:
-            raise ValueError(f"max_tokens must be positive, got {max_tokens}")
         if history_length <= 0:
             raise ValueError(f"history_length must be positive, got {history_length}")
         self.base_url = base_url.rstrip("/")
@@ -228,7 +226,6 @@ class OpenAIChatPromptSelector:
         self.system_prompt = system_prompt
         self.user_prompt = user_prompt
         self.timeout_sec = timeout_sec
-        self.max_tokens = max_tokens
         self.history_length = history_length
         self._history: deque[_VlmConversationTurn] = deque(maxlen=history_length - 1)
 
@@ -251,21 +248,22 @@ class OpenAIChatPromptSelector:
                 history=self._history,
                 model=self.model,
                 system_prompt=self.system_prompt,
-                max_tokens=self.max_tokens,
             )
         )
         choice = response["choices"][0]
         message = choice["message"]
         prompt = message["content"]
+        reasoning = _extract_reasoning(choice)
         self._history.append(
             _VlmConversationTurn(
                 user=current_user,
                 assistant_prompt=prompt,
+                assistant_reasoning=reasoning,
             )
         )
         return VlmPromptSelection(
             prompt=prompt,
-            reasoning=_extract_reasoning(choice),
+            reasoning=reasoning,
             response=response,
         )
 
@@ -286,24 +284,17 @@ def _make_chat_completions_payload(
     history: Iterable[_VlmConversationTurn],
     model: str,
     system_prompt: str,
-    max_tokens: int,
 ) -> dict[str, Any]:
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": [{"type": "text", "text": system_prompt}]}
     ]
     for turn in history:
         messages.append(_make_user_message(turn.user))
-        messages.append(
-            {
-                "role": "assistant",
-                "content": [{"type": "text", "text": turn.assistant_prompt}],
-            }
-        )
+        messages.append(_make_assistant_message(turn))
     messages.append(_make_user_message(current_user))
     return {
         "model": model,
         "messages": messages,
-        "max_tokens": max_tokens,
         "temperature": 0,
     }
 
@@ -334,6 +325,16 @@ def _make_user_message(turn: _VlmUserTurn) -> dict[str, Any]:
         "role": "user",
         "content": content,
     }
+
+
+def _make_assistant_message(turn: _VlmConversationTurn) -> dict[str, Any]:
+    message: dict[str, Any] = {
+        "role": "assistant",
+        "content": [{"type": "text", "text": turn.assistant_prompt}],
+    }
+    if turn.assistant_reasoning is not None:
+        message["reasoning_content"] = turn.assistant_reasoning
+    return message
 
 
 def _image_data_url(data: bytes, mime_type: str) -> str:

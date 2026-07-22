@@ -38,7 +38,6 @@ def run_debug(args: argparse.Namespace) -> None:
         system_prompt=read_prompt_path(args.vlm_system_prompt),
         user_prompt=read_prompt_path(args.vlm_user_prompt),
         timeout_sec=args.vlm_timeout_sec,
-        max_tokens=args.vlm_max_tokens,
         history_length=args.vlm_history_length,
     )
     prompt = PromptState(text=args.prompt)

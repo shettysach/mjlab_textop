@@ -51,7 +51,6 @@ def add_vlm_arguments(
         default=DEFAULT_VLM_USER_PROMPT_FILE,
     )
     parser.add_argument("--vlm-timeout-sec", type=float, default=30.0)
-    parser.add_argument("--vlm-max-tokens", type=int, default=256)
     parser.add_argument(
         "--vlm-history-length",
         type=int,
@@ -67,10 +66,6 @@ def validate_vlm_arguments(args: argparse.Namespace, *, planner_name: str) -> No
     if args.vlm_timeout_sec <= 0:
         raise ValueError(
             f"--vlm-timeout-sec must be positive, got {args.vlm_timeout_sec}"
-        )
-    if args.vlm_max_tokens <= 0:
-        raise ValueError(
-            f"--vlm-max-tokens must be positive, got {args.vlm_max_tokens}"
         )
     if args.vlm_history_length <= 0:
         raise ValueError(

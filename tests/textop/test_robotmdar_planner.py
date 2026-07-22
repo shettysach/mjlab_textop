@@ -649,7 +649,6 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
         system_prompt="You are a motion planner.",
         user_prompt=_default_vlm_user_prompt(),
         timeout_sec=1.5,
-        max_tokens=16,
     )
     assert selector.history_length == 5
 
@@ -666,7 +665,7 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     assert posted["timeout"] == 1.5
     assert posted["content_type"] == "application/json"
     assert posted["payload"]["model"] == "gemma-4-e2b-it"
-    assert posted["payload"]["max_tokens"] == 16
+    assert "max_tokens" not in posted["payload"]
     assert posted["payload"]["temperature"] == 0
     assert posted["payload"]["messages"][0]["role"] == "system"
     assert posted["payload"]["messages"][0]["content"][0]["text"] == (
@@ -730,7 +729,16 @@ def test_http_vlm_prompt_selector_sends_bounded_complete_turns(monkeypatch) -> N
     posted = []
     responses = iter(
         [
-            {"choices": [{"message": {"content": "walk"}}]},
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "walk",
+                            "reasoning_content": "The path ahead is open.",
+                        }
+                    }
+                ]
+            },
             {"choices": [{"message": {"content": "stand"}}]},
             {"choices": [{"message": {"content": "turn left"}}]},
         ]
@@ -778,6 +786,7 @@ def test_http_vlm_prompt_selector_sends_bounded_complete_turns(monkeypatch) -> N
     assert posted[1]["messages"][2] == {
         "role": "assistant",
         "content": [{"type": "text", "text": "walk"}],
+        "reasoning_content": "The path ahead is open.",
     }
     assert posted[1]["messages"][1]["content"][1]["image_url"]["url"] == (
         "data:image/jpeg;base64,Zmlyc3Q="
@@ -792,6 +801,7 @@ def test_http_vlm_prompt_selector_sends_bounded_complete_turns(monkeypatch) -> N
         "data:image/jpeg;base64,c2Vjb25k"
     )
     assert posted[2]["messages"][2]["content"][0]["text"] == "stand"
+    assert "reasoning_content" not in posted[2]["messages"][2]
     assert posted[2]["messages"][3]["content"][1]["image_url"]["url"] == (
         "data:image/jpeg;base64,dGhpcmQ="
     )
@@ -964,7 +974,6 @@ def test_make_prompt_planner_reads_vlm_prompt_files(tmp_path) -> None:
             vlm_system_prompt=system_prompt_file,
             vlm_user_prompt=user_prompt_file,
             vlm_timeout_sec=1.0,
-            vlm_max_tokens=128,
             vlm_history_length=5,
             command_hold_blocks=4,
         )
