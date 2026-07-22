@@ -17,7 +17,9 @@ Use the FP16 multimodal projector on the RTX 2080 Ti:
   --n-gpu-layers all \
   --mmproj-offload \
   --flash-attn on \
-  --ctx-size 4096 \
+  --ctx-size 8192 \
+  --cache-prompt \
+  --cache-reuse 256 \
   --threads 4 \
   --threads-batch 8 \
   --reasoning on \
@@ -58,6 +60,7 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --vlm-model gemma-4-E4B-it \
   --vlm-system-prompt ./sys.md \
   --vlm-user-prompt ./user.md \
+  --vlm-history-length 5 \
   --vlm-max-tokens 320 \
   --vlm-reasoning
 ```
@@ -66,8 +69,12 @@ The first VLM request starts after the initial motion block is generated. Later
 requests only use new images; images received during inference are coalesced to
 the newest one. `--observation.every-frames` on `play-live` controls the maximum
 query rate. Repeated RobotMDAR prompts reuse a bounded text-embedding cache
-automatically. The server reserves up to 256 of the 320 completion tokens for
-reasoning, leaving room for the final command.
+automatically. Each VLM request includes at most five user-image turns: four
+completed user/assistant pairs plus the current image. The 8192-token context
+provides headroom for that window, while prompt caching reuses compatible KV
+cache regions. The server reserves up to 256 of the 320 completion tokens for
+reasoning, leaving room for the final command. Set `--vlm-history-length 1` to
+restore stateless requests.
 
 ## 3. `play-live`
 
@@ -83,7 +90,7 @@ uv run --extra cu128 mjlab-textop play-live \
   --onnx-file "$ONNX_PATH" \
   --onnx-provider cuda \
   --device cuda:0 \
-  --task straight \
+  --task portrait-corridors \
   observation:observation-params \
   --observation.url http://127.0.0.1:8766/observation \
   --observation.every-frames 20 \

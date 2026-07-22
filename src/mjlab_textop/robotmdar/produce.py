@@ -144,7 +144,7 @@ def make_prompt_planner(
             user_prompt=read_prompt_path(args.vlm_user_prompt),
             timeout_sec=args.vlm_timeout_sec,
             max_tokens=args.vlm_max_tokens,
-            include_history=args.vlm_history,
+            history_length=args.vlm_history_length,
         )
         return VlmPromptPlanner(
             feedback=receiver,

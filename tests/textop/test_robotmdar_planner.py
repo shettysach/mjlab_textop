@@ -6,6 +6,8 @@ import time
 from argparse import Namespace
 from types import SimpleNamespace
 
+import pytest
+
 from mjlab_textop.robotmdar import produce
 from mjlab_textop.robotmdar.feedback import (
     FeedbackObservation,
@@ -649,6 +651,7 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
         timeout_sec=1.5,
         max_tokens=16,
     )
+    assert selector.history_length == 5
 
     prompt = selector.choose_prompt(
         observation=_observation(
@@ -723,7 +726,78 @@ def test_http_vlm_prompt_selector_posts_image_from_observation_bytes(
     }
 
 
-def test_http_vlm_prompt_selector_can_send_prompt_history(monkeypatch) -> None:
+def test_http_vlm_prompt_selector_sends_bounded_complete_turns(monkeypatch) -> None:
+    posted = []
+    responses = iter(
+        [
+            {"choices": [{"message": {"content": "walk"}}]},
+            {"choices": [{"message": {"content": "stand"}}]},
+            {"choices": [{"message": {"content": "turn left"}}]},
+        ]
+    )
+
+    def fake_urlopen(request, timeout):
+        del timeout
+        posted.append(json.loads(request.data.decode("utf-8")))
+        return _FakeResponse(next(responses))
+
+    monkeypatch.setattr(
+        "mjlab_textop.robotmdar.planner.vlm.urllib.request.urlopen",
+        fake_urlopen,
+    )
+    selector = OpenAIChatPromptSelector(
+        base_url="http://127.0.0.1:9379",
+        model="gemma-4-e2b-it",
+        system_prompt="You are a motion planner.",
+        user_prompt=_default_vlm_user_prompt(),
+        history_length=2,
+    )
+
+    assert (
+        selector.choose_prompt(observation=_observation(image_bytes=b"first")) == "walk"
+    )
+    assert (
+        selector.choose_prompt(observation=_observation(image_bytes=b"second"))
+        == "stand"
+    )
+    assert (
+        selector.choose_prompt(observation=_observation(image_bytes=b"third"))
+        == "turn left"
+    )
+
+    assert [message["role"] for message in posted[0]["messages"]] == [
+        "system",
+        "user",
+    ]
+    assert [message["role"] for message in posted[1]["messages"]] == [
+        "system",
+        "user",
+        "assistant",
+        "user",
+    ]
+    assert posted[1]["messages"][2] == {
+        "role": "assistant",
+        "content": [{"type": "text", "text": "walk"}],
+    }
+    assert posted[1]["messages"][1]["content"][1]["image_url"]["url"] == (
+        "data:image/jpeg;base64,Zmlyc3Q="
+    )
+    assert [message["role"] for message in posted[2]["messages"]] == [
+        "system",
+        "user",
+        "assistant",
+        "user",
+    ]
+    assert posted[2]["messages"][1]["content"][1]["image_url"]["url"] == (
+        "data:image/jpeg;base64,c2Vjb25k"
+    )
+    assert posted[2]["messages"][2]["content"][0]["text"] == "stand"
+    assert posted[2]["messages"][3]["content"][1]["image_url"]["url"] == (
+        "data:image/jpeg;base64,dGhpcmQ="
+    )
+
+
+def test_http_vlm_prompt_selector_history_length_one_is_stateless(monkeypatch) -> None:
     posted = []
     responses = iter(
         [
@@ -746,11 +820,11 @@ def test_http_vlm_prompt_selector_can_send_prompt_history(monkeypatch) -> None:
         model="gemma-4-e2b-it",
         system_prompt="You are a motion planner.",
         user_prompt=_default_vlm_user_prompt(),
-        include_history=True,
+        history_length=1,
     )
 
-    assert selector.choose_prompt(observation=_observation()) == "walk"
-    assert selector.choose_prompt(observation=_observation()) == "stand"
+    selector.choose_prompt(observation=_observation(image_bytes=b"first"))
+    selector.choose_prompt(observation=_observation(image_bytes=b"second"))
 
     assert [message["role"] for message in posted[0]["messages"]] == [
         "system",
@@ -758,13 +832,19 @@ def test_http_vlm_prompt_selector_can_send_prompt_history(monkeypatch) -> None:
     ]
     assert [message["role"] for message in posted[1]["messages"]] == [
         "system",
-        "assistant",
         "user",
     ]
-    assert posted[1]["messages"][1] == {
-        "role": "assistant",
-        "content": [{"type": "text", "text": "walk"}],
-    }
+
+
+def test_http_vlm_prompt_selector_rejects_empty_history() -> None:
+    with pytest.raises(ValueError, match="history_length must be positive"):
+        OpenAIChatPromptSelector(
+            base_url="http://127.0.0.1:9379",
+            model="gemma-4-e2b-it",
+            system_prompt="You are a motion planner.",
+            user_prompt=_default_vlm_user_prompt(),
+            history_length=0,
+        )
 
 
 def test_http_vlm_prompt_selector_returns_raw_response(monkeypatch) -> None:
@@ -885,7 +965,7 @@ def test_make_prompt_planner_reads_vlm_prompt_files(tmp_path) -> None:
             vlm_user_prompt=user_prompt_file,
             vlm_timeout_sec=1.0,
             vlm_max_tokens=128,
-            vlm_history=True,
+            vlm_history_length=5,
             command_hold_blocks=4,
         )
     )
@@ -893,6 +973,6 @@ def test_make_prompt_planner_reads_vlm_prompt_files(tmp_path) -> None:
     assert isinstance(planner, VlmPromptPlanner)
     assert planner.selector.system_prompt == "System file prompt.\n"
     assert planner.selector.user_prompt == "User file prompt.\n"
-    assert planner.selector.include_history is True
+    assert planner.selector.history_length == 5
 
     planner.request_stop()

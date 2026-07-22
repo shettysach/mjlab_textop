@@ -207,9 +207,11 @@ producer-side every-N-blocks query setting.
 The default VLM prompts are read from
 [`prompt/SYSTEM.md`](prompt/SYSTEM.md) and [`prompt/USER.md`](prompt/USER.md).
 Override them with `--vlm-system-prompt` and `--vlm-user-prompt` file paths
-if needed. Add `--vlm-history` to send previous VLM-selected prompts back to
-the VLM on later requests, and `--vlm-reasoning` to print any reasoning field
-returned with a VLM response:
+if needed. `--vlm-history-length` bounds the number of user-image turns in each
+request, including the current turn. Its default of `5` sends four completed
+user-image/assistant pairs before the current user-image turn; set it to `1`
+for stateless requests. `--vlm-reasoning` prints any reasoning field returned
+with a VLM response:
 
 ```bash
 uv run python -m mjlab_textop.robotmdar.produce \
@@ -221,6 +223,7 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --observation-listen-port 8766 \
   --vlm-base-url http://127.0.0.1:9379 \
   --vlm-model gemma-4-E4B-it \
+  --vlm-history-length 5 \
   --vlm-max-tokens 320
 ```
 

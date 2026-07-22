@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import urllib.request
 from base64 import b64encode
+from collections import deque
+from collections.abc import Iterable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -24,6 +26,18 @@ class VlmPromptSelection:
     prompt: str
     reasoning: str | None
     response: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class _VlmUserTurn:
+    prompt: str
+    image_data_url: str | None
+
+
+@dataclass(frozen=True)
+class _VlmConversationTurn:
+    user: _VlmUserTurn
+    assistant_prompt: str
 
 
 class VlmPromptPlanner:
@@ -197,7 +211,7 @@ class OpenAIChatPromptSelector:
         user_prompt: str,
         timeout_sec: float = 30.0,
         max_tokens: int = 32,
-        include_history: bool = False,
+        history_length: int = 5,
     ) -> None:
         if not model:
             raise ValueError("model must be a non-empty string")
@@ -207,14 +221,16 @@ class OpenAIChatPromptSelector:
             raise ValueError(f"timeout_sec must be positive, got {timeout_sec}")
         if max_tokens <= 0:
             raise ValueError(f"max_tokens must be positive, got {max_tokens}")
+        if history_length <= 0:
+            raise ValueError(f"history_length must be positive, got {history_length}")
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.system_prompt = system_prompt
         self.user_prompt = user_prompt
         self.timeout_sec = timeout_sec
         self.max_tokens = max_tokens
-        self.include_history = include_history
-        self.prompt_history: list[str] = []
+        self.history_length = history_length
+        self._history: deque[_VlmConversationTurn] = deque(maxlen=history_length - 1)
 
     def choose_prompt(
         self,
@@ -228,21 +244,25 @@ class OpenAIChatPromptSelector:
         *,
         observation: FeedbackObservation,
     ) -> VlmPromptSelection:
+        current_user = _make_user_turn(self.user_prompt, observation)
         response = self._post_json(
             _make_chat_completions_payload(
-                observation=observation,
-                prompt_history=(self.prompt_history if self.include_history else []),
+                current_user=current_user,
+                history=self._history,
                 model=self.model,
                 system_prompt=self.system_prompt,
-                user_prompt=self.user_prompt,
                 max_tokens=self.max_tokens,
             )
         )
         choice = response["choices"][0]
         message = choice["message"]
         prompt = message["content"]
-        if self.include_history:
-            self.prompt_history.append(prompt)
+        self._history.append(
+            _VlmConversationTurn(
+                user=current_user,
+                assistant_prompt=prompt,
+            )
+        )
         return VlmPromptSelection(
             prompt=prompt,
             reasoning=_extract_reasoning(choice),
@@ -262,42 +282,57 @@ class OpenAIChatPromptSelector:
 
 def _make_chat_completions_payload(
     *,
-    observation: FeedbackObservation,
-    prompt_history: list[str],
+    current_user: _VlmUserTurn,
+    history: Iterable[_VlmConversationTurn],
     model: str,
     system_prompt: str,
-    user_prompt: str,
     max_tokens: int,
 ) -> dict[str, Any]:
-    content: list[dict[str, Any]] = [{"type": "text", "text": user_prompt}]
-    if observation.image_bytes is not None and observation.image_mime_type is not None:
-        content.append(
-            {
-                "type": "image_url",
-                "image_url": {
-                    "url": _image_data_url(
-                        observation.image_bytes,
-                        observation.image_mime_type,
-                    )
-                },
-            }
-        )
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": [{"type": "text", "text": system_prompt}]}
     ]
-    messages.extend(
-        {
-            "role": "assistant",
-            "content": [{"type": "text", "text": prompt}],
-        }
-        for prompt in prompt_history
-    )
-    messages.append({"role": "user", "content": content})
+    for turn in history:
+        messages.append(_make_user_message(turn.user))
+        messages.append(
+            {
+                "role": "assistant",
+                "content": [{"type": "text", "text": turn.assistant_prompt}],
+            }
+        )
+    messages.append(_make_user_message(current_user))
     return {
         "model": model,
         "messages": messages,
         "max_tokens": max_tokens,
         "temperature": 0,
+    }
+
+
+def _make_user_turn(
+    user_prompt: str,
+    observation: FeedbackObservation,
+) -> _VlmUserTurn:
+    image_data_url = None
+    if observation.image_bytes is not None and observation.image_mime_type is not None:
+        image_data_url = _image_data_url(
+            observation.image_bytes,
+            observation.image_mime_type,
+        )
+    return _VlmUserTurn(prompt=user_prompt, image_data_url=image_data_url)
+
+
+def _make_user_message(turn: _VlmUserTurn) -> dict[str, Any]:
+    content: list[dict[str, Any]] = [{"type": "text", "text": turn.prompt}]
+    if turn.image_data_url is not None:
+        content.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": turn.image_data_url},
+            }
+        )
+    return {
+        "role": "user",
+        "content": content,
     }
 
 
