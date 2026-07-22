@@ -121,6 +121,9 @@ class PromptStateController:
         del block_count
         return self.prompt.text
 
+    def on_block_sent(self, *, block_count: int) -> None:
+        del block_count
+
 
 def _prompt_loop(
     prompt: PromptState,

@@ -36,6 +36,8 @@ class PromptController(Protocol):
 
     def choose_prompt(self, *, block_count: int) -> str: ...
 
+    def on_block_sent(self, *, block_count: int) -> None: ...
+
 
 class RobotMdarGeneratorArgs(Protocol):
     """The small CLI/configuration surface consumed by the runtime loader."""
@@ -263,6 +265,10 @@ def stream_robotmdar_blocks(
             recovery_epoch=prompt_controller.recovery_epoch,
         )
         conn.sendall(textop_block_to_ndjson_message(block).encode("utf-8"))
+        # Start asynchronous planner work only after motion generation so a
+        # colocated VLM can use the real-time pacing window instead of
+        # contending with RobotMDAR for the GPU.
+        prompt_controller.on_block_sent(block_count=block_count)
 
         block_frames = block.joint_pos.shape[0]
         frame_index += block_frames

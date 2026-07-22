@@ -114,22 +114,28 @@ class VlmPromptPlanner:
         command, changed = self._sequencer.advance(block_count)
         if changed:
             return self._set_current(command.text, command.source)
-        if self._sequencer.busy:
-            return self.current_prompt
-
-        if (
-            not self._stop
-            and self._future is None
-            and observation is not None
-            and self._should_query_selector(block_count)
-        ):
-            self._last_query_block = block_count
-            self._future_epoch = self._selection_epoch
-            self._future = self._executor.submit(
-                self.selector.choose_prompt_with_debug,
-                observation=observation,
-            )
         return self.current_prompt
+
+    def on_block_sent(self, *, block_count: int) -> None:
+        if (
+            self._stop
+            or self._future is not None
+            or self._collision_recovery
+            or self._sequencer.busy
+            or not self._should_query_selector(block_count)
+        ):
+            return
+
+        observation = self.feedback.latest()
+        if observation is None or observation.collision_stop:
+            return
+
+        self._last_query_block = block_count
+        self._future_epoch = self._selection_epoch
+        self._future = self._executor.submit(
+            self.selector.choose_prompt_with_debug,
+            observation=observation,
+        )
 
     def _enter_collision_recovery(self, recovery_epoch: int) -> None:
         if not self._collision_recovery:

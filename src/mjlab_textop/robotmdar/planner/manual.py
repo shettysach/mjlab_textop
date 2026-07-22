@@ -68,6 +68,9 @@ class ManualPromptPlanner:
         command, _ = self._sequencer.advance(block_count)
         return command.text
 
+    def on_block_sent(self, *, block_count: int) -> None:
+        del block_count
+
 
 def _prompt_loop(prompt: PromptState) -> None:
     while not prompt.stop:

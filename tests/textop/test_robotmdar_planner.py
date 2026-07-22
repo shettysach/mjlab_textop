@@ -4,6 +4,7 @@ import json
 import threading
 import time
 from argparse import Namespace
+from types import SimpleNamespace
 
 from mjlab_textop.robotmdar import produce
 from mjlab_textop.robotmdar.feedback import (
@@ -23,6 +24,7 @@ from mjlab_textop.robotmdar.runtime import (
     StreamConfig,
     log_stream_timing,
     read_prompt_path,
+    stream_robotmdar_blocks,
 )
 
 
@@ -110,6 +112,15 @@ def _wait_for(condition) -> None:
             return
         time.sleep(0.01)
     raise AssertionError("condition did not become true")
+
+
+def _choose_and_mark_block_sent(
+    planner: VlmPromptPlanner,
+    block_count: int,
+) -> str:
+    prompt = planner.choose_prompt(block_count=block_count)
+    planner.on_block_sent(block_count=block_count)
+    return prompt
 
 
 def _observation(
@@ -237,15 +248,15 @@ def test_vlm_planner_queries_selector_on_cadence() -> None:
     planner.start()
 
     assert provider.started is True
-    assert planner.choose_prompt(block_count=0) == "walk forward"
+    assert _choose_and_mark_block_sent(planner, 0) == "walk forward"
     assert planner.current_prompt_source == "initial"
     assert selector.finished.wait(timeout=1)
-    assert planner.choose_prompt(block_count=1) == "turn left"
+    assert _choose_and_mark_block_sent(planner, 1) == "turn left"
     assert planner.current_prompt_source == "vlm"
-    assert planner.choose_prompt(block_count=2) == "stand"
+    assert _choose_and_mark_block_sent(planner, 2) == "stand"
     assert planner.current_prompt_source == "followup"
     assert selector.calls == 1
-    assert planner.choose_prompt(block_count=3) == "stand"
+    assert _choose_and_mark_block_sent(planner, 3) == "stand"
     _wait_for(lambda: selector.calls == 2)
 
     planner.request_stop()
@@ -265,17 +276,17 @@ def test_vlm_planner_forces_stand_until_collision_recovery_clears() -> None:
         query_every_blocks=1,
     )
 
-    assert planner.choose_prompt(block_count=0) == "stand"
+    assert _choose_and_mark_block_sent(planner, 0) == "stand"
     assert planner.current_prompt_source == "collision_recovery"
     assert planner.recovery_epoch == 7
-    assert planner.choose_prompt(block_count=1) == "stand"
+    assert _choose_and_mark_block_sent(planner, 1) == "stand"
     assert selector.calls == 0
 
     provider.observation = _observation(collision_stop=False)
 
-    assert planner.choose_prompt(block_count=2) == "stand"
+    assert _choose_and_mark_block_sent(planner, 2) == "stand"
     assert selector.finished.wait(timeout=1)
-    assert planner.choose_prompt(block_count=3) == "walk forward"
+    assert _choose_and_mark_block_sent(planner, 3) == "walk forward"
 
     planner.request_stop()
 
@@ -291,24 +302,24 @@ def test_vlm_planner_locally_schedules_stand_after_lateral_command() -> None:
         command_hold_blocks=3,
     )
 
-    assert planner.choose_prompt(block_count=0) == "walk forward"
+    assert _choose_and_mark_block_sent(planner, 0) == "walk forward"
     assert selector.finished.wait(timeout=1)
 
-    assert planner.choose_prompt(block_count=1) == "step RIGHT"
+    assert _choose_and_mark_block_sent(planner, 1) == "step RIGHT"
     assert planner.current_prompt_source == "vlm"
     assert selector.calls == 1
 
-    assert planner.choose_prompt(block_count=2) == "step RIGHT"
-    assert planner.choose_prompt(block_count=3) == "step RIGHT"
+    assert _choose_and_mark_block_sent(planner, 2) == "step RIGHT"
+    assert _choose_and_mark_block_sent(planner, 3) == "step RIGHT"
     assert selector.calls == 1
 
-    assert planner.choose_prompt(block_count=4) == "stand"
+    assert _choose_and_mark_block_sent(planner, 4) == "stand"
     assert planner.current_prompt_source == "followup"
-    assert planner.choose_prompt(block_count=5) == "stand"
-    assert planner.choose_prompt(block_count=6) == "stand"
+    assert _choose_and_mark_block_sent(planner, 5) == "stand"
+    assert _choose_and_mark_block_sent(planner, 6) == "stand"
     assert selector.calls == 1
 
-    assert planner.choose_prompt(block_count=7) == "stand"
+    assert _choose_and_mark_block_sent(planner, 7) == "stand"
     _wait_for(lambda: selector.calls == 2)
 
     planner.request_stop()
@@ -325,14 +336,18 @@ def test_vlm_planner_does_not_block_while_selector_runs() -> None:
     )
 
     assert planner.choose_prompt(block_count=0) == "walk forward"
+    assert not selector.started.wait(timeout=0.05)
+
+    planner.on_block_sent(block_count=0)
+
     assert selector.started.wait(timeout=1)
     assert planner.log_suffix == " vlm_state=inflight vlm_last_query_block=0"
-    assert planner.choose_prompt(block_count=1) == "walk forward"
+    assert _choose_and_mark_block_sent(planner, 1) == "walk forward"
     assert selector.calls == 1
 
     selector.release.set()
     assert selector.finished.wait(timeout=1)
-    assert planner.choose_prompt(block_count=2) == "turn right"
+    assert _choose_and_mark_block_sent(planner, 2) == "turn right"
     assert planner.log_suffix == " vlm_state=idle vlm_last_query_block=0"
 
     planner.request_stop()
@@ -348,9 +363,9 @@ def test_vlm_planner_keeps_current_prompt_on_selector_errors() -> None:
         query_every_blocks=3,
     )
 
-    assert planner.choose_prompt(block_count=0) == "walk forward"
+    assert _choose_and_mark_block_sent(planner, 0) == "walk forward"
     assert selector.finished.wait(timeout=1)
-    assert planner.choose_prompt(block_count=1) == "walk forward"
+    assert _choose_and_mark_block_sent(planner, 1) == "walk forward"
     assert selector.calls == 1
     assert planner.last_error == "TimeoutError: vlm timed out"
     assert planner.current_prompt_source == "initial"
@@ -372,9 +387,9 @@ def test_vlm_planner_keeps_last_good_prompt_on_empty_selector_result() -> None:
         query_every_blocks=2,
     )
 
-    assert planner.choose_prompt(block_count=0) == "walk forward"
+    assert _choose_and_mark_block_sent(planner, 0) == "walk forward"
     assert selector.finished.wait(timeout=1)
-    assert planner.choose_prompt(block_count=1) == "   "
+    assert _choose_and_mark_block_sent(planner, 1) == "   "
     assert planner.last_error is None
     assert planner.current_prompt_source == "vlm"
     assert planner.log_suffix == " vlm_state=idle vlm_last_query_block=0"
@@ -392,15 +407,15 @@ def test_vlm_planner_recovers_after_empty_selector_result() -> None:
         query_every_blocks=1,
     )
 
-    assert planner.choose_prompt(block_count=0) == "stand"
+    assert _choose_and_mark_block_sent(planner, 0) == "stand"
     assert selector.finished.wait(timeout=1)
-    assert planner.choose_prompt(block_count=1) == "   "
+    assert _choose_and_mark_block_sent(planner, 1) == "   "
 
     selector.prompt = " wave "
     selector.finished.clear()
-    assert planner.choose_prompt(block_count=2) == "   "
+    assert _choose_and_mark_block_sent(planner, 2) == "   "
     assert selector.finished.wait(timeout=1)
-    assert planner.choose_prompt(block_count=3) == " wave "
+    assert _choose_and_mark_block_sent(planner, 3) == " wave "
     assert planner.last_error is None
     assert planner.current_prompt_source == "vlm"
 
@@ -421,9 +436,9 @@ def test_producer_log_prints_vlm_reasoning_once_when_enabled(monkeypatch) -> Non
 
     monkeypatch.setattr(produce, "_log_producer_message", messages.append)
 
-    assert planner.choose_prompt(block_count=0) == "stand"
+    assert _choose_and_mark_block_sent(planner, 0) == "stand"
     assert planner.selector.finished.wait(timeout=1)
-    assert planner.choose_prompt(block_count=1) == "wave"
+    assert _choose_and_mark_block_sent(planner, 1) == "wave"
 
     args = Namespace(vlm_reasoning=True)
     produce._log_vlm_reasoning_if_available(planner=planner, args=args)
@@ -434,6 +449,55 @@ def test_producer_log_prints_vlm_reasoning_once_when_enabled(monkeypatch) -> Non
     ]
 
     planner.request_stop()
+
+
+def test_stream_submits_planner_work_after_generation_and_send(monkeypatch) -> None:
+    events = []
+
+    class Controller:
+        should_stop = False
+        input_active = False
+        log_suffix = ""
+        recovery_epoch = 0
+
+        def choose_prompt(self, *, block_count: int) -> str:
+            events.append(("choose", block_count))
+            return "stand"
+
+        def on_block_sent(self, *, block_count: int) -> None:
+            events.append(("planner", block_count))
+            self.should_stop = True
+
+    class Generator:
+        def next_block(self, **kwargs):
+            events.append(("generate", kwargs["index"]))
+            return SimpleNamespace(joint_pos=SimpleNamespace(shape=(20,)))
+
+    class Connection:
+        def sendall(self, data: bytes) -> None:
+            events.append(("send", data))
+
+    monkeypatch.setattr(
+        "mjlab_textop.robotmdar.runtime.textop_block_to_ndjson_message",
+        lambda _block: "block\n",
+    )
+    monkeypatch.setattr("mjlab_textop.robotmdar.runtime.time.sleep", lambda _delay: None)
+
+    stream_robotmdar_blocks(
+        conn=Connection(),
+        generator=Generator(),
+        prompt_controller=Controller(),
+        cfg=StreamConfig(guidance_scale=5.0, log_every_blocks=0),
+        log_message=lambda _message: None,
+        prompt_source=lambda _controller: "test",
+    )
+
+    assert events == [
+        ("choose", 0),
+        ("generate", 0),
+        ("send", b"block\n"),
+        ("planner", 0),
+    ]
 
 
 def test_producer_log_includes_vlm_prompt_source(monkeypatch) -> None:
