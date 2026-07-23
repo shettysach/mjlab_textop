@@ -23,7 +23,7 @@ from mjlab_textop.core.mdp.online_commands import (
 )
 from mjlab_textop.core.online.live import SocketSourceCfg
 from mjlab_textop.core.online.source import OnlineSource
-from mjlab_textop.tasks.textop_tracking.env_cfg import (
+from tasks.textop_tracking.env_cfg import (
     configure_textop_actor_observations,
     configure_textop_critic_observations,
 )

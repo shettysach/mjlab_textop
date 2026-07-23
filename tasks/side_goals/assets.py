@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import mujoco
 
-from mjlab_textop.tasks.wall_contact import _add_wall
+from tasks.wall_contact import _add_wall
 
 if TYPE_CHECKING:
     from mujoco import MjSpec  # ty: ignore[unresolved-import]

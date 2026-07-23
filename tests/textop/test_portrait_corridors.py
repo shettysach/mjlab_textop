@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import mujoco
 
-from mjlab_textop.tasks.portrait_corridors.env_cfg import (
+from tasks.portrait_corridors.env_cfg import (
     make_portrait_corridors_g1_env_cfg,
 )
 

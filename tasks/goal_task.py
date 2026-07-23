@@ -7,7 +7,7 @@ from mjlab.managers.metrics_manager import MetricsTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.managers.termination_manager import TerminationTermCfg
 
-from mjlab_textop.tasks import goal_mdp as mdp
+from tasks import goal_mdp as mdp
 
 
 def configure_goal_task(

@@ -7,21 +7,19 @@ from mjlab_textop.core.feedback.observation import OnlineObservationCfg
 from mjlab_textop.core.mdp.online_commands import OnlineSourceMode
 from mjlab_textop.core.online.live import SocketSourceCfg
 from mjlab_textop.core.online.source import OnlineSource
-from mjlab_textop.tasks.blocked_straight.assets import (
-    make_blocked_straight_spec_fn,
-)
-from mjlab_textop.tasks.goal_task import configure_goal_task
-from mjlab_textop.tasks.online_textop.env_cfg import (
+from tasks.goal_task import configure_goal_task
+from tasks.online_textop.env_cfg import (
     make_online_textop_g1_env_cfg,
 )
+from tasks.side_goals.assets import make_side_goals_spec_fn
 
 
 @dataclass(frozen=True)
-class BlockedStraightTaskCfg:
-    goal_pos_w: tuple[float, float, float] = (24.0, 0.0, 0.0)
-    goal_size: float = 18.0
-    obstacle_pos_xy: tuple[float, float] = (12.0, 0.0)
-    obstacle_size_xy: tuple[float, float] = (1.5, 8.0)
+class SideGoalsTaskCfg:
+    blue_goal_pos_w: tuple[float, float, float] = (0.0, 5.0, 0.0)
+    green_goal_pos_w: tuple[float, float, float] = (0.0, -5.0, 0.0)
+    goal_size: float = 8.0
+    arena_size: float = 18.0
     success_radius: float = 0.25
     stop_trigger_radius: float = 0.55
     speed_threshold: float = 0.10
@@ -29,10 +27,10 @@ class BlockedStraightTaskCfg:
     timeout_s: float = 20.0
 
 
-BLOCKED_STRAIGHT_TASK_CFG = BlockedStraightTaskCfg()
+SIDE_GOALS_TASK_CFG = SideGoalsTaskCfg()
 
 
-def make_blocked_straight_g1_env_cfg(
+def make_side_goals_g1_env_cfg(
     *,
     play: bool = True,
     source: OnlineSource | None = None,
@@ -42,7 +40,7 @@ def make_blocked_straight_g1_env_cfg(
     reference_debug_vis: bool | None = None,
     observation: OnlineObservationCfg | None = None,
     policy_format: Literal["pt", "onnx"] = "pt",
-    task_cfg: BlockedStraightTaskCfg = BLOCKED_STRAIGHT_TASK_CFG,
+    task_cfg: SideGoalsTaskCfg = SIDE_GOALS_TASK_CFG,
 ):
     cfg = make_online_textop_g1_env_cfg(
         play=play,
@@ -54,31 +52,35 @@ def make_blocked_straight_g1_env_cfg(
         observation=observation,
         policy_format=policy_format,
     )
-    return _configure_blocked_straight_cfg(cfg, task_cfg=task_cfg)
+    return _configure_side_goals_cfg(cfg, task_cfg=task_cfg)
 
 
-def _configure_blocked_straight_cfg(
+def _configure_side_goals_cfg(
     cfg,
     *,
-    task_cfg: BlockedStraightTaskCfg,
+    task_cfg: SideGoalsTaskCfg,
 ):
     cfg.scene.num_envs = 1
-    cfg.scene.spec_fn = make_blocked_straight_spec_fn(
-        goal_pos_w=task_cfg.goal_pos_w,
-        size=task_cfg.goal_size,
-        obstacle_pos_xy=task_cfg.obstacle_pos_xy,
-        obstacle_size_xy=task_cfg.obstacle_size_xy,
+    cfg.scene.spec_fn = make_side_goals_spec_fn(
+        blue_goal_pos_w=task_cfg.blue_goal_pos_w,
+        green_goal_pos_w=task_cfg.green_goal_pos_w,
+        goal_size=task_cfg.goal_size,
+        arena_size=task_cfg.arena_size,
     )
     configure_goal_task(
         cfg,
-        prefix="blocked_straight",
-        goal_pos_w=task_cfg.goal_pos_w,
+        prefix="side_goals",
+        goal_pos_w=task_cfg.green_goal_pos_w,
         success_radius=task_cfg.success_radius,
         stop_trigger_radius=task_cfg.stop_trigger_radius,
         speed_threshold=task_cfg.speed_threshold,
         hold_time_s=task_cfg.hold_time_s,
         timeout_s=task_cfg.timeout_s,
-        overshoot_margin=1.0,
+        primary_metric_name="",
+        extra_distance_metrics={
+            "side_goals_green_goal_distance": task_cfg.green_goal_pos_w,
+            "side_goals_blue_goal_distance": task_cfg.blue_goal_pos_w,
+        },
     )
 
     return cfg

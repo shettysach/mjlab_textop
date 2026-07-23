@@ -5,11 +5,11 @@ from mjlab.tasks.registry import load_env_cfg, load_runner_cls
 
 from mjlab_textop.core.mdp.observations import future_joint_window_textop_order
 from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
-from mjlab_textop.tasks.blocked_straight.env_cfg import (
+from tasks.blocked_straight.env_cfg import (
     BLOCKED_STRAIGHT_TASK_CFG,
     make_blocked_straight_g1_env_cfg,
 )
-from mjlab_textop.tasks.registration import register_task
+from tasks.registration import register_task
 
 
 def test_blocked_straight_env_cfg_has_fixed_goal_eval_terms() -> None:

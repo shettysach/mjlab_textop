@@ -17,7 +17,12 @@ from mjlab_textop.core.robotmdar import (
 )
 from mjlab_textop.core.schema import TEXTOP_FPS
 
-PROMPT_DIR = Path(__file__).resolve().parents[3] / "prompt"
+_INSTALLED_PROMPT_DIR = Path(__file__).resolve().parents[2] / "prompt"
+PROMPT_DIR = (
+    _INSTALLED_PROMPT_DIR
+    if _INSTALLED_PROMPT_DIR.is_dir()
+    else Path(__file__).resolve().parents[3] / "prompt"
+)
 DEFAULT_VLM_SYSTEM_PROMPT_FILE = PROMPT_DIR / "SYSTEM.md"
 DEFAULT_VLM_USER_PROMPT_FILE = PROMPT_DIR / "USER.md"
 _TEXT_EMBEDDING_CACHE_SIZE = 16

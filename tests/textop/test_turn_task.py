@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import mujoco
 
-from mjlab_textop.tasks.turn.env_cfg import TURN_TASK_CFG, make_turn_task_g1_env_cfg
+from tasks.turn.env_cfg import TURN_TASK_CFG, make_turn_task_g1_env_cfg
 
 
 def test_turn_task_env_cfg_has_fixed_goal_eval_terms() -> None:

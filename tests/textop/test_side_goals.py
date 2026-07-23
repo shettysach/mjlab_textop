@@ -5,8 +5,8 @@ from mjlab.tasks.registry import load_env_cfg, load_runner_cls
 
 from mjlab_textop.core.mdp.observations import future_joint_window_textop_order
 from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
-from mjlab_textop.tasks.registration import register_task
-from mjlab_textop.tasks.side_goals.env_cfg import (
+from tasks.registration import register_task
+from tasks.side_goals.env_cfg import (
     SIDE_GOALS_TASK_CFG,
     make_side_goals_g1_env_cfg,
 )

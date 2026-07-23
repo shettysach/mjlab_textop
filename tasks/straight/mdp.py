@@ -1,6 +1,6 @@
 """Compatibility re-export for the shared navigation task terms."""
 
-from mjlab_textop.tasks.goal_mdp import (
+from tasks.goal_mdp import (
     below_speed_threshold,
     goal_pos_tensor,
     inside_goal_radius,

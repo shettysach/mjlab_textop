@@ -6,8 +6,8 @@ from mjlab_textop.core.feedback.observation import OnlineObservationCfg
 from mjlab_textop.core.mdp.online_commands import OnlineSourceMode
 from mjlab_textop.core.online.live import SocketSourceCfg
 from mjlab_textop.core.online.source import OnlineSource
-from mjlab_textop.tasks.online_textop.env_cfg import make_online_textop_g1_env_cfg
-from mjlab_textop.tasks.portrait_corridors.assets import make_portrait_corridors_spec_fn
+from tasks.online_textop.env_cfg import make_online_textop_g1_env_cfg
+from tasks.portrait_corridors.assets import make_portrait_corridors_spec_fn
 
 
 def make_portrait_corridors_g1_env_cfg(

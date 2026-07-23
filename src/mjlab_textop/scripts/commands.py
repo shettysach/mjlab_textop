@@ -17,7 +17,7 @@ from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
 from mjlab_textop.scripts.utils import (
     ResolvedPolicy,
 )
-from mjlab_textop.tasks.registration import TextOpTask, register_task
+from tasks.registration import TextOpTask, register_task
 
 
 @dataclass(kw_only=True)

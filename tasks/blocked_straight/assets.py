@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import mujoco
 
-from mjlab_textop.tasks.wall_contact import _add_wall
+from tasks.wall_contact import _add_wall
 
 if TYPE_CHECKING:
     from mujoco import MjSpec  # ty: ignore[unresolved-import]
@@ -13,10 +13,12 @@ if TYPE_CHECKING:
 MJGEOM_BOX = mujoco.mjtGeom.mjGEOM_BOX  # ty: ignore[unresolved-attribute]
 
 
-def make_straight_spec_fn(
+def make_blocked_straight_spec_fn(
     *,
     goal_pos_w: tuple[float, float, float],
     size: float,
+    obstacle_pos_xy: tuple[float, float],
+    obstacle_size_xy: tuple[float, float],
     thickness: float = 0.01,
     rgba: tuple[float, float, float, float] = (0.0, 1.0, 0.0, 1.0),
     wall_height: float = 1.5,
@@ -25,11 +27,11 @@ def make_straight_spec_fn(
     corridor_start_x: float = 0.0,
     corridor_back_extension: float = 2.0,
 ) -> Callable[["MjSpec"], None]:
-    def add_straight(spec: MjSpec) -> None:
-        body = spec.worldbody.add_body(name="straight_goal")
+    def add_blocked_straight(spec: MjSpec) -> None:
+        body = spec.worldbody.add_body(name="blocked_straight_goal")
         body.pos = (goal_pos_w[0], goal_pos_w[1], goal_pos_w[2] + thickness * 0.5)
         body.add_geom(
-            name="straight_goal_visual",
+            name="blocked_straight_goal_visual",
             type=MJGEOM_BOX,
             size=(size * 0.5, size * 0.5, thickness * 0.5),
             rgba=rgba,
@@ -48,31 +50,42 @@ def make_straight_spec_fn(
         wall_z = goal_pos_w[2] + half_wall_height
         _add_wall(
             spec,
-            name="straight_left_wall",
+            name="blocked_straight_left_wall",
             pos=(corridor_center_x, goal_pos_w[1] + half_size, wall_z),
             size=(corridor_half_length, half_wall_thickness, half_wall_height),
             rgba=wall_rgba,
         )
         _add_wall(
             spec,
-            name="straight_right_wall",
+            name="blocked_straight_right_wall",
             pos=(corridor_center_x, goal_pos_w[1] - half_size, wall_z),
             size=(corridor_half_length, half_wall_thickness, half_wall_height),
             rgba=wall_rgba,
         )
         _add_wall(
             spec,
-            name="straight_end_wall",
+            name="blocked_straight_end_wall",
             pos=(corridor_end_x, goal_pos_w[1], wall_z),
             size=(half_wall_thickness, half_size, half_wall_height),
             rgba=wall_rgba,
         )
         _add_wall(
             spec,
-            name="straight_back_wall",
+            name="blocked_straight_back_wall",
             pos=(corridor_back_x, goal_pos_w[1], wall_z),
             size=(half_wall_thickness, half_size, half_wall_height),
             rgba=wall_rgba,
         )
+        _add_wall(
+            spec,
+            name="blocked_straight_center_wall",
+            pos=(obstacle_pos_xy[0], obstacle_pos_xy[1], wall_z),
+            size=(
+                obstacle_size_xy[0] * 0.5,
+                obstacle_size_xy[1] * 0.5,
+                half_wall_height,
+            ),
+            rgba=wall_rgba,
+        )
 
-    return add_straight
+    return add_blocked_straight

@@ -19,14 +19,14 @@ from mjlab_textop.core.onnx_policy import (
     OnnxExecutionProvider,
     OnnxPolicyRunner,
 )
-from mjlab_textop.tasks.blocked_straight.env_cfg import make_blocked_straight_g1_env_cfg
-from mjlab_textop.tasks.online_textop.env_cfg import make_online_textop_g1_env_cfg
-from mjlab_textop.tasks.portrait_corridors.env_cfg import (
+from tasks.blocked_straight.env_cfg import make_blocked_straight_g1_env_cfg
+from tasks.online_textop.env_cfg import make_online_textop_g1_env_cfg
+from tasks.portrait_corridors.env_cfg import (
     make_portrait_corridors_g1_env_cfg,
 )
-from mjlab_textop.tasks.side_goals.env_cfg import make_side_goals_g1_env_cfg
-from mjlab_textop.tasks.straight.env_cfg import make_straight_g1_env_cfg
-from mjlab_textop.tasks.turn.env_cfg import make_turn_task_g1_env_cfg
+from tasks.side_goals.env_cfg import make_side_goals_g1_env_cfg
+from tasks.straight.env_cfg import make_straight_g1_env_cfg
+from tasks.turn.env_cfg import make_turn_task_g1_env_cfg
 
 TextOpTask = Literal[
     "default",

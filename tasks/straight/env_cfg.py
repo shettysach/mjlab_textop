@@ -7,19 +7,17 @@ from mjlab_textop.core.feedback.observation import OnlineObservationCfg
 from mjlab_textop.core.mdp.online_commands import OnlineSourceMode
 from mjlab_textop.core.online.live import SocketSourceCfg
 from mjlab_textop.core.online.source import OnlineSource
-from mjlab_textop.tasks.goal_task import configure_goal_task
-from mjlab_textop.tasks.online_textop.env_cfg import (
+from tasks.goal_task import configure_goal_task
+from tasks.online_textop.env_cfg import (
     make_online_textop_g1_env_cfg,
 )
-from mjlab_textop.tasks.turn.assets import make_turn_task_spec_fn
+from tasks.straight.assets import make_straight_spec_fn
 
 
 @dataclass(frozen=True)
-class TurnTaskCfg:
-    goal_pos_w: tuple[float, float, float] = (12.0, -12.0, 0.0)
-    goal_size: float = 2.0
-    corridor_width: float = 4.0
-    corner_x: float = 12.0
+class StraightTaskCfg:
+    goal_pos_w: tuple[float, float, float] = (24.0, 0.0, 0.0)
+    goal_size: float = 18.0
     success_radius: float = 0.25
     stop_trigger_radius: float = 0.55
     speed_threshold: float = 0.10
@@ -27,10 +25,10 @@ class TurnTaskCfg:
     timeout_s: float = 20.0
 
 
-TURN_TASK_CFG = TurnTaskCfg()
+STRAIGHT_TASK_CFG = StraightTaskCfg()
 
 
-def make_turn_task_g1_env_cfg(
+def make_straight_g1_env_cfg(
     *,
     play: bool = True,
     source: OnlineSource | None = None,
@@ -40,7 +38,7 @@ def make_turn_task_g1_env_cfg(
     reference_debug_vis: bool | None = None,
     observation: OnlineObservationCfg | None = None,
     policy_format: Literal["pt", "onnx"] = "pt",
-    task_cfg: TurnTaskCfg = TURN_TASK_CFG,
+    task_cfg: StraightTaskCfg = STRAIGHT_TASK_CFG,
 ):
     cfg = make_online_textop_g1_env_cfg(
         play=play,
@@ -52,24 +50,22 @@ def make_turn_task_g1_env_cfg(
         observation=observation,
         policy_format=policy_format,
     )
-    return _configure_turn_task_cfg(cfg, task_cfg=task_cfg)
+    return _configure_straight_cfg(cfg, task_cfg=task_cfg)
 
 
-def _configure_turn_task_cfg(
+def _configure_straight_cfg(
     cfg,
     *,
-    task_cfg: TurnTaskCfg,
+    task_cfg: StraightTaskCfg,
 ):
     cfg.scene.num_envs = 1
-    cfg.scene.spec_fn = make_turn_task_spec_fn(
+    cfg.scene.spec_fn = make_straight_spec_fn(
         goal_pos_w=task_cfg.goal_pos_w,
-        goal_size=task_cfg.goal_size,
-        corridor_width=task_cfg.corridor_width,
-        corner_x=task_cfg.corner_x,
+        size=task_cfg.goal_size,
     )
     configure_goal_task(
         cfg,
-        prefix="turn_task",
+        prefix="straight",
         goal_pos_w=task_cfg.goal_pos_w,
         success_radius=task_cfg.success_radius,
         stop_trigger_radius=task_cfg.stop_trigger_radius,

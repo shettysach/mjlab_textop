@@ -13,11 +13,11 @@ from mjlab_textop.core.online.source import (
     QueueOnlineSource,
 )
 from mjlab_textop.core.onnx_policy import OnnxPolicyRunner
-from mjlab_textop.tasks.online_textop.env_cfg import (
+from tasks.online_textop.env_cfg import (
     make_online_textop_g1_env_cfg,
 )
-from mjlab_textop.tasks.registration import register_task
-from mjlab_textop.tasks.textop_tracking.env_cfg import (
+from tasks.registration import register_task
+from tasks.textop_tracking.env_cfg import (
     make_textop_g1_flat_tracking_env_cfg,
 )
 
@@ -160,7 +160,7 @@ def test_online_textop_live_task_uses_live_source_mode() -> None:
 
 
 def test_online_textop_onnx_env_cfg_uses_textop_deploy_timing() -> None:
-    from mjlab_textop.tasks.online_textop.env_cfg import (
+    from tasks.online_textop.env_cfg import (
         make_online_textop_g1_env_cfg,
     )
 

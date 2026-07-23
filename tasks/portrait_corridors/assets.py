@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import mujoco
 
-from mjlab_textop.tasks.wall_contact import _add_wall
+from tasks.wall_contact import _add_wall
 
 if TYPE_CHECKING:
     from mujoco import MjSpec  # ty: ignore[unresolved-import]
@@ -17,7 +17,7 @@ MJMESH_INERTIA_SHELL = (
 )
 MJTEXTURE_2D = mujoco.mjtTexture.mjTEXTURE_2D  # ty: ignore[unresolved-attribute]
 
-_ASSETS_DIR = Path(__file__).resolve().parents[4] / "assets"
+_ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
 
 
 def make_portrait_corridors_spec_fn(

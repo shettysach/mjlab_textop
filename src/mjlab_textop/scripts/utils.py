@@ -9,7 +9,7 @@ from mjlab_textop.core.onnx_policy import (
     OnnxExecutionProvider,
     OnnxPolicyRunner,
 )
-from mjlab_textop.tasks.registration import PolicyRunnerCls
+from tasks.registration import PolicyRunnerCls
 
 
 def verify_resolved(resolved: Path, label: str) -> Path:
