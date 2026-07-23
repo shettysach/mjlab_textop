@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, fields
 from typing import Literal
 from uuid import uuid4
 
-from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.rl.config import RslRlOnPolicyRunnerCfg
 from mjlab.tasks.registry import register_mjlab_task
 from mjlab.tasks.tracking.config.g1.rl_cfg import unitree_g1_tracking_ppo_runner_cfg
@@ -19,33 +17,9 @@ from mjlab_textop.core.onnx_policy import (
     OnnxExecutionProvider,
     OnnxPolicyRunner,
 )
-from tasks.blocked_straight.env_cfg import make_blocked_straight_g1_env_cfg
-from tasks.online_textop.env_cfg import make_online_textop_g1_env_cfg
-from tasks.portrait_corridors.env_cfg import (
-    make_portrait_corridors_g1_env_cfg,
-)
-from tasks.side_goals.env_cfg import make_side_goals_g1_env_cfg
-from tasks.straight.env_cfg import make_straight_g1_env_cfg
-from tasks.turn.env_cfg import make_turn_task_g1_env_cfg
+from tasks.catalog import TextOpTask, make_task_env_cfg
 
-TextOpTask = Literal[
-    "default",
-    "straight",
-    "blocked-straight",
-    "side-goals",
-    "turn",
-    "portrait-corridors",
-]
 PolicyRunnerCls = type[MotionTrackingOnPolicyRunner] | type[OnnxPolicyRunner]
-
-TASK_CFGS: dict[TextOpTask, Callable[..., ManagerBasedRlEnvCfg]] = {
-    "default": make_online_textop_g1_env_cfg,
-    "straight": make_straight_g1_env_cfg,
-    "blocked-straight": make_blocked_straight_g1_env_cfg,
-    "side-goals": make_side_goals_g1_env_cfg,
-    "turn": make_turn_task_g1_env_cfg,
-    "portrait-corridors": make_portrait_corridors_g1_env_cfg,
-}
 
 
 @dataclass
@@ -66,13 +40,13 @@ def register_task(
     reference_debug_vis: bool | None = None,
     observation: OnlineObservationCfg | None = None,
 ) -> str:
-    make_env_cfg = TASK_CFGS[task]
     policy_format: Literal["pt", "onnx"] = (
         "onnx" if issubclass(runner_cls, OnnxPolicyRunner) else "pt"
     )
     name_parts = [task, policy_format, source_mode.capitalize(), uuid4().hex]
     task_name = "-".join(name_parts)
-    env_cfg = make_env_cfg(
+    env_cfg = make_task_env_cfg(
+        task,
         play=True,
         source=source,
         live_source_cfg=live_source_cfg,

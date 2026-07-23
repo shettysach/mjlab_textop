@@ -16,9 +16,11 @@ dependencies = [
 [project.optional-dependencies]
 cpu = ["mjlab", "onnxruntime>=1.23.0,<1.27.0", "torch>=2.7.0"]
 cu128 = ["mjlab", "onnxruntime-gpu>=1.23.0,<1.27.0", "torch>=2.7.0"]
+scout = ["mcp>=1.28,<2"]
 
 [project.scripts]
 mjlab-textop = "mjlab_textop.scripts.cli:main"
+mjlab-scout = "mjlab_textop.scout.server:main"
 
 [tool.uv.sources]
 mjlab = { git = "https://github.com/mujocolab/mjlab", rev = "0cdc56246999409b83622764f5b38edb660cf16e" }
@@ -77,6 +79,7 @@ ignore = ["B011"]
 
 [dependency-groups]
 dev = [
+  "mcp>=1.28,<2",
   "pytest>=9.0.2",
   "ruff>=0.14.14",
   "ty>=0.0.14",

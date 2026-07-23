@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "mjlab-scout": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--extra",
+        "cu128",
+        "--extra",
+        "scout",
+        "mjlab-scout"
+      ]
+    }
+  }
+}
