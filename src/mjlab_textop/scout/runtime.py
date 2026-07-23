@@ -6,7 +6,6 @@ from contextlib import redirect_stdout
 from dataclasses import dataclass
 from typing import Any, Callable, TypeVar
 
-import mujoco
 from mjlab.scene import Scene
 from mjlab.sim import Simulation
 from mjlab.viewer import OffscreenRenderer, ViewerConfig
@@ -14,16 +13,13 @@ from mjlab.viewer import OffscreenRenderer, ViewerConfig
 from mjlab_textop.core.feedback.observation import encode_render_image_jpeg
 from mjlab_textop.scout.config import ScoutConfig
 from mjlab_textop.scout.schemas import (
-    BodySummary,
     CapturedView,
-    GeometrySummary,
-    SceneSummary,
     ScoutView,
     TaskInfo,
 )
 from tasks.catalog import TASKS, TaskDefinition, TaskSet, get_task
 
-AVAILABLE_VIEWS: tuple[ScoutView, ...] = ("agent", "overview", "overhead")
+DEFAULT_VIEWS: tuple[ScoutView, ...] = ("overview", "overhead")
 ResultT = TypeVar("ResultT")
 
 
@@ -33,6 +29,7 @@ class _LoadedTask:
     definition: TaskDefinition
     scene: Scene
     sim: Simulation
+    views: tuple[ScoutView, ...]
 
 
 class ScoutRuntime:
@@ -48,17 +45,18 @@ class ScoutRuntime:
 
     def list_tasks(self) -> tuple[TaskInfo, ...]:
         return tuple(
-            TaskInfo(name=name, objective=definition.objective)
+            TaskInfo(
+                name=name,
+                objective=definition.objective,
+                views=DEFAULT_VIEWS,
+            )
             for name, definition in TASKS.items()
         )
 
     def load_task(self, task: str) -> TaskInfo:
         return self._submit(self._load_task, task)
 
-    def get_scene_summary(self) -> SceneSummary:
-        return self._submit(self._get_scene_summary)
-
-    def capture_view(self, view: ScoutView = "agent") -> CapturedView:
+    def capture_view(self, view: ScoutView = "overview") -> CapturedView:
         return self._submit(self._capture_view, view)
 
     def close_task(self) -> None:
@@ -103,28 +101,20 @@ class ScoutRuntime:
             definition=definition,
             scene=scene,
             sim=sim,
+            views=(*DEFAULT_VIEWS, *_inspection_views(sim.mj_model)),
         )
-        return TaskInfo(name=name, objective=definition.objective)
-
-    def _get_scene_summary(self) -> SceneSummary:
-        loaded = self._require_loaded()
-        robot = loaded.scene["robot"]
-        robot_position = _vec3(robot.data.root_link_pos_w[0])
-        bodies = _task_bodies(loaded.sim.mj_model)
-        return SceneSummary(
-            task=loaded.name,
-            objective=loaded.definition.objective,
-            robot_position=robot_position,
-            bodies=bodies,
-            available_views=AVAILABLE_VIEWS,
+        return TaskInfo(
+            name=name,
+            objective=definition.objective,
+            views=self._loaded.views,
         )
 
     def _capture_view(self, view: ScoutView) -> CapturedView:
-        if view not in AVAILABLE_VIEWS:
-            choices = ", ".join(AVAILABLE_VIEWS)
+        loaded = self._require_loaded()
+        if view not in loaded.views:
+            choices = ", ".join(loaded.views)
             raise ValueError(f"Unknown view {view!r}. Available: {choices}")
 
-        loaded = self._require_loaded()
         if self._renderer_view != view:
             self._close_renderer()
             camera = self._camera_for(view, loaded)
@@ -141,7 +131,8 @@ class ScoutRuntime:
 
         assert self._renderer is not None
         with redirect_stdout(sys.stderr):
-            self._renderer.update(loaded.sim.data)
+            camera_name = None if view in DEFAULT_VIEWS else view
+            self._renderer.update(loaded.sim.data, camera=camera_name)
             image = encode_render_image_jpeg(self._renderer.render())
         return CapturedView(
             task=loaded.name,
@@ -152,14 +143,8 @@ class ScoutRuntime:
         )
 
     def _camera_for(self, view: ScoutView, loaded: _LoadedTask) -> ViewerConfig:
-        if view == "agent":
+        if view not in DEFAULT_VIEWS:
             return ViewerConfig(
-                origin_type=ViewerConfig.OriginType.ASSET_BODY,
-                entity_name="robot",
-                body_name="torso_link",
-                distance=3.0,
-                azimuth=0.0,
-                elevation=-12.0,
                 width=self.config.image_width,
                 height=self.config.image_height,
                 max_extra_envs=0,
@@ -205,42 +190,15 @@ class ScoutRuntime:
         return self._loaded
 
 
-def _task_bodies(model: Any) -> tuple[BodySummary, ...]:
-    bodies = []
+def _scene_frame(model: Any) -> tuple[tuple[float, float], float]:
+    positions = []
     for body_id in range(1, model.nbody):
         name = model.body(body_id).name
         if not name or "/" in name or name == "terrain":
             continue
-        geom_start = int(model.body_geomadr[body_id])
-        geom_stop = geom_start + int(model.body_geomnum[body_id])
-        geometries = tuple(
-            _geometry_summary(model, geom_id, index)
-            for index, geom_id in enumerate(range(geom_start, geom_stop), 1)
-        )
-        if geometries:
-            bodies.append(
-                BodySummary(
-                    # Asset names can encode task answers, as with portrait subjects.
-                    name=f"body_{len(bodies) + 1}",
-                    position=_vec3(model.body_pos[body_id]),
-                    geometries=geometries,
-                )
-            )
-    return tuple(bodies)
-
-
-def _geometry_summary(model: Any, geom_id: int, index: int) -> GeometrySummary:
-    kind = mujoco.mjtGeom(int(model.geom_type[geom_id])).name  # ty: ignore
-    return GeometrySummary(
-        name=f"geometry_{index}",
-        kind=kind.removeprefix("mjGEOM_").lower(),
-        size=tuple(float(value) for value in model.geom_size[geom_id]),
-        rgba=_rgba(model.geom_rgba[geom_id]),
-    )
-
-
-def _scene_frame(model: Any) -> tuple[tuple[float, float], float]:
-    positions = [body.position for body in _task_bodies(model)]
+        if int(model.body_geomnum[body_id]) > 0:
+            x, y, _ = model.body_pos[body_id]
+            positions.append((float(x), float(y)))
     if not positions:
         return (0.0, 0.0), 8.0
     xs = [position[0] for position in positions]
@@ -250,11 +208,9 @@ def _scene_frame(model: Any) -> tuple[tuple[float, float], float]:
     return center, max(8.0, span * 1.35)
 
 
-def _vec3(value: Any) -> tuple[float, float, float]:
-    x, y, z = value
-    return float(x), float(y), float(z)
-
-
-def _rgba(value: Any) -> tuple[float, float, float, float]:
-    red, green, blue, alpha = value
-    return float(red), float(green), float(blue), float(alpha)
+def _inspection_views(model: Any) -> tuple[ScoutView, ...]:
+    return tuple(
+        name
+        for camera_id in range(model.ncam)
+        if (name := model.camera(camera_id).name) and name.startswith("inspection_")
+    )

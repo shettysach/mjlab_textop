@@ -32,6 +32,13 @@ def test_portrait_corridors_spec_adds_three_textured_portraits_and_walls() -> No
         "portrait_corridors_bugs_texture",
     }
     assert len([body for body in spec.bodies if body.name.endswith("_wall")]) == 6
+    cameras = {camera.name: camera for camera in spec.cameras}
+    assert set(cameras) == {"inspection_1", "inspection_2", "inspection_3"}
+    assert [tuple(camera.pos) for camera in cameras.values()] == [
+        (0.55, 2.0, 1.25),
+        (0.55, 0.0, 1.25),
+        (0.55, -2.0, 1.25),
+    ]
     portrait_positions = {
         body.name: tuple(float(value) for value in body.pos)
         for body in spec.bodies
@@ -44,5 +51,6 @@ def test_portrait_corridors_spec_adds_three_textured_portraits_and_walls() -> No
     model = spec.compile()
     assert model.ntex == 3
     assert model.nmesh == 3
+    assert model.ncam == 3
     assert model.mat_texid[:, 1].tolist() == [0, 1, 2]
     assert model.mesh_texcoordnum.tolist() == [4, 4, 4]

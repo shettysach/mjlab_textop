@@ -1,4 +1,0 @@
-interface:
-  display_name: "MJLab Scout"
-  short_description: "Inspect MJLab tasks and write TASK.md"
-  default_prompt: "Use $mjlab-scout to inspect this MJLab task and write TASK.md."

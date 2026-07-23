@@ -18,6 +18,7 @@ MJMESH_INERTIA_SHELL = (
 MJTEXTURE_2D = mujoco.mjtTexture.mjTEXTURE_2D  # ty: ignore[unresolved-attribute]
 
 _ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
+_FORWARD_CAMERA_QUAT = (-0.5, -0.5, 0.5, 0.5)
 
 
 def make_portrait_corridors_spec_fn(
@@ -76,6 +77,13 @@ def make_portrait_corridors_spec_fn(
                 size=(divider_half_length, half_wall_thickness, half_wall_height),
                 rgba=wall_rgba,
             )
+
+        camera_x = divider_start_x - 0.25
+        for index, y in enumerate((corridor_width, 0.0, -corridor_width), 1):
+            camera = spec.worldbody.add_camera(name=f"inspection_{index}")
+            camera.pos = (camera_x, y, 1.25)
+            camera.quat = _FORWARD_CAMERA_QUAT
+            camera.fovy = 35.0
 
         portrait_x = end_x - half_wall_thickness - 0.01
         _add_portrait(spec, name="linus", pos=(portrait_x, corridor_width, 1.25))

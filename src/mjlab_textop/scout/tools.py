@@ -10,7 +10,6 @@ from mcp.types import ImageContent, TextContent, ToolAnnotations
 
 from mjlab_textop.scout.schemas import (
     CapturedView,
-    SceneSummary,
     ScoutView,
     TaskInfo,
 )
@@ -28,9 +27,7 @@ class ScoutRuntimeApi(Protocol):
 
     def load_task(self, task: str) -> TaskInfo: ...
 
-    def get_scene_summary(self) -> SceneSummary: ...
-
-    def capture_view(self, view: ScoutView = "agent") -> CapturedView: ...
+    def capture_view(self, view: ScoutView = "overview") -> CapturedView: ...
 
     def close_task(self) -> None: ...
 
@@ -47,14 +44,10 @@ class ScoutTools:
         """Load one task environment, replacing any currently loaded task."""
         return self.runtime.load_task(task)
 
-    def get_scene_summary(self) -> SceneSummary:
-        """Describe the objective, robot, and task geometry."""
-        return self.runtime.get_scene_summary()
-
     def capture_view(
-        self, view: ScoutView = "agent"
+        self, view: ScoutView = "overview"
     ) -> list[TextContent | ImageContent]:
-        """Capture an agent, overview, or overhead image of the loaded task."""
+        """Capture one of the view names returned by load_task."""
         captured = self.runtime.capture_view(view)
         metadata = asdict(captured)
         del metadata["image"]
@@ -77,7 +70,6 @@ def register_tools(mcp: FastMCP, runtime: ScoutRuntimeApi) -> ScoutTools:
     tools = ScoutTools(runtime)
     mcp.tool(annotations=READ_ONLY)(tools.list_tasks)
     mcp.tool(annotations=STATEFUL)(tools.load_task)
-    mcp.tool(annotations=READ_ONLY)(tools.get_scene_summary)
     mcp.tool(annotations=READ_ONLY, structured_output=False)(tools.capture_view)
     mcp.tool(annotations=STATEFUL)(tools.close_task)
     return tools
