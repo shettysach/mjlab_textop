@@ -16,6 +16,7 @@ from mjlab_textop.core.feedback.observation import (
     OnlineObservationState,
     make_torso_observation_camera,
 )
+from mjlab_textop.core.mdp import online_command_cfg, online_commands
 from mjlab_textop.core.mdp.collision_recovery import (
     contains_geom_pair as _contains_geom_pair,
 )
@@ -43,6 +44,17 @@ from mjlab_textop.core.online.source import (
     StreamControl,
 )
 from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
+
+
+def test_online_commands_reexports_config_api() -> None:
+    assert (
+        online_commands.OnlineMotionCommandCfg
+        is online_command_cfg.OnlineMotionCommandCfg
+    )
+    assert (
+        online_commands.use_online_textop_motion_command
+        is online_command_cfg.use_online_textop_motion_command
+    )
 
 
 class _LiveTextOpOnlineSource:

@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 from builders import motion_block
 
+from mjlab_textop.core.online import block, source, wire
 from mjlab_textop.core.online.live import (
     SocketOnlineSource,
     SocketSourceCfg,
@@ -14,6 +15,15 @@ from mjlab_textop.core.online.live import (
     textop_block_to_ndjson_message,
 )
 from mjlab_textop.core.online.source import StreamControl
+
+
+def test_legacy_online_imports_reexport_canonical_objects() -> None:
+    assert source.MotionBlock is block.MotionBlock
+    assert source.MotionFrames is block.MotionFrames
+    assert source.StreamControl is block.StreamControl
+    assert source.validate_motion_block is block.validate_motion_block
+    assert parse_textop_block_message is wire.parse_textop_block_message
+    assert textop_block_to_ndjson_message is wire.textop_block_to_ndjson_message
 
 
 def test_textop_block_ndjson_round_trip() -> None:

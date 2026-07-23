@@ -7,14 +7,19 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Any
 
-import numpy as np
-
-from mjlab_textop.core.online.source import (
-    MotionBlock,
-    MotionFrames,
-    StreamControl,
-    validate_motion_block,
+from mjlab_textop.core.online.block import MotionBlock
+from mjlab_textop.core.online.wire import (
+    parse_textop_block_message,
+    textop_block_to_ndjson_message,
 )
+
+__all__ = [
+    "SocketOnlineSource",
+    "SocketSourceCfg",
+    "TextOpLiveDiagnostics",
+    "parse_textop_block_message",
+    "textop_block_to_ndjson_message",
+]
 
 
 @dataclass(frozen=True)
@@ -32,58 +37,6 @@ class TextOpLiveDiagnostics:
     bad_messages: int = 0
     last_error: str | None = None
     connected: bool = False
-
-
-def textop_block_to_ndjson_message(
-    block: MotionBlock,
-) -> str:
-    message = {
-        "index": int(block.index),
-        "joint_pos": np.asarray(block.joint_pos, dtype=np.float32).tolist(),
-        "joint_vel": np.asarray(block.joint_vel, dtype=np.float32).tolist(),
-        "anchor_pos_w": np.asarray(block.anchor_pos_w, dtype=np.float32).tolist(),
-        "anchor_quat_w": np.asarray(block.anchor_quat_w, dtype=np.float32).tolist(),
-        "recovery_epoch": int(block.control.recovery_epoch),
-    }
-    if block.control.prompt is not None:
-        message["prompt"] = block.control.prompt
-    return json.dumps(message, separators=(",", ":")) + "\n"
-
-
-def parse_textop_block_message(
-    message: str | bytes | dict[str, Any],
-) -> MotionBlock:
-    data = _load_message(message)
-    missing = [
-        key
-        for key in (
-            "index",
-            "joint_pos",
-            "joint_vel",
-            "anchor_pos_w",
-            "anchor_quat_w",
-        )
-        if key not in data
-    ]
-    if missing:
-        raise ValueError(f"Live block missing required fields: {missing}")
-
-    block = validate_motion_block(
-        MotionBlock(
-            index=int(data["index"]),
-            motion=MotionFrames(
-                joint_pos=np.asarray(data["joint_pos"]),
-                joint_vel=np.asarray(data["joint_vel"]),
-                anchor_pos_w=np.asarray(data["anchor_pos_w"]),
-                anchor_quat_w=np.asarray(data["anchor_quat_w"]),
-            ),
-            control=StreamControl(
-                prompt=None if data.get("prompt") is None else str(data["prompt"]),
-                recovery_epoch=data.get("recovery_epoch", 0),
-            ),
-        )
-    )
-    return block
 
 
 class SocketOnlineSource:
@@ -181,14 +134,3 @@ class SocketOnlineSource:
 
     def _sync_queue_depth_locked(self) -> None:
         self.diagnostics.queue_depth = len(self._queue)
-
-
-def _load_message(message: str | bytes | dict[str, Any]) -> dict[str, Any]:
-    if isinstance(message, dict):
-        return message
-    if isinstance(message, bytes):
-        message = message.decode("utf-8")
-    data = json.loads(message)
-    if not isinstance(data, dict):
-        raise ValueError("TextOp live block message must be a JSON object")
-    return data

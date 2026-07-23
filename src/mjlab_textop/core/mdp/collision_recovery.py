@@ -5,7 +5,7 @@ from typing import Any
 
 import torch
 
-from mjlab_textop.core.online.source import MotionBlock
+from mjlab_textop.core.online.block import MotionBlock
 from mjlab_textop.core.online.window import FutureWindow
 
 

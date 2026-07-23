@@ -6,9 +6,11 @@ from mjlab_textop.core.motion import (
     load_mjlab_motion,
     reindex_mjlab_g1_joints_to_textop,
 )
-from mjlab_textop.core.online.source import (
+from mjlab_textop.core.online.block import (
     MotionBlock,
     MotionFrames,
+)
+from mjlab_textop.core.online.source import (
     QueueOnlineSource,
 )
 from mjlab_textop.core.schema import ROOT_BODY_INDEX

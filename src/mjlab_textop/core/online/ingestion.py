@@ -3,8 +3,9 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Callable
 
+from mjlab_textop.core.online.block import MotionBlock
 from mjlab_textop.core.online.buffer import RollingMotionBuffer
-from mjlab_textop.core.online.source import MotionBlock, OnlineSource
+from mjlab_textop.core.online.source import OnlineSource
 
 
 class OnlineBlockIngestor:
