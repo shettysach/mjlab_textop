@@ -17,7 +17,8 @@ from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
 from mjlab_textop.scripts.utils import (
     ResolvedPolicy,
 )
-from tasks.registration import TextOpTask, register_task
+from tasks.catalog import TaskSet
+from tasks.registration import register_task
 
 
 @dataclass(kw_only=True)
@@ -33,7 +34,7 @@ class NormalizeCommand:
 
 @dataclass(kw_only=True)
 class PlayLiveCommand:
-    task: TextOpTask = "default"
+    task: TaskSet | None = None
     checkpoint_file: str | None = None
     onnx_file: str | None = None
     onnx_provider: Literal["cpu", "cuda"] = "cpu"
@@ -136,7 +137,7 @@ def play_online_textop_motion(
 ) -> None:
     source = make_mjlab_npz_replay_source(motion_file, block_size=cfg.block_size)
     task_name = register_task(
-        "default",
+        None,
         runner_cls=policy.runner_cls,
         onnx_provider=policy.onnx_provider,
         source=source,

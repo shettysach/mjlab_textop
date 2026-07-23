@@ -17,7 +17,7 @@ from mjlab_textop.core.onnx_policy import (
     OnnxExecutionProvider,
     OnnxPolicyRunner,
 )
-from tasks.catalog import TextOpTask, make_task_env_cfg
+from tasks.catalog import TaskSet, make_task_env_cfg
 
 PolicyRunnerCls = type[MotionTrackingOnPolicyRunner] | type[OnnxPolicyRunner]
 
@@ -28,7 +28,7 @@ class OnnxPolicyRunnerCfg(RslRlOnPolicyRunnerCfg):
 
 
 def register_task(
-    task: TextOpTask,
+    task: TaskSet | None,
     *,
     runner_cls: PolicyRunnerCls = MotionTrackingOnPolicyRunner,
     onnx_provider: OnnxExecutionProvider = "cpu",
@@ -43,7 +43,12 @@ def register_task(
     policy_format: Literal["pt", "onnx"] = (
         "onnx" if issubclass(runner_cls, OnnxPolicyRunner) else "pt"
     )
-    name_parts = [task, policy_format, source_mode.capitalize(), uuid4().hex]
+    name_parts = [
+        task or "default",
+        policy_format,
+        source_mode.capitalize(),
+        uuid4().hex,
+    ]
     task_name = "-".join(name_parts)
     env_cfg = make_task_env_cfg(
         task,

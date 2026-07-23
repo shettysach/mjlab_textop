@@ -13,15 +13,7 @@ from tasks.side_goals.env_cfg import make_side_goals_g1_env_cfg
 from tasks.straight.env_cfg import make_straight_g1_env_cfg
 from tasks.turn.env_cfg import make_turn_task_g1_env_cfg
 
-TextOpTask = Literal[
-    "default",
-    "straight",
-    "blocked-straight",
-    "side-goals",
-    "turn",
-    "portrait-corridors",
-]
-ScoutTask = Literal[
+TaskSet = Literal[
     "straight",
     "blocked-straight",
     "side-goals",
@@ -37,16 +29,7 @@ class TaskDefinition:
     objective: str
 
 
-TASK_CFGS: dict[TextOpTask, EnvCfgFactory] = {
-    "default": make_online_textop_g1_env_cfg,
-    "straight": make_straight_g1_env_cfg,
-    "blocked-straight": make_blocked_straight_g1_env_cfg,
-    "side-goals": make_side_goals_g1_env_cfg,
-    "turn": make_turn_task_g1_env_cfg,
-    "portrait-corridors": make_portrait_corridors_g1_env_cfg,
-}
-
-SCOUT_TASKS: dict[ScoutTask, TaskDefinition] = {
+TASKS: dict[TaskSet, TaskDefinition] = {
     "straight": TaskDefinition(
         env_factory=make_straight_g1_env_cfg,
         objective="Reach and stand on the green region.",
@@ -70,15 +53,16 @@ SCOUT_TASKS: dict[ScoutTask, TaskDefinition] = {
 }
 
 
-def make_task_env_cfg(task: TextOpTask, **kwargs: Any) -> ManagerBasedRlEnvCfg:
-    return TASK_CFGS[task](**kwargs)
+def make_task_env_cfg(task: TaskSet | None, **kwargs: Any) -> ManagerBasedRlEnvCfg:
+    factory = make_online_textop_g1_env_cfg if task is None else TASKS[task].env_factory
+    return factory(**kwargs)
 
 
-def get_scout_task(task: str) -> tuple[ScoutTask, TaskDefinition]:
-    if task not in SCOUT_TASKS:
-        available = ", ".join(SCOUT_TASKS)
+def get_task(task: str) -> tuple[TaskSet, TaskDefinition]:
+    if task not in TASKS:
+        available = ", ".join(TASKS)
         raise ValueError(
             f"Unknown Scout task {task!r}. Available: {available}"
         ) from None
-    name = cast(ScoutTask, task)
-    return name, SCOUT_TASKS[name]
+    name = cast(TaskSet, task)
+    return name, TASKS[name]

@@ -67,7 +67,7 @@ def test_online_textop_replay_task_uses_replay_source_mode() -> None:
         ]
     )
 
-    task_name = register_task("default", source=source, source_mode="replay")
+    task_name = register_task(None, source=source, source_mode="replay")
     env_cfg = load_env_cfg(task_name, play=True)
 
     assert env_cfg.commands["motion"].source_mode == "replay"
@@ -92,7 +92,7 @@ def test_online_textop_onnx_replay_task_uses_replay_source_mode() -> None:
     )
 
     task_name = register_task(
-        "default", runner_cls=OnnxPolicyRunner, source=source, source_mode="replay"
+        None, runner_cls=OnnxPolicyRunner, source=source, source_mode="replay"
     )
     env_cfg = load_env_cfg(task_name, play=True)
 
@@ -102,7 +102,7 @@ def test_online_textop_onnx_replay_task_uses_replay_source_mode() -> None:
 
 def test_online_textop_onnx_task_carries_cuda_provider_in_runner_cfg() -> None:
     task_name = register_task(
-        "default",
+        None,
         runner_cls=OnnxPolicyRunner,
         onnx_provider="cuda",
         source=QueueOnlineSource(),
@@ -132,7 +132,7 @@ def test_online_textop_replay_task_can_disable_reference_reset() -> None:
     )
 
     task_name = register_task(
-        "default",
+        None,
         source=source,
         source_mode="replay",
         reset_robot_to_reference=False,
@@ -146,7 +146,7 @@ def test_online_textop_live_task_uses_live_source_mode() -> None:
     source = QueueOnlineSource([])
 
     task_name = register_task(
-        "default",
+        None,
         source=source,
         source_mode="live",
         observation=OnlineObservationCfg(

@@ -17,7 +17,7 @@ from mjlab_textop.scout.schemas import (
     TaskInfo,
 )
 from mjlab_textop.scout.tools import ScoutTools
-from tasks.catalog import SCOUT_TASKS, TaskDefinition
+from tasks.catalog import TASKS, TaskDefinition
 
 
 class _FakeModel:
@@ -38,15 +38,15 @@ class _FakeModel:
 
 
 def test_scout_catalog_has_simple_objectives() -> None:
-    assert set(SCOUT_TASKS) == {
+    assert set(TASKS) == {
         "straight",
         "blocked-straight",
         "side-goals",
         "turn",
         "portrait-corridors",
     }
-    assert SCOUT_TASKS["straight"].objective == ("Reach and stand on the green region.")
-    assert SCOUT_TASKS["portrait-corridors"].objective == (
+    assert TASKS["straight"].objective == ("Reach and stand on the green region.")
+    assert TASKS["portrait-corridors"].objective == (
         "Stand in front of the creator of Linux."
     )
 
@@ -118,7 +118,7 @@ def test_runtime_keeps_scene_and_renderer_on_one_thread(monkeypatch) -> None:
         objective="Reach the goal.",
     )
     monkeypatch.setattr(
-        "mjlab_textop.scout.runtime.get_scout_task",
+        "mjlab_textop.scout.runtime.get_task",
         lambda task: ("straight", definition),
     )
     monkeypatch.setattr("mjlab_textop.scout.runtime.Scene", FakeScene)

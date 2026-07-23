@@ -21,7 +21,7 @@ from mjlab_textop.scout.schemas import (
     ScoutView,
     TaskInfo,
 )
-from tasks.catalog import SCOUT_TASKS, ScoutTask, TaskDefinition, get_scout_task
+from tasks.catalog import TASKS, TaskDefinition, TaskSet, get_task
 
 AVAILABLE_VIEWS: tuple[ScoutView, ...] = ("agent", "overview", "overhead")
 ResultT = TypeVar("ResultT")
@@ -29,7 +29,7 @@ ResultT = TypeVar("ResultT")
 
 @dataclass
 class _LoadedTask:
-    name: ScoutTask
+    name: TaskSet
     definition: TaskDefinition
     scene: Scene
     sim: Simulation
@@ -49,7 +49,7 @@ class ScoutRuntime:
     def list_tasks(self) -> tuple[TaskInfo, ...]:
         return tuple(
             TaskInfo(name=name, objective=definition.objective)
-            for name, definition in SCOUT_TASKS.items()
+            for name, definition in TASKS.items()
         )
 
     def load_task(self, task: str) -> TaskInfo:
@@ -77,7 +77,7 @@ class ScoutRuntime:
         return self._worker.submit(fn, *args).result()
 
     def _load_task(self, task: str) -> TaskInfo:
-        name, definition = get_scout_task(task)
+        name, definition = get_task(task)
         self._close_task()
 
         with redirect_stdout(sys.stderr):
