@@ -5,11 +5,12 @@ from typing import Any
 import numpy as np
 import torch
 
-from mjlab_textop.core.motion import (
-    reindex_mjlab_g1_joints_to_textop,
+from textop_live_protocol.g1 import (
+    G1_JOINT_COUNT,
+    G1_JOINT_NAMES,
+    mjlab_to_textop_joint_order,
 )
-from mjlab_textop.core.online.source import MotionBlock, MotionFrames, StreamControl
-from mjlab_textop.core.schema import G1_JOINT_COUNT, MJLAB_G1_JOINT_NAMES
+from textop_live_protocol.motion import MotionBlock, MotionFrames, StreamControl
 
 # RobotMDAR predicts 23 G1 DoFs.
 # MJLab G1 has 29 joints; RobotMDAR does not output wrist joints.
@@ -47,7 +48,7 @@ ROBOTMDAR_G1_DOF_LINK_NAMES: tuple[str, ...] = tuple(
 ROBOTMDAR_DOF_COUNT = len(ROBOTMDAR_G1_DOF_NAMES)
 
 ROBOTMDAR_G1_DOF_INDEX: tuple[int, ...] = tuple(
-    MJLAB_G1_JOINT_NAMES.index(name) for name in ROBOTMDAR_G1_DOF_NAMES
+    G1_JOINT_NAMES.index(name) for name in ROBOTMDAR_G1_DOF_NAMES
 )
 
 
@@ -82,8 +83,8 @@ def robotmdar_motion_dict_to_block(
     return MotionBlock(
         index=index,
         motion=MotionFrames(
-            joint_pos=reindex_mjlab_g1_joints_to_textop(joint_pos_mjlab),
-            joint_vel=reindex_mjlab_g1_joints_to_textop(joint_vel_mjlab),
+            joint_pos=mjlab_to_textop_joint_order(joint_pos_mjlab),
+            joint_vel=mjlab_to_textop_joint_order(joint_vel_mjlab),
             anchor_pos_w=motion_dict["root_trans_offset"][0].detach().cpu().numpy(),
             anchor_quat_w=root_rot_xyzw[:, [3, 0, 1, 2]],
         ),

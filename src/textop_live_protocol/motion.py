@@ -4,11 +4,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from mjlab_textop.core.motion import (
-    normalize_quat,
-    validate_frame_vector_array,
-    validate_g1_joint_frames,
-)
+from textop_live_protocol.g1 import G1_JOINT_COUNT
 
 
 @dataclass(frozen=True)
@@ -99,3 +95,32 @@ def validate_motion_block(block: MotionBlock) -> MotionBlock:
         ),
         control=block.control,
     )
+
+
+def validate_g1_joint_frames(name: str, value: np.ndarray) -> np.ndarray:
+    array = np.asarray(value, dtype=np.float32)
+    if array.ndim != 2 or array.shape[1] != G1_JOINT_COUNT:
+        raise ValueError(
+            f"{name} must be shaped [T, {G1_JOINT_COUNT}], got {array.shape}"
+        )
+    if array.shape[0] == 0:
+        raise ValueError(f"{name} must contain at least one frame")
+    return array
+
+
+def validate_frame_vector_array(
+    name: str,
+    value: np.ndarray,
+    width: int,
+) -> np.ndarray:
+    array = np.asarray(value, dtype=np.float32)
+    if array.ndim != 2 or array.shape[1] != width:
+        raise ValueError(f"{name} must be shaped [T, {width}], got {array.shape}")
+    if array.shape[0] == 0:
+        raise ValueError(f"{name} must contain at least one frame")
+    return array
+
+
+def normalize_quat(quat: np.ndarray) -> np.ndarray:
+    norm = np.linalg.norm(quat, axis=-1, keepdims=True)
+    return (quat / norm).astype(np.float32)

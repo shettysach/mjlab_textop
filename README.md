@@ -3,15 +3,26 @@
 MJLab TextOp connects TextOp/RobotMDAR motion generation to MJLab for motion
 normalization, policy training, offline replay, and live text-to-motion control.
 
+## Source layout
+
+- `src/textop_live_protocol` owns the shared motion and observation contracts.
+- `src/robotmdar_textop` owns RobotMDAR generation and prompt planning.
+- `src/mjlab_textop` owns MJLab policy execution and simulation integration.
+- `src/mjlab_scout` owns the MCP task-inspection service.
+- `tasks` stays at the repository root as the experiment and environment layer.
+
+The protocol and RobotMDAR namespaces do not import MJLab. The live workflow
+crosses the boundary only through motion blocks and observation messages.
+
 ## Workflow
 
 | Stage | Environment | Command | Output |
 | --- | --- | --- | --- |
-| Record | TextOp/RobotMDAR | `python -m mjlab_textop.robotmdar.record` | Raw RobotMDAR NPZ |
+| Record | TextOp/RobotMDAR | `python -m robotmdar_textop.record` | Raw RobotMDAR NPZ |
 | Normalize | MJLab TextOp | `mjlab-textop normalize` | MJLab train-ready NPZ |
 | Train | MJLab TextOp | `train` | RSL-RL checkpoint |
 | Replay | MJLab TextOp | `play` or `mjlab-textop play-online` | Offline simulation |
-| Run live | Both environments | `robotmdar.produce` and `mjlab-textop play-live` | Live simulation |
+| Run live | Both environments | `python -m robotmdar_textop.produce` and `mjlab-textop play-live` | Live simulation |
 
 ## Environments
 
@@ -56,6 +67,9 @@ uv pip install -e ./deps/isaac_utils
 uv pip install git+https://github.com/openai/CLIP.git
 uv pip install -e ./TextOpRobotMDAR
 
+# Point this Python 3.10 environment at the shared protocol and producer code.
+export PYTHONPATH=/absolute/path/to/mjlab_textop/src
+
 uvx hf download Yochish/TextOp-Data \
   --repo-type dataset \
   --local-dir /tmp/textop-data \
@@ -64,8 +78,10 @@ uvx hf download Yochish/TextOp-Data \
   --include 'TextOpRobotMDAR/description/**'
 ```
 
-RobotMDAR commands below run from this `TextOp` directory with the
-`mjlab_textop` package available on `PYTHONPATH`.
+RobotMDAR commands below run from this `TextOp` directory. `PYTHONPATH` must
+contain the `src` directory—not the repository root—so Python can import both
+`robotmdar_textop` and `textop_live_protocol`. The MJLab environment does not
+need this setting; `uv run` installs the project there.
 
 ### ONNX policy
 
@@ -91,7 +107,7 @@ Generate a raw reference record without starting an MJLab socket consumer:
 
 ```bash
 # Run from the TextOp directory.
-uv run python -m mjlab_textop.robotmdar.record \
+uv run python -m robotmdar_textop.record \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
   --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/PRIVATE-DATA \
   --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1 \
@@ -211,7 +227,7 @@ For the default planner:
 
 ```bash
 # Run from the TextOp directory.
-uv run python -m mjlab_textop.robotmdar.produce \
+uv run python -m robotmdar_textop.produce \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
   --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/PRIVATE-DATA \
   --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1
@@ -221,7 +237,7 @@ For VLM prompt selection:
 
 ```bash
 # Run from the TextOp directory.
-uv run python -m mjlab_textop.robotmdar.produce \
+uv run python -m robotmdar_textop.produce \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
   --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/PRIVATE-DATA \
   --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1 \
@@ -234,10 +250,10 @@ uv run python -m mjlab_textop.robotmdar.produce \
 ```
 
 The invariant controller prompt comes from
-[`src/mjlab_textop/prompt/INVARIANT.md`](src/mjlab_textop/prompt/INVARIANT.md).
+[`src/robotmdar_textop/prompt/INVARIANT.md`](src/robotmdar_textop/prompt/INVARIANT.md).
 The generated `TASK.md` is appended to it by default, while the per-turn command
 list comes from
-[`src/mjlab_textop/prompt/USER.md`](src/mjlab_textop/prompt/USER.md). Override
+[`src/robotmdar_textop/prompt/USER.md`](src/robotmdar_textop/prompt/USER.md). Override
 the task and user prompt files with `--vlm-system-prompt` and
 `--vlm-user-prompt`.
 
@@ -305,7 +321,7 @@ MJLab observations are HTTP JSON posts containing a base64 JPEG render. Safety
 updates can carry collision-stop state and a recovery epoch without an image.
 Collision-only observations do not trigger VLM queries.
 
-Enable `--reference-debug-vis true` to render the live RobotMDAR reference as
+Enable `--reference-debug-vis` to render the live RobotMDAR reference as
 a translucent ghost beside the simulated robot.
 
 ### ONNX runtime behavior
@@ -348,7 +364,7 @@ The producer can use task-specific VLM prompts:
 
 ```bash
 # Run from the TextOp directory.
-uv run python -m mjlab_textop.robotmdar.produce \
+uv run python -m robotmdar_textop.produce \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
   --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/PRIVATE-DATA \
   --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1 \

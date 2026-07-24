@@ -8,20 +8,20 @@ from types import SimpleNamespace
 
 import pytest
 
-from mjlab_textop.robotmdar import produce
-from mjlab_textop.robotmdar.feedback import (
+from robotmdar_textop import produce
+from robotmdar_textop.feedback import (
     FeedbackObservation,
     HttpObservationReceiver,
     parse_feedback_observation,
 )
-from mjlab_textop.robotmdar.planner import (
+from robotmdar_textop.planner import (
     ManualPromptPlanner,
     OpenAIChatPromptSelector,
     VlmPromptPlanner,
     VlmPromptSelection,
 )
-from mjlab_textop.robotmdar.planner.followups import command_followups
-from mjlab_textop.robotmdar.runtime import (
+from robotmdar_textop.planner.followups import command_followups
+from robotmdar_textop.runtime import (
     DEFAULT_VLM_USER_PROMPT_FILE,
     StreamConfig,
     compose_system_prompt,
@@ -551,12 +551,10 @@ def test_stream_submits_planner_work_after_generation_and_send(monkeypatch) -> N
             events.append(("send", data))
 
     monkeypatch.setattr(
-        "mjlab_textop.robotmdar.runtime.textop_block_to_ndjson_message",
+        "robotmdar_textop.runtime.textop_block_to_ndjson_message",
         lambda _block: "block\n",
     )
-    monkeypatch.setattr(
-        "mjlab_textop.robotmdar.runtime.time.sleep", lambda _delay: None
-    )
+    monkeypatch.setattr("robotmdar_textop.runtime.time.sleep", lambda _delay: None)
 
     stream_robotmdar_blocks(
         conn=Connection(),
@@ -641,7 +639,7 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
         )
 
     monkeypatch.setattr(
-        "mjlab_textop.robotmdar.planner.vlm.urllib.request.urlopen",
+        "robotmdar_textop.planner.vlm.urllib.request.urlopen",
         fake_urlopen,
     )
     selector = OpenAIChatPromptSelector(
@@ -699,7 +697,7 @@ def test_http_vlm_prompt_selector_posts_image_from_observation_bytes(
         )
 
     monkeypatch.setattr(
-        "mjlab_textop.robotmdar.planner.vlm.urllib.request.urlopen",
+        "robotmdar_textop.planner.vlm.urllib.request.urlopen",
         fake_urlopen,
     )
     selector = OpenAIChatPromptSelector(
@@ -751,7 +749,7 @@ def test_http_vlm_prompt_selector_sends_bounded_complete_turns(monkeypatch) -> N
         return _FakeResponse(next(responses))
 
     monkeypatch.setattr(
-        "mjlab_textop.robotmdar.planner.vlm.urllib.request.urlopen",
+        "robotmdar_textop.planner.vlm.urllib.request.urlopen",
         fake_urlopen,
     )
     selector = OpenAIChatPromptSelector(
@@ -823,7 +821,7 @@ def test_http_vlm_prompt_selector_history_length_one_is_stateless(monkeypatch) -
         return _FakeResponse(next(responses))
 
     monkeypatch.setattr(
-        "mjlab_textop.robotmdar.planner.vlm.urllib.request.urlopen",
+        "robotmdar_textop.planner.vlm.urllib.request.urlopen",
         fake_urlopen,
     )
     selector = OpenAIChatPromptSelector(
@@ -874,7 +872,7 @@ def test_http_vlm_prompt_selector_returns_raw_response(monkeypatch) -> None:
         )
 
     monkeypatch.setattr(
-        "mjlab_textop.robotmdar.planner.vlm.urllib.request.urlopen",
+        "robotmdar_textop.planner.vlm.urllib.request.urlopen",
         fake_urlopen,
     )
     selector = OpenAIChatPromptSelector(
@@ -909,7 +907,7 @@ def test_http_vlm_prompt_selector_returns_debug_reasoning(monkeypatch) -> None:
         return _FakeResponse(raw_response)
 
     monkeypatch.setattr(
-        "mjlab_textop.robotmdar.planner.vlm.urllib.request.urlopen",
+        "robotmdar_textop.planner.vlm.urllib.request.urlopen",
         fake_urlopen,
     )
     selector = OpenAIChatPromptSelector(
@@ -941,7 +939,7 @@ def test_http_vlm_prompt_selector_returns_choice_reasoning(monkeypatch) -> None:
         )
 
     monkeypatch.setattr(
-        "mjlab_textop.robotmdar.planner.vlm.urllib.request.urlopen",
+        "robotmdar_textop.planner.vlm.urllib.request.urlopen",
         fake_urlopen,
     )
     selector = OpenAIChatPromptSelector(

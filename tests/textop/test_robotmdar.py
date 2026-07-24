@@ -10,7 +10,7 @@ from mjlab_textop.core.motion import (
 )
 from mjlab_textop.core.normalize import normalize
 from mjlab_textop.core.online.source import MotionBlock, MotionFrames
-from mjlab_textop.core.robotmdar import (
+from robotmdar_textop.motion import (
     ROBOTMDAR_G1_DOF_INDEX,
     ROBOTMDAR_G1_DOF_LINK_NAMES,
     ROBOTMDAR_G1_DOF_NAMES,
@@ -18,11 +18,11 @@ from mjlab_textop.core.robotmdar import (
     robotmdar_motion_dict_to_block,
     slice_motion_dict_tail,
 )
-from mjlab_textop.core.robotmdar_record import (
+from textop_live_protocol.g1 import G1_JOINT_NAMES as MJLAB_G1_JOINT_NAMES
+from textop_live_protocol.recording import (
     load_robotmdar_raw_record,
     save_robotmdar_raw_record,
 )
-from mjlab_textop.core.schema import MJLAB_G1_JOINT_NAMES
 
 
 def test_robotmdar_dof_indices_are_derived_from_joint_names() -> None:

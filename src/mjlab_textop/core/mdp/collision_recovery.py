@@ -5,8 +5,8 @@ from typing import Any
 
 import torch
 
-from mjlab_textop.core.online.block import MotionBlock
 from mjlab_textop.core.online.window import FutureWindow
+from textop_live_protocol.motion import MotionBlock
 
 
 @dataclass

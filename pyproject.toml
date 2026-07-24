@@ -20,7 +20,7 @@ scout = ["mcp>=1.28,<2"]
 
 [project.scripts]
 mjlab-textop = "mjlab_textop.scripts.cli:main"
-mjlab-scout = "mjlab_textop.scout.server:main"
+mjlab-scout = "mjlab_scout.server:main"
 
 [tool.uv.sources]
 mjlab = { git = "https://github.com/mujocolab/mjlab", rev = "0cdc56246999409b83622764f5b38edb660cf16e" }
@@ -67,7 +67,13 @@ indent-width = 4
 src = ["src", "."]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/mjlab_textop", "tasks"]
+packages = [
+  "src/mjlab_textop",
+  "src/mjlab_scout",
+  "src/robotmdar_textop",
+  "src/textop_live_protocol",
+  "tasks",
+]
 
 [tool.hatch.build.targets.wheel.force-include]
 "assets" = "assets"

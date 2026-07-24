@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from builders import motion_block
 
-from mjlab_textop.core.online import block, source, wire
+from mjlab_textop.core.online import source
 from mjlab_textop.core.online.live import (
     SocketOnlineSource,
     SocketSourceCfg,
@@ -15,15 +15,18 @@ from mjlab_textop.core.online.live import (
     textop_block_to_ndjson_message,
 )
 from mjlab_textop.core.online.source import StreamControl
+from textop_live_protocol import motion, motion_ndjson
 
 
-def test_legacy_online_imports_reexport_canonical_objects() -> None:
-    assert source.MotionBlock is block.MotionBlock
-    assert source.MotionFrames is block.MotionFrames
-    assert source.StreamControl is block.StreamControl
-    assert source.validate_motion_block is block.validate_motion_block
-    assert parse_textop_block_message is wire.parse_textop_block_message
-    assert textop_block_to_ndjson_message is wire.textop_block_to_ndjson_message
+def test_live_source_uses_shared_protocol_objects() -> None:
+    assert source.MotionBlock is motion.MotionBlock
+    assert source.MotionFrames is motion.MotionFrames
+    assert source.StreamControl is motion.StreamControl
+    assert source.validate_motion_block is motion.validate_motion_block
+    assert parse_textop_block_message is motion_ndjson.parse_textop_block_message
+    assert (
+        textop_block_to_ndjson_message is motion_ndjson.textop_block_to_ndjson_message
+    )
 
 
 def test_textop_block_ndjson_round_trip() -> None:
@@ -63,7 +66,7 @@ def test_textop_block_parser_rejects_bad_shape() -> None:
         "anchor_quat_w": block.anchor_quat_w.tolist(),
     }
 
-    with pytest.raises(ValueError, match="29 joints"):
+    with pytest.raises(ValueError, match=r"\[T, 29\]"):
         parse_textop_block_message(message)
 
 

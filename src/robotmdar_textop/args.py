@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from mjlab_textop.robotmdar.runtime import (
+from robotmdar_textop.runtime import (
     DEFAULT_VLM_SYSTEM_PROMPT_FILE,
     DEFAULT_VLM_USER_PROMPT_FILE,
 )

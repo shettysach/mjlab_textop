@@ -4,19 +4,19 @@ import argparse
 import socket
 import sys
 
-from mjlab_textop.robotmdar.args import (
+from robotmdar_textop.args import (
     add_generator_arguments,
     add_stream_arguments,
     add_vlm_arguments,
     validate_vlm_arguments,
 )
-from mjlab_textop.robotmdar.feedback import HttpObservationReceiver
-from mjlab_textop.robotmdar.planner.manual import ManualPromptPlanner
-from mjlab_textop.robotmdar.planner.vlm import (
+from robotmdar_textop.feedback import HttpObservationReceiver
+from robotmdar_textop.planner.manual import ManualPromptPlanner
+from robotmdar_textop.planner.vlm import (
     OpenAIChatPromptSelector,
     VlmPromptPlanner,
 )
-from mjlab_textop.robotmdar.runtime import (
+from robotmdar_textop.runtime import (
     PromptController,
     StreamConfig,
     compose_system_prompt,

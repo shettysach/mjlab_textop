@@ -7,13 +7,11 @@ from typing import Any
 
 import numpy as np
 
-from mjlab_textop.core.motion import (
+from textop_live_protocol.motion import (
+    MotionBlock,
     normalize_quat,
     validate_frame_vector_array,
     validate_g1_joint_frames,
-)
-from mjlab_textop.core.online.source import (
-    MotionBlock,
     validate_motion_block,
 )
 

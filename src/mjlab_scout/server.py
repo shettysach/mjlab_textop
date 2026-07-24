@@ -4,9 +4,9 @@ import argparse
 
 from mcp.server.fastmcp import FastMCP
 
-from mjlab_textop.scout.config import ScoutConfig
-from mjlab_textop.scout.runtime import ScoutRuntime
-from mjlab_textop.scout.tools import register_tools
+from mjlab_scout.config import ScoutConfig
+from mjlab_scout.runtime import ScoutRuntime
+from mjlab_scout.tools import register_tools
 
 
 def create_server(runtime: ScoutRuntime) -> FastMCP:

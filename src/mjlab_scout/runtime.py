@@ -10,15 +10,15 @@ from mjlab.scene import Scene
 from mjlab.sim import Simulation
 from mjlab.viewer import OffscreenRenderer, ViewerConfig
 
-from mjlab_textop.core.feedback.observation import (
-    encode_render_image_jpeg,
-    make_torso_observation_camera,
-)
-from mjlab_textop.scout.config import ScoutConfig
-from mjlab_textop.scout.schemas import (
+from mjlab_scout.config import ScoutConfig
+from mjlab_scout.schemas import (
     CapturedView,
     ScoutView,
     TaskInfo,
+)
+from mjlab_textop.core.feedback.observation import (
+    encode_render_image_jpeg,
+    make_torso_observation_camera,
 )
 from tasks.catalog import TASKS, TaskDefinition, TaskSet, get_task
 

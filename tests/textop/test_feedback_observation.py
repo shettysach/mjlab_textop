@@ -7,11 +7,14 @@ import pytest
 from mjlab_textop.core.feedback.observation import (
     OBSERVATION_JPEG_QUALITY,
     HttpObservationPublisher,
-    ObservationImage,
     OnlineObservationCfg,
     encode_render_image_jpeg,
-    make_http_observation_payload,
     make_torso_observation_camera,
+)
+from textop_live_protocol.observation import (
+    ObservationImage,
+    ObservationMessage,
+    observation_to_json,
 )
 
 
@@ -98,8 +101,10 @@ def test_http_observation_publisher_rejects_empty_url() -> None:
 
 
 def test_make_http_observation_payload_includes_image() -> None:
-    assert make_http_observation_payload(
-        image=ObservationImage(data=b"jpeg bytes", mime_type="image/jpeg"),
+    assert observation_to_json(
+        ObservationMessage(
+            image=ObservationImage(data=b"jpeg bytes", mime_type="image/jpeg")
+        )
     ) == {
         "image": {
             "mime_type": "image/jpeg",
@@ -109,10 +114,8 @@ def test_make_http_observation_payload_includes_image() -> None:
 
 
 def test_make_http_observation_payload_supports_collision_event() -> None:
-    assert make_http_observation_payload(
-        image=None,
-        collision_stop=True,
-        recovery_epoch=7,
+    assert observation_to_json(
+        ObservationMessage(collision_stop=True, recovery_epoch=7)
     ) == {"collision_stop": True, "recovery_epoch": 7}
 
 

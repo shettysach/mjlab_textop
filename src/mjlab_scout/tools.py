@@ -8,7 +8,7 @@ from typing import Protocol
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ImageContent, TextContent, ToolAnnotations
 
-from mjlab_textop.scout.schemas import (
+from mjlab_scout.schemas import (
     CapturedView,
     ScoutView,
     TaskInfo,

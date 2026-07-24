@@ -30,7 +30,8 @@ from mjlab_textop.core.online.source import (
     ResettableOnlineSource,
 )
 from mjlab_textop.core.online.window import FutureWindow, OnlineReferenceWindow
-from mjlab_textop.core.schema import FUTURE_STEPS, G1_JOINT_COUNT, TEXTOP_FPS
+from mjlab_textop.core.schema import FUTURE_STEPS
+from textop_live_protocol.g1 import G1_JOINT_COUNT, TEXTOP_FPS
 
 LIVE_BUFFER_LOW_WATERMARK_FRAMES = 150
 LIVE_BUFFER_HIGH_WATERMARK_FRAMES = 350

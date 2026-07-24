@@ -43,7 +43,9 @@ from mjlab_textop.core.online.source import (
     MotionFrames,
     StreamControl,
 )
-from mjlab_textop.core.schema import ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
+from textop_live_protocol.g1 import (
+    TEXTOP_TO_MJLAB_G1_JOINT_INDEX as ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
+)
 
 
 def test_online_commands_reexports_config_api() -> None:
@@ -291,7 +293,7 @@ def test_rolling_buffer_rejects_wrong_joint_count() -> None:
         ),
     )
 
-    with pytest.raises(ValueError, match="29 joints"):
+    with pytest.raises(ValueError, match=r"\[T, 29\]"):
         RollingMotionBuffer().append_block(bad)
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass
 
-from mjlab_textop.robotmdar.planner.followups import CommandSequencer
+from robotmdar_textop.planner.followups import CommandSequencer
 
 
 @dataclass

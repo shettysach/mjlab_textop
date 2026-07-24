@@ -9,15 +9,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
-from mjlab_textop.core.online.live import textop_block_to_ndjson_message
-from mjlab_textop.core.online.source import MotionBlock
-from mjlab_textop.core.robotmdar import (
+from robotmdar_textop.motion import (
     robotmdar_motion_dict_to_block,
     slice_motion_dict_tail,
 )
-from mjlab_textop.core.schema import TEXTOP_FPS
+from textop_live_protocol.g1 import TEXTOP_FPS
+from textop_live_protocol.motion import MotionBlock
+from textop_live_protocol.motion_ndjson import textop_block_to_ndjson_message
 
-PROMPT_DIR = Path(__file__).resolve().parents[1] / "prompt"
+PROMPT_DIR = Path(__file__).resolve().parent / "prompt"
 DEFAULT_VLM_SYSTEM_PROMPT_FILE = Path("TASK.md")
 DEFAULT_VLM_USER_PROMPT_FILE = PROMPT_DIR / "USER.md"
 INVARIANT_CONTROLLER_PROMPT = PROMPT_DIR / "INVARIANT.md"

@@ -5,10 +5,10 @@ import sys
 import time
 from pathlib import Path
 
-from mjlab_textop.core.robotmdar_record import save_robotmdar_raw_record
-from mjlab_textop.core.schema import TEXTOP_FPS
-from mjlab_textop.robotmdar.args import add_generator_arguments
-from mjlab_textop.robotmdar.runtime import make_robotmdar_generator
+from robotmdar_textop.args import add_generator_arguments
+from robotmdar_textop.runtime import make_robotmdar_generator
+from textop_live_protocol.g1 import TEXTOP_FPS
+from textop_live_protocol.recording import save_robotmdar_raw_record
 
 
 def run_record(args: argparse.Namespace) -> None:

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import urllib.request
-from base64 import b64encode
 from dataclasses import dataclass, field
 from io import BytesIO
 from typing import Any, Protocol
@@ -10,13 +9,13 @@ from typing import Any, Protocol
 import imageio.v3 as iio
 from mjlab.viewer import ViewerConfig
 
+from textop_live_protocol.observation import (
+    ObservationImage,
+    ObservationMessage,
+    observation_to_json,
+)
+
 OBSERVATION_JPEG_QUALITY = 95
-
-
-@dataclass(frozen=True)
-class ObservationImage:
-    data: bytes
-    mime_type: str
 
 
 @dataclass(frozen=True)
@@ -75,10 +74,12 @@ class HttpObservationPublisher:
         request = urllib.request.Request(
             self.url,
             data=json.dumps(
-                make_http_observation_payload(
-                    image=image,
-                    collision_stop=collision_stop,
-                    recovery_epoch=recovery_epoch,
+                observation_to_json(
+                    ObservationMessage(
+                        image=image,
+                        collision_stop=collision_stop,
+                        recovery_epoch=recovery_epoch,
+                    )
                 ),
                 separators=(",", ":"),
             ).encode("utf-8"),
@@ -107,25 +108,6 @@ def make_torso_observation_camera(
         azimuth=azimuth,
         elevation=elevation,
     )
-
-
-def make_http_observation_payload(
-    *,
-    image: ObservationImage | None,
-    collision_stop: bool | None = None,
-    recovery_epoch: int | None = None,
-) -> dict[str, Any]:
-    payload: dict[str, Any] = {}
-    if collision_stop is not None:
-        payload["collision_stop"] = collision_stop
-    if recovery_epoch is not None:
-        payload["recovery_epoch"] = recovery_epoch
-    if image is not None:
-        payload["image"] = {
-            "mime_type": image.mime_type,
-            "data": b64encode(image.data).decode("ascii"),
-        }
-    return payload
 
 
 def encode_render_image_jpeg(image: Any) -> bytes:

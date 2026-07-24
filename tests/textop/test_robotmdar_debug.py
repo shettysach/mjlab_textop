@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from mjlab_textop.robotmdar.debug import _query_vlm
-from mjlab_textop.robotmdar.feedback import FeedbackObservation
-from mjlab_textop.robotmdar.planner.vlm import VlmPromptSelection
+from robotmdar_textop.debug import _query_vlm
+from robotmdar_textop.feedback import FeedbackObservation
+from robotmdar_textop.planner.vlm import VlmPromptSelection
 
 
 class _Receiver:

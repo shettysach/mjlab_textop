@@ -7,7 +7,7 @@ import torch
 from mjlab_textop.core.motion import (
     reindex_textop_g1_joints_to_mjlab,
 )
-from mjlab_textop.core.online.block import (
+from textop_live_protocol.motion import (
     MotionBlock,
     validate_motion_block,
 )

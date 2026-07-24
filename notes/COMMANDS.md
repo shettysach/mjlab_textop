@@ -42,10 +42,15 @@ More reasoning increases VLM latency, so keep the 256/320 pair as the baseline.
 
 ## 2. RobotMDAR producer
 
-Run this in the TextOp/RobotMDAR environment:
+Run this in the TextOp/RobotMDAR environment. Point `PYTHONPATH` at this
+repository's `src` directory first:
 
 ```bash
-uv run python -m mjlab_textop.robotmdar.produce \
+export PYTHONPATH=/absolute/path/to/mjlab_textop/src
+```
+
+```bash
+uv run python -m robotmdar_textop.produce \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
   --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/PRIVATE-DATA/ \
   --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1 \

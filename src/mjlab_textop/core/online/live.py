@@ -7,8 +7,8 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Any
 
-from mjlab_textop.core.online.block import MotionBlock
-from mjlab_textop.core.online.wire import (
+from textop_live_protocol.motion import MotionBlock
+from textop_live_protocol.motion_ndjson import (
     parse_textop_block_message,
     textop_block_to_ndjson_message,
 )

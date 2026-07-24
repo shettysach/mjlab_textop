@@ -9,8 +9,8 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from mjlab_textop.robotmdar.feedback import FeedbackObservation
-from mjlab_textop.robotmdar.planner.followups import CommandSequencer
+from robotmdar_textop.feedback import FeedbackObservation
+from robotmdar_textop.planner.followups import CommandSequencer
 
 
 class ObservationProvider(Protocol):

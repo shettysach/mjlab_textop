@@ -8,16 +8,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from mjlab_textop.robotmdar.args import (
+from robotmdar_textop.args import (
     add_generator_arguments,
     add_stream_arguments,
     add_vlm_arguments,
     validate_vlm_arguments,
 )
-from mjlab_textop.robotmdar.feedback import HttpObservationReceiver
-from mjlab_textop.robotmdar.planner.manual import PromptState
-from mjlab_textop.robotmdar.planner.vlm import OpenAIChatPromptSelector
-from mjlab_textop.robotmdar.runtime import (
+from robotmdar_textop.feedback import HttpObservationReceiver
+from robotmdar_textop.planner.manual import PromptState
+from robotmdar_textop.planner.vlm import OpenAIChatPromptSelector
+from robotmdar_textop.runtime import (
     StreamConfig,
     compose_system_prompt,
     make_robotmdar_generator,

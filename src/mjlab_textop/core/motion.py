@@ -5,13 +5,10 @@ from pathlib import Path
 
 import numpy as np
 
-from mjlab_textop.core.schema import (
-    G1_JOINT_COUNT,
-    ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
-    ROOT_BODY_INDEX,
-)
+from mjlab_textop.core.schema import ROOT_BODY_INDEX
+from textop_live_protocol.g1 import G1_JOINT_COUNT, TEXTOP_TO_MJLAB_G1_JOINT_INDEX
 
-MJLAB_TO_TEXTOP_G1_JOINT_INDEX = np.argsort(ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)
+MJLAB_TO_TEXTOP_G1_JOINT_INDEX = np.argsort(TEXTOP_TO_MJLAB_G1_JOINT_INDEX)
 
 MJLAB_REQUIRED_INPUT_KEYS: tuple[str, ...] = (
     "fps",
@@ -47,7 +44,7 @@ def reindex_textop_g1_joints_to_mjlab(values: np.ndarray) -> np.ndarray:
     """Convert G1 joint arrays from TextOp IsaacLab order to MJLab/MuJoCo order."""
 
     values = validate_g1_joint_last_dim("values", values)
-    return values[..., ISAACLAB_TO_MJLAB_G1_JOINT_INDEX]
+    return values[..., TEXTOP_TO_MJLAB_G1_JOINT_INDEX]
 
 
 def reindex_mjlab_g1_joints_to_textop(values: np.ndarray) -> np.ndarray:

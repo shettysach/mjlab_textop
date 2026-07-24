@@ -6,7 +6,7 @@ from typing import cast
 
 import torch
 
-from mjlab_textop.robotmdar.runtime import (
+from robotmdar_textop.runtime import (
     _TEXT_EMBEDDING_CACHE_SIZE,
     RobotMdarGenerator,
     RobotMdarRuntime,

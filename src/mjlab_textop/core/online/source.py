@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import deque
 from typing import Protocol, runtime_checkable
 
-from mjlab_textop.core.online.block import (
+from textop_live_protocol.motion import (
     MotionBlock,
     MotionFrames,
     StreamControl,

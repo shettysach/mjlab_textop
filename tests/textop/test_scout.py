@@ -8,14 +8,14 @@ from typing import Any
 import numpy as np
 from mcp.types import ImageContent, TextContent
 
-from mjlab_textop.scout.config import ScoutConfig
-from mjlab_textop.scout.runtime import ScoutRuntime
-from mjlab_textop.scout.schemas import (
+from mjlab_scout.config import ScoutConfig
+from mjlab_scout.runtime import ScoutRuntime
+from mjlab_scout.schemas import (
     CapturedView,
     ScoutView,
     TaskInfo,
 )
-from mjlab_textop.scout.tools import ScoutTools
+from mjlab_scout.tools import ScoutTools
 from tasks.catalog import TASKS, TaskDefinition
 
 
@@ -116,12 +116,12 @@ def test_runtime_keeps_scene_and_renderer_on_one_thread(monkeypatch) -> None:
         objective="Reach the goal.",
     )
     monkeypatch.setattr(
-        "mjlab_textop.scout.runtime.get_task",
+        "mjlab_scout.runtime.get_task",
         lambda task: ("straight", definition),
     )
-    monkeypatch.setattr("mjlab_textop.scout.runtime.Scene", FakeScene)
-    monkeypatch.setattr("mjlab_textop.scout.runtime.Simulation", FakeSimulation)
-    monkeypatch.setattr("mjlab_textop.scout.runtime.OffscreenRenderer", FakeRenderer)
+    monkeypatch.setattr("mjlab_scout.runtime.Scene", FakeScene)
+    monkeypatch.setattr("mjlab_scout.runtime.Simulation", FakeSimulation)
+    monkeypatch.setattr("mjlab_scout.runtime.OffscreenRenderer", FakeRenderer)
 
     runtime = ScoutRuntime(ScoutConfig(device="cpu", image_width=4, image_height=4))
     try:
