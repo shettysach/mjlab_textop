@@ -133,7 +133,11 @@ def test_textop_onnx_policy_configures_cuda_provider_and_torch_stream(
     _install_fake_onnxruntime(monkeypatch)
     stream = SimpleNamespace(cuda_stream=12345)
     monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
-    monkeypatch.setattr(torch.cuda, "current_stream", lambda _device: stream)
+    monkeypatch.setattr(
+        onnx_policy,
+        "_share_torch_stream_with_warp",
+        lambda _device: stream,
+    )
 
     policy = OnnxPolicy(
         Path("latest.onnx"),
@@ -150,6 +154,37 @@ def test_textop_onnx_policy_configures_cuda_provider_and_torch_stream(
     ]
     assert policy.session.sess_options.entries == {
         "session.disable_cpu_ep_fallback": "1"
+    }
+
+
+def test_cuda_policy_shares_torch_stream_with_warp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    warp_stream = SimpleNamespace(cuda_stream=12345)
+    torch_stream = SimpleNamespace(cuda_stream=12345)
+    received: dict[str, object] = {}
+
+    monkeypatch.setattr(onnx_policy.wp, "get_stream", lambda device: warp_stream)
+    monkeypatch.setattr(
+        torch.cuda,
+        "ExternalStream",
+        lambda stream_ptr, *, device: (
+            received.update(stream_ptr=stream_ptr, device=device) or torch_stream
+        ),
+    )
+    monkeypatch.setattr(
+        torch.cuda,
+        "set_stream",
+        lambda stream: received.update(set_stream=stream),
+    )
+
+    result = onnx_policy._share_torch_stream_with_warp(torch.device("cuda:1"))
+
+    assert result is torch_stream
+    assert received == {
+        "stream_ptr": 12345,
+        "device": torch.device("cuda:1"),
+        "set_stream": torch_stream,
     }
 
 

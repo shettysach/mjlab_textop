@@ -1,6 +1,5 @@
 Use the mjlab-scout skill and the mjlab-scout MCP tools to inspect the
-`<TASK_NAME>` task and create TASK.md in the current working directory. Replace
-`<TASK_NAME>` with the task to inspect before starting Phase 1.
+`portrait-corridors` task and create TASK.md in the current working directory.
 
 This is Phase 1: environment scouting and prompt generation. Your job is not to
 execute the navigation task. Your only deliverable is TASK.md, which will become
@@ -30,28 +29,8 @@ privileged Phase 1 inspection view and will not exist during Phase 2. Use the
 privileged views to produce an accurate qualitative description, but do not
 mention Scout, MCP, camera names, or privileged views in TASK.md.
 
-TASK.md must be concise and self-contained, with exactly these sections:
-
-# Objective
-
-State what the agent must accomplish.
-
-# Environment
-
-Describe the environment as Phase 2 will encounter it: the initial surroundings,
-important visible landmarks, environment structure, route choices, obstacles, and
-the visual characteristics needed to recognize the intended destination. Use
-qualitative spatial language such as ahead, left, right, near, and far.
-
-# Success
-
-Describe the observable final condition that means the task is complete,
-including where the agent should stop relative to the intended target.
-
-Only include information grounded in the rendered views and the task objective.
-Do not include coordinates, dimensions, simulator names, source-code details,
-camera names, MCP instructions, Phase 1 analysis, uncertainty commentary, an
-exact action sequence, or a mandatory oracle route.
+TASK.md must be concise and self-contained. Follow the format.
+Clearly analyze anad explain the environment.
 
 Do not attempt to navigate or advance the simulation. Write TASK.md, verify that
 it is sufficient for a fresh Phase 2 VLM with only its live agent-camera images,

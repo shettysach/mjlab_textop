@@ -54,22 +54,28 @@ resolution.
 
 ### TextOp/RobotMDAR environment
 
-Create a dedicated environment outside the `mjlab_textop` repository. TextOp
-does not need a persistent checkout when its source will not be modified:
+Create a dedicated environment outside the `mjlab_textop` repository. RobotMDAR's
+package metadata omits its subpackages, so keep a pinned source checkout and
+install it editable. Its unrelated SSH submodules are not needed:
 
 ```bash
 mkdir -p ../textop-runtime
 cd ../textop-runtime
 
+git clone --no-recurse-submodules https://github.com/TeleHuman/TextOp.git TextOp
+git -C TextOp checkout --detach ef6555fb174c9b5c44945a62c7ffc77b5ddbbf22
+
 uv venv --python 3.10
-uv pip install torch
 uv pip install git+https://github.com/openai/CLIP.git
-uv pip install "git+https://github.com/TeleHuman/TextOp.git@ef6555fb174c9b5c44945a62c7ffc77b5ddbbf22#subdirectory=deps/isaac_utils"
-uv pip install "git+https://github.com/TeleHuman/TextOp.git@ef6555fb174c9b5c44945a62c7ffc77b5ddbbf22#subdirectory=TextOpRobotMDAR"
+uv pip install -e ./TextOp/deps/isaac_utils
+uv pip install -e ./TextOp/TextOpRobotMDAR
+uv pip install torch torchvision
 
 # Point this Python 3.10 environment at the shared protocol and producer code.
-export PYTHONPATH=/absolute/path/to/mjlab_textop/src
+export PYTHONPATH=../mjlab_textop/src
+```
 
+```
 uvx hf download Yochish/TextOp-Data \
   --repo-type dataset \
   --local-dir /tmp/textop-data \
