@@ -1,15 +1,8 @@
 {
   "mcpServers": {
     "mjlab-scout": {
-      "command": "uv",
-      "args": [
-        "run",
-        "--extra",
-        "cu128",
-        "--extra",
-        "scout",
-        "mjlab-scout"
-      ]
+      "command": ".venv/bin/mjlab-scout",
+      "args": ["--device", "cuda:0"]
     }
   }
 }

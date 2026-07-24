@@ -10,7 +10,10 @@ from mjlab.scene import Scene
 from mjlab.sim import Simulation
 from mjlab.viewer import OffscreenRenderer, ViewerConfig
 
-from mjlab_textop.core.feedback.observation import encode_render_image_jpeg
+from mjlab_textop.core.feedback.observation import (
+    encode_render_image_jpeg,
+    make_torso_observation_camera,
+)
 from mjlab_textop.scout.config import ScoutConfig
 from mjlab_textop.scout.schemas import (
     CapturedView,
@@ -19,7 +22,7 @@ from mjlab_textop.scout.schemas import (
 )
 from tasks.catalog import TASKS, TaskDefinition, TaskSet, get_task
 
-DEFAULT_VIEWS: tuple[ScoutView, ...] = ("overview", "overhead")
+DEFAULT_VIEWS: tuple[ScoutView, ...] = ("agent", "overview", "overhead")
 ResultT = TypeVar("ResultT")
 
 
@@ -151,12 +154,17 @@ class ScoutRuntime:
             )
 
         center, distance = _scene_frame(loaded.sim.mj_model)
+        if view == "agent":
+            return make_torso_observation_camera(
+                width=self.config.image_width,
+                height=self.config.image_height,
+            )
         if view == "overview":
             return ViewerConfig(
                 origin_type=ViewerConfig.OriginType.WORLD,
                 lookat=(center[0], center[1], 0.75),
                 distance=distance,
-                azimuth=135.0,
+                azimuth=0.0,
                 elevation=-38.0,
                 width=self.config.image_width,
                 height=self.config.image_height,

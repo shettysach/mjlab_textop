@@ -78,7 +78,7 @@ def make_portrait_corridors_spec_fn(
                 rgba=wall_rgba,
             )
 
-        camera_x = divider_start_x - 0.25
+        camera_x = divider_start_x - 1.0
         for index, y in enumerate((corridor_width, 0.0, -corridor_width), 1):
             camera = spec.worldbody.add_camera(name=f"inspection_{index}")
             camera.pos = (camera_x, y, 1.25)

@@ -13,17 +13,19 @@ before writing the file.
 
 1. Call `list_tasks` if the requested task name is unknown.
 2. Call `load_task` once with the selected task.
-3. Read the view names returned by `load_task`. Capture each `inspection_*` view
+3. Capture `agent` to understand what the robot initially sees and the direction
+   it faces.
+4. Read the view names returned by `load_task`. Capture each `inspection_*` view
    when present; these show important task features from inside the environment.
-4. Capture `overview` to understand the surrounding layout. Use `overhead` only
+5. Capture `overview` to understand the surrounding layout. Use `overhead` only
    when routes or spatial relationships remain ambiguous.
-5. Infer the useful visual landmarks, obstacles, route constraints, and stopping
+6. Infer the useful visual landmarks, obstacles, route constraints, and stopping
    condition from the images.
-6. Write `TASK.md` according to the contract. Describe the environment in visual,
+7. Write `TASK.md` according to the contract. Describe the environment in visual,
    qualitative terms and do not include coordinates, hidden implementation details,
    an oracle route, or a sequence of mandatory actions.
-7. Call `close_task` after writing the file, including when exploration fails.
+8. Call `close_task` after writing the file, including when exploration fails.
 
-Normally two images are sufficient. Request a third only when it resolves a
-specific ambiguity. Do not modify the simulation, advance it, or inspect source
-code to solve the task.
+For tasks without inspection presets, `agent` and `overview` are normally
+sufficient. Do not modify the simulation, advance it, or inspect source code to
+solve the task.

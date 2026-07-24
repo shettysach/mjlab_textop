@@ -23,8 +23,8 @@ Use the FP16 multimodal projector on the RTX 2080 Ti:
   --threads 4 \
   --threads-batch 8 \
   --reasoning on \
-  --reasoning-budget 256 \
-  --n-predict 320 \
+  --reasoning-budget 2048 \
+  --n-predict 4096 \
   --metrics \
   --perf
 ```
@@ -33,9 +33,6 @@ This limits reasoning to 256 tokens rather than allowing it to consume the
 entire completion budget. `--reasoning-budget` accepts a positive
 reasoning-token limit, while `-1` is unrestricted. ([GitHub][1])
 
-For more difficult scenes, try a 384-token reasoning budget and increase the
-server completion budget to 448 tokens. Increase both values together; the
-completion budget must still leave room for the final motion command:
 
 ```text
 llama-server: --reasoning-budget 384 --n-predict 448

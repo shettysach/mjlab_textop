@@ -56,6 +56,7 @@ def test_scout_catalog_has_simple_objectives() -> None:
 
 def test_runtime_keeps_scene_and_renderer_on_one_thread(monkeypatch) -> None:
     calls: list[tuple[str, int]] = []
+    camera_configs = []
     model = _FakeModel()
 
     class FakeScene:
@@ -90,6 +91,7 @@ def test_runtime_keeps_scene_and_renderer_on_one_thread(monkeypatch) -> None:
     class FakeRenderer:
         def __init__(self, **kwargs):
             calls.append(("renderer", threading.get_ident()))
+            camera_configs.append(kwargs["cfg"])
 
         def initialize(self):
             calls.append(("renderer.initialize", threading.get_ident()))
@@ -125,12 +127,17 @@ def test_runtime_keeps_scene_and_renderer_on_one_thread(monkeypatch) -> None:
     try:
         task = runtime.load_task("straight")
         captured = runtime.capture_view("overview")
+        runtime.capture_view("agent")
         runtime.capture_view("inspection_1")
     finally:
         runtime.close()
 
     assert captured.image.startswith(b"\xff\xd8")
-    assert task.views == ("overview", "overhead", "inspection_1")
+    assert task.views == ("agent", "overview", "overhead", "inspection_1")
+    assert camera_configs[0].azimuth == 0.0
+    assert camera_configs[1].origin_type == camera_configs[1].OriginType.ASSET_BODY
+    assert camera_configs[1].entity_name == "robot"
+    assert camera_configs[1].body_name == "torso_link"
     assert any(name == "renderer.update:inspection_1" for name, _ in calls)
     worker_threads = {thread_id for _, thread_id in calls}
     assert len(worker_threads) == 1

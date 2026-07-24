@@ -1,3 +1,26 @@
+```bash
+./build/bin/llama-server \
+  -m ./models/gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf \
+  --mmproj ./models/mmproj-F16.gguf \
+  --alias gemma-4-E4B-it \
+  --host 127.0.0.1 \
+  --port 9379 \
+  --parallel 1 \
+  --n-gpu-layers all \
+  --mmproj-offload \
+  --flash-attn on \
+  --ctx-size 8192 \
+  --cache-prompt \
+  --cache-reuse 256 \
+  --threads 4 \
+  --threads-batch 8 \
+  --reasoning on \
+  --reasoning-budget -1 \
+  --n-predict -1 \
+  --metrics \
+  --perf
+```
+
 # Scout: launch and test guide
 
 Scout is a local MCP server for Phase 1. The harness starts it over stdio, the
@@ -43,19 +66,30 @@ terminal.
 
 ## Connect it to Pi
 
-Install [pi-mcp-adapter](https://pi.dev/packages/pi-mcp-adapter), then register a
-stdio server with these values:
+Install [pi-mcp-adapter](https://pi.dev/packages/pi-mcp-adapter). The project
+contains this `.mcp.json` configuration:
 
-```text
-name:    mjlab-scout
-command: /home/sword/Desktop/USC/VLA/mjlab_textop/.venv/bin/mjlab-scout
-args:    --device cuda:0
-cwd:     /home/sword/Desktop/USC/VLA/mjlab_textop
+```json
+
+  "mcpServers": {
+    "mjlab-scout": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--extra",
+        "cu128",
+        "--extra",
+        "scout",
+        "mjlab-scout"
+      ]
+    }
+  }
+}
 ```
 
 Use `--device cpu` when testing without CUDA. Let the adapter launch the command
-rather than launching it yourself. The exact adapter configuration file syntax
-belongs to the adapter, but these four values are the complete server contract.
+rather than launching it yourself. Start Pi from the repository root so the
+relative executable path resolves correctly.
 
 The Phase 1 skill is:
 
@@ -75,14 +109,16 @@ The expected tool sequence is:
 
 ```text
 load_task
+capture_view("agent")
 capture_view for each inspection_* view
 capture_view("overview")
 close_task
 ```
 
 `overhead` is available when the route remains ambiguous. For
-`portrait-corridors`, `load_task` should advertise `overview`, `overhead`, and
-three corridor views named `inspection_1` through `inspection_3`.
+`portrait-corridors`, `load_task` should advertise `agent`, `overview`,
+`overhead`, and three corridor views named `inspection_1` through
+`inspection_3`.
 
 ## Test the MCP transport without Pi
 

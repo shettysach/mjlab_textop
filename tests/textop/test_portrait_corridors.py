@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import mujoco
+import pytest
 
 from tasks.portrait_corridors.env_cfg import (
     make_portrait_corridors_g1_env_cfg,
@@ -34,10 +35,14 @@ def test_portrait_corridors_spec_adds_three_textured_portraits_and_walls() -> No
     assert len([body for body in spec.bodies if body.name.endswith("_wall")]) == 6
     cameras = {camera.name: camera for camera in spec.cameras}
     assert set(cameras) == {"inspection_1", "inspection_2", "inspection_3"}
-    assert [tuple(camera.pos) for camera in cameras.values()] == [
-        (0.55, 2.0, 1.25),
-        (0.55, 0.0, 1.25),
-        (0.55, -2.0, 1.25),
+    camera_positions = [tuple(camera.pos) for camera in cameras.values()]
+    assert [position[0] for position in camera_positions] == pytest.approx(
+        [-0.2, -0.2, -0.2]
+    )
+    assert [position[1:] for position in camera_positions] == [
+        (2.0, 1.25),
+        (0.0, 1.25),
+        (-2.0, 1.25),
     ]
     portrait_positions = {
         body.name: tuple(float(value) for value in body.pos)
