@@ -1,4 +1,4 @@
-Allowed commands 
+Allowed commands
 - stand
 - walk
 - turn right

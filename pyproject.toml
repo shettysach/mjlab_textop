@@ -71,7 +71,6 @@ packages = ["src/mjlab_textop", "tasks"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "assets" = "assets"
-"prompt" = "prompt"
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "B"]

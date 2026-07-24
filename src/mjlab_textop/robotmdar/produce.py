@@ -19,6 +19,7 @@ from mjlab_textop.robotmdar.planner.vlm import (
 from mjlab_textop.robotmdar.runtime import (
     PromptController,
     StreamConfig,
+    compose_system_prompt,
     make_robotmdar_generator,
     read_prompt_path,
     stream_robotmdar_blocks,
@@ -140,7 +141,9 @@ def make_prompt_planner(
         selector = OpenAIChatPromptSelector(
             base_url=args.vlm_base_url,
             model=args.vlm_model,
-            system_prompt=read_prompt_path(args.vlm_system_prompt),
+            system_prompt=compose_system_prompt(
+                read_prompt_path(args.vlm_system_prompt)
+            ),
             user_prompt=read_prompt_path(args.vlm_user_prompt),
             timeout_sec=args.vlm_timeout_sec,
             history_length=args.vlm_history_length,

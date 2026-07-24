@@ -233,10 +233,13 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --vlm-history-length 5
 ```
 
-The default VLM prompts come from
-[`prompt/SYSTEM.md`](prompt/SYSTEM.md) and
-[`prompt/USER.md`](prompt/USER.md). Override them with
-`--vlm-system-prompt` and `--vlm-user-prompt`.
+The invariant controller prompt comes from
+[`src/mjlab_textop/prompt/INVARIANT.md`](src/mjlab_textop/prompt/INVARIANT.md).
+The generated `TASK.md` is appended to it by default, while the per-turn command
+list comes from
+[`src/mjlab_textop/prompt/USER.md`](src/mjlab_textop/prompt/USER.md). Override
+the task and user prompt files with `--vlm-system-prompt` and
+`--vlm-user-prompt`.
 
 `--vlm-history-length` bounds the number of user-image turns in a request,
 including the current turn. Its default of `5` sends four completed

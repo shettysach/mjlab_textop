@@ -44,6 +44,7 @@ def add_vlm_arguments(
         "--vlm-system-prompt",
         type=Path,
         default=DEFAULT_VLM_SYSTEM_PROMPT_FILE,
+        help="Task prompt appended to the invariant controller prompt (default: TASK.md).",
     )
     parser.add_argument(
         "--vlm-user-prompt",

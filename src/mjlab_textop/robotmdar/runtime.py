@@ -17,14 +17,11 @@ from mjlab_textop.core.robotmdar import (
 )
 from mjlab_textop.core.schema import TEXTOP_FPS
 
-_INSTALLED_PROMPT_DIR = Path(__file__).resolve().parents[2] / "prompt"
-PROMPT_DIR = (
-    _INSTALLED_PROMPT_DIR
-    if _INSTALLED_PROMPT_DIR.is_dir()
-    else Path(__file__).resolve().parents[3] / "prompt"
-)
-DEFAULT_VLM_SYSTEM_PROMPT_FILE = PROMPT_DIR / "SYSTEM.md"
+PROMPT_DIR = Path(__file__).resolve().parents[1] / "prompt"
+DEFAULT_VLM_SYSTEM_PROMPT_FILE = Path("TASK.md")
 DEFAULT_VLM_USER_PROMPT_FILE = PROMPT_DIR / "USER.md"
+INVARIANT_CONTROLLER_PROMPT = PROMPT_DIR / "INVARIANT.md"
+
 _TEXT_EMBEDDING_CACHE_SIZE = 16
 
 
@@ -352,6 +349,11 @@ def log_stream_timing(
 
 def read_prompt_path(path: str | Path) -> str:
     return Path(path).expanduser().read_text(encoding="utf-8")
+
+
+def compose_system_prompt(task_prompt: str) -> str:
+    invariant_prompt = read_prompt_path(INVARIANT_CONTROLLER_PROMPT).strip()
+    return f"{invariant_prompt}\n\n{task_prompt.strip()}"
 
 
 def _configure_robotmdar_cfg(

@@ -24,6 +24,7 @@ from mjlab_textop.robotmdar.planner.followups import command_followups
 from mjlab_textop.robotmdar.runtime import (
     DEFAULT_VLM_USER_PROMPT_FILE,
     StreamConfig,
+    compose_system_prompt,
     log_stream_timing,
     read_prompt_path,
     stream_robotmdar_blocks,
@@ -980,7 +981,9 @@ def test_make_prompt_planner_reads_vlm_prompt_files(tmp_path) -> None:
     )
 
     assert isinstance(planner, VlmPromptPlanner)
-    assert planner.selector.system_prompt == "System file prompt.\n"
+    assert planner.selector.system_prompt == compose_system_prompt(
+        "System file prompt.\n"
+    )
     assert planner.selector.user_prompt == "User file prompt.\n"
     assert planner.selector.history_length == 5
 
