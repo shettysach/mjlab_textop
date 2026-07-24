@@ -54,18 +54,18 @@ resolution.
 
 ### TextOp/RobotMDAR environment
 
-Create this environment outside the `mjlab_textop` repository:
+Create a dedicated environment outside the `mjlab_textop` repository. TextOp
+does not need a persistent checkout when its source will not be modified:
 
 ```bash
-cd ..
-git clone --recurse-submodules https://github.com/TeleHuman/TextOp.git
-cd TextOp
+mkdir -p ../textop-runtime
+cd ../textop-runtime
 
 uv venv --python 3.10
 uv pip install torch
-uv pip install -e ./deps/isaac_utils
 uv pip install git+https://github.com/openai/CLIP.git
-uv pip install -e ./TextOpRobotMDAR
+uv pip install "git+https://github.com/TeleHuman/TextOp.git@ef6555fb174c9b5c44945a62c7ffc77b5ddbbf22#subdirectory=deps/isaac_utils"
+uv pip install "git+https://github.com/TeleHuman/TextOp.git@ef6555fb174c9b5c44945a62c7ffc77b5ddbbf22#subdirectory=TextOpRobotMDAR"
 
 # Point this Python 3.10 environment at the shared protocol and producer code.
 export PYTHONPATH=/absolute/path/to/mjlab_textop/src
@@ -78,10 +78,11 @@ uvx hf download Yochish/TextOp-Data \
   --include 'TextOpRobotMDAR/description/**'
 ```
 
-RobotMDAR commands below run from this `TextOp` directory. `PYTHONPATH` must
-contain the `src` directory—not the repository root—so Python can import both
-`robotmdar_textop` and `textop_live_protocol`. The MJLab environment does not
-need this setting; `uv run` installs the project there.
+RobotMDAR commands below run in this environment and can be launched from any
+directory. `PYTHONPATH` must contain the `src` directory—not the repository
+root—so Python can import both `robotmdar_textop` and
+`textop_live_protocol`. The MJLab environment does not need this setting;
+`uv run` installs the project there.
 
 ### ONNX policy
 
@@ -106,7 +107,7 @@ export ONNX_PATH=/tmp/TextOpTracker/logs/rsl_rl/Pretrained/checkpoints/latest.on
 Generate a raw reference record without starting an MJLab socket consumer:
 
 ```bash
-# Run from the TextOp directory.
+# Run from the TextOp/RobotMDAR environment.
 uv run python -m robotmdar_textop.record \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
   --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/PRIVATE-DATA \
@@ -226,7 +227,7 @@ uvx litert-lm serve --host 127.0.0.1 --port 9379
 For the default planner:
 
 ```bash
-# Run from the TextOp directory.
+# Run from the TextOp/RobotMDAR environment.
 uv run python -m robotmdar_textop.produce \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
   --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/PRIVATE-DATA \
@@ -236,7 +237,7 @@ uv run python -m robotmdar_textop.produce \
 For VLM prompt selection:
 
 ```bash
-# Run from the TextOp directory.
+# Run from the TextOp/RobotMDAR environment.
 uv run python -m robotmdar_textop.produce \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
   --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/PRIVATE-DATA \
@@ -363,7 +364,7 @@ avoidance.
 The producer can use task-specific VLM prompts:
 
 ```bash
-# Run from the TextOp directory.
+# Run from the TextOp/RobotMDAR environment.
 uv run python -m robotmdar_textop.produce \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
   --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/PRIVATE-DATA \
