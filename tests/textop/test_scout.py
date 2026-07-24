@@ -37,7 +37,7 @@ class _FakeModel:
         return SimpleNamespace(name="goal_visual")
 
     def camera(self, index: int):
-        return SimpleNamespace(name="inspection_1")
+        return SimpleNamespace(name="corridor_left")
 
 
 def test_scout_catalog_has_simple_objectives() -> None:
@@ -128,17 +128,17 @@ def test_runtime_keeps_scene_and_renderer_on_one_thread(monkeypatch) -> None:
         task = runtime.load_task("straight")
         captured = runtime.capture_view("overview")
         runtime.capture_view("agent")
-        runtime.capture_view("inspection_1")
+        runtime.capture_view("corridor_left")
     finally:
         runtime.close()
 
     assert captured.image.startswith(b"\xff\xd8")
-    assert task.views == ("agent", "overview", "overhead", "inspection_1")
+    assert task.views == ("agent", "overview", "overhead", "corridor_left")
     assert camera_configs[0].azimuth == 0.0
     assert camera_configs[1].origin_type == camera_configs[1].OriginType.ASSET_BODY
     assert camera_configs[1].entity_name == "robot"
     assert camera_configs[1].body_name == "torso_link"
-    assert any(name == "renderer.update:inspection_1" for name, _ in calls)
+    assert any(name == "renderer.update:corridor_left" for name, _ in calls)
     worker_threads = {thread_id for _, thread_id in calls}
     assert len(worker_threads) == 1
     assert next(iter(worker_threads)) != threading.get_ident()

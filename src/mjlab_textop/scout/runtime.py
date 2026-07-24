@@ -104,7 +104,7 @@ class ScoutRuntime:
             definition=definition,
             scene=scene,
             sim=sim,
-            views=(*DEFAULT_VIEWS, *_inspection_views(sim.mj_model)),
+            views=(*DEFAULT_VIEWS, *_corridor_views(sim.mj_model)),
         )
         return TaskInfo(
             name=name,
@@ -216,9 +216,9 @@ def _scene_frame(model: Any) -> tuple[tuple[float, float], float]:
     return center, max(8.0, span * 1.35)
 
 
-def _inspection_views(model: Any) -> tuple[ScoutView, ...]:
+def _corridor_views(model: Any) -> tuple[ScoutView, ...]:
     return tuple(
         name
         for camera_id in range(model.ncam)
-        if (name := model.camera(camera_id).name) and name.startswith("inspection_")
+        if (name := model.camera(camera_id).name) and name.startswith("corridor_")
     )

@@ -110,15 +110,14 @@ The expected tool sequence is:
 ```text
 load_task
 capture_view("agent")
-capture_view for each inspection_* view
+capture_view for each corridor_* view
 capture_view("overview")
 close_task
 ```
 
 `overhead` is available when the route remains ambiguous. For
 `portrait-corridors`, `load_task` should advertise `agent`, `overview`,
-`overhead`, and three corridor views named `inspection_1` through
-`inspection_3`.
+`overhead`, `corridor_left`, `corridor_center`, and `corridor_right`.
 
 ## Test the MCP transport without Pi
 
@@ -172,7 +171,7 @@ PY
 ```
 
 Change the smoke-test device to `cpu` if needed. To inspect a corridor portrait
-instead, change `overview` to one of the `inspection_*` names returned by
+instead, change `overview` to one of the `corridor_*` names returned by
 `load_task`.
 
 ## Run the automated tests

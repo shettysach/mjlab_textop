@@ -78,12 +78,16 @@ def make_portrait_corridors_spec_fn(
                 rgba=wall_rgba,
             )
 
-        camera_x = divider_start_x - 1.0
-        for index, y in enumerate((corridor_width, 0.0, -corridor_width), 1):
-            camera = spec.worldbody.add_camera(name=f"inspection_{index}")
+        camera_x = divider_start_x - 0.2
+        for corridor, y in (
+            ("left", corridor_width),
+            ("center", 0.0),
+            ("right", -corridor_width),
+        ):
+            camera = spec.worldbody.add_camera(name=f"corridor_{corridor}")
             camera.pos = (camera_x, y, 1.25)
             camera.quat = _FORWARD_CAMERA_QUAT
-            camera.fovy = 35.0
+            camera.fovy = 65.0
 
         portrait_x = end_x - half_wall_thickness - 0.01
         _add_portrait(spec, name="linus", pos=(portrait_x, corridor_width, 1.25))

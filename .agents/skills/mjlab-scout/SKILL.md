@@ -15,7 +15,7 @@ before writing the file.
 2. Call `load_task` once with the selected task.
 3. Capture `agent` to understand what the robot initially sees and the direction
    it faces.
-4. Read the view names returned by `load_task`. Capture each `inspection_*` view
+4. Read the view names returned by `load_task`. Capture each `corridor_*` view
    when present; these show important task features from inside the environment.
 5. Capture `overview` to understand the surrounding layout. Use `overhead` only
    when routes or spatial relationships remain ambiguous.
@@ -26,6 +26,6 @@ before writing the file.
    an oracle route, or a sequence of mandatory actions.
 8. Call `close_task` after writing the file, including when exploration fails.
 
-For tasks without inspection presets, `agent` and `overview` are normally
+For tasks without corridor presets, `agent` and `overview` are normally
 sufficient. Do not modify the simulation, advance it, or inspect source code to
 solve the task.
