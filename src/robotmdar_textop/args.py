@@ -21,7 +21,7 @@ def add_generator_arguments(parser: argparse.ArgumentParser) -> None:
 def add_stream_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
-    parser.add_argument("--log-every-blocks", type=int, default=20)
+    parser.add_argument("--log-every", type=int, default=0)
 
 
 def add_vlm_arguments(

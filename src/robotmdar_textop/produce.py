@@ -51,7 +51,7 @@ def run_producer(args: argparse.Namespace) -> None:
                     prompt_controller=planner,
                     cfg=StreamConfig(
                         guidance_scale=args.guidance_scale,
-                        log_every_blocks=args.log_every_blocks,
+                        log_every_blocks=args.log_every,
                     ),
                     log_message=_log_producer_message,
                     prompt_source=_prompt_source,

@@ -67,7 +67,7 @@ def run_debug(args: argparse.Namespace) -> None:
                     prompt_controller=PromptStateController(prompt),
                     cfg=StreamConfig(
                         guidance_scale=args.guidance_scale,
-                        log_every_blocks=args.log_every_blocks,
+                        log_every_blocks=args.log_every,
                     ),
                     log_message=_log_debug_message,
                     prompt_source=lambda _controller: "manual",

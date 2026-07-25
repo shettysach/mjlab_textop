@@ -25,7 +25,7 @@ def run_record(args: argparse.Namespace) -> None:
         recorded_blocks.append(block)
         frame_index += block.joint_pos.shape[0]
 
-        if args.log_every_blocks > 0 and (block_index + 1) % args.log_every_blocks == 0:
+        if args.log_every > 0 and (block_index + 1) % args.log_every == 0:
             generation_ms = (time.monotonic() - block_start_time) * 1000.0
             print(
                 "record "
@@ -57,7 +57,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--prompt", default="walk")
     parser.add_argument("--num-blocks", type=int, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--log-every-blocks", type=int, default=20)
+    parser.add_argument("--log-every", type=int, default=0)
     return parser.parse_args()
 
 
