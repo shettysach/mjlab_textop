@@ -48,7 +48,7 @@ TASKS: dict[TaskSet, TaskDefinition] = {
     ),
     "portrait-corridors": TaskDefinition(
         env_factory=make_portrait_corridors_g1_env_cfg,
-        objective="Stand in front of the creator of Linux.",
+        objective="Stand in front of the image of the cartoon.",
     ),
 }
 
