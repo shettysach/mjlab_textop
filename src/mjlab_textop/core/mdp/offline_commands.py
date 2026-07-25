@@ -7,7 +7,7 @@ import torch
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.tasks.tracking.mdp.commands import MotionCommand, MotionCommandCfg
 
-from mjlab_textop.core.schema import FUTURE_STEPS
+from textop_protocol.timing import FUTURE_STEPS
 
 
 def make_future_time_steps(

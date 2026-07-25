@@ -50,7 +50,7 @@ def test_scout_catalog_has_simple_objectives() -> None:
     }
     assert TASKS["straight"].objective == ("Reach and stand on the green region.")
     assert TASKS["portrait-corridors"].objective == (
-        "Stand in front of the creator of Linux."
+        "Stand in front of the image of the cartoon."
     )
 
 

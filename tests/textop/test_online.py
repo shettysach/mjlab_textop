@@ -42,7 +42,7 @@ from mjlab_textop.core.sim.collision import (
     find_collision_geom_ids as _find_collision_geom_ids,
 )
 from textop_protocol.g1 import (
-    TEXTOP_TO_MJLAB_G1_JOINT_INDEX as ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
+    ISAACLAB_TO_MJLAB_G1_JOINT_INDEX as ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
 )
 
 

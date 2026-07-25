@@ -9,7 +9,6 @@ from mjlab_textop.core.motion import (
 from mjlab_textop.core.online.source import (
     QueueOnlineSource,
 )
-from mjlab_textop.core.schema import ROOT_BODY_INDEX
 from textop_protocol.motion import (
     MotionBlock,
     MotionFrames,
@@ -27,8 +26,8 @@ def make_mjlab_npz_replay_source(
     motion = load_mjlab_motion(path)
     joint_pos_textop = reindex_mjlab_g1_joints_to_textop(motion.joint_pos)
     joint_vel_textop = reindex_mjlab_g1_joints_to_textop(motion.joint_vel)
-    anchor_pos_w = motion.body_pos_w[:, ROOT_BODY_INDEX]
-    anchor_quat_w = motion.body_quat_w[:, ROOT_BODY_INDEX]
+    anchor_pos_w = motion.root_pos_w
+    anchor_quat_w = motion.root_quat_w
 
     blocks = []
     for start in range(0, motion.num_frames, block_size):

@@ -13,9 +13,9 @@ from robotmdar_textop.motion import (
     robotmdar_motion_dict_to_block,
     slice_motion_dict_tail,
 )
-from textop_protocol.g1 import TEXTOP_FPS
 from textop_protocol.motion import MotionBlock
 from textop_protocol.motion_ndjson import textop_block_to_ndjson_message
+from textop_protocol.timing import FPS
 
 PROMPT_DIR = Path(__file__).resolve().parent / "prompt"
 DEFAULT_VLM_SYSTEM_PROMPT_FILE = Path("TASK.md")
@@ -309,7 +309,7 @@ def stream_robotmdar_blocks(
             next_send_time=next_send_time,
             prompt=current_prompt,
         )
-        next_send_time += block_frames / TEXTOP_FPS
+        next_send_time += block_frames / FPS
         time.sleep(max(0.0, sleep_seconds))
 
 
@@ -326,7 +326,7 @@ def log_stream_timing(
     next_send_time: float,
     prompt: str,
 ) -> float:
-    block_duration = block_frames / TEXTOP_FPS
+    block_duration = block_frames / FPS
     sleep_seconds = next_send_time + block_duration - time.monotonic()
     if (
         cfg.log_every_blocks > 0

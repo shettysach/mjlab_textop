@@ -27,9 +27,10 @@ from tasks.textop_tracking.env_cfg import (
     configure_textop_actor_observations,
     configure_textop_critic_observations,
 )
-
-TEXTOP_DEPLOY_SIM_TIMESTEP = 0.002
-TEXTOP_DEPLOY_DECIMATION = 10
+from textop_protocol.timing import (
+    DECIMATION,
+    SIM_TIMESTEP,
+)
 
 
 def make_online_textop_g1_env_cfg(
@@ -56,8 +57,8 @@ def make_online_textop_g1_env_cfg(
         observation=observation,
     )
     motion_cfg.anchor_body_name = "pelvis"
-    cfg.sim.mujoco.timestep = TEXTOP_DEPLOY_SIM_TIMESTEP
-    cfg.decimation = TEXTOP_DEPLOY_DECIMATION
+    cfg.sim.mujoco.timestep = SIM_TIMESTEP
+    cfg.decimation = DECIMATION
 
     if policy_format == "onnx":
         configure_textop_onnx_actor_observations(cfg)

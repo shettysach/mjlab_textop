@@ -27,9 +27,9 @@ from mjlab_textop.core.online.source import (
 )
 from mjlab_textop.core.online.types import ONLINE_METRIC_NAMES, OnlineSourceMode
 from mjlab_textop.core.online.window import FutureWindow, OnlineReferenceWindow
-from mjlab_textop.core.schema import FUTURE_STEPS
 from mjlab_textop.core.sim.collision import CollisionDetector
-from textop_protocol.g1 import G1_JOINT_COUNT, TEXTOP_FPS
+from textop_protocol.g1 import G1_JOINT_COUNT
+from textop_protocol.timing import FPS, FUTURE_STEPS
 
 LIVE_BUFFER_LOW_WATERMARK_FRAMES = 150
 LIVE_BUFFER_HIGH_WATERMARK_FRAMES = 350
@@ -424,7 +424,7 @@ class OnlineMotionCommand(CommandTerm):
         root_quat = anchor_quat_w[0].repeat(len(env_ids), 1)
         root_vel = self._reference_window.reference_root_velocity(
             self.current_frame,
-            dt=1.0 / TEXTOP_FPS,
+            dt=1.0 / FPS,
         ).repeat(len(env_ids), 1)
         root_state = torch.cat([root_pos, root_quat, root_vel], dim=-1)
         self.robot.write_root_state_to_sim(root_state, env_ids=env_ids)

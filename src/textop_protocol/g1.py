@@ -34,22 +34,19 @@ G1_JOINT_NAMES: tuple[str, ...] = (
     "right_wrist_yaw_joint",
 )
 
-# TextOp tracker motions store G1 joints in IsaacLab order.
-# The shared stream contract owns the conversion to the MJLab/MuJoCo order above.
 # fmt: off
-TEXTOP_TO_MJLAB_G1_JOINT_INDEX: tuple[int, ...] = (
+ISAACLAB_TO_MJLAB_G1_JOINT_INDEX: tuple[int, ...] = (
     0, 3, 6, 9, 13, 17, 1, 4, 7, 10, 14, 18, 2, 5, 8, 11, 15, 19, 21, 23, 25, 27, 12, 16, 20, 22, 24, 26, 28,
 )
 # fmt: on
 
-MJLAB_TO_TEXTOP_G1_JOINT_INDEX = np.argsort(TEXTOP_TO_MJLAB_G1_JOINT_INDEX)
+MJLAB_TO_ISAACLAB_G1_JOINT_INDEX = np.argsort(ISAACLAB_TO_MJLAB_G1_JOINT_INDEX)
 G1_JOINT_COUNT = len(G1_JOINT_NAMES)
-TEXTOP_FPS = 50.0
 
 
-def textop_to_mjlab_joint_order(values: np.ndarray) -> np.ndarray:
-    return values[..., TEXTOP_TO_MJLAB_G1_JOINT_INDEX]
+def isaaclab_to_mjlab_joint_order(values: np.ndarray) -> np.ndarray:
+    return values[..., ISAACLAB_TO_MJLAB_G1_JOINT_INDEX]
 
 
-def mjlab_to_textop_joint_order(values: np.ndarray) -> np.ndarray:
-    return values[..., MJLAB_TO_TEXTOP_G1_JOINT_INDEX]
+def mjlab_to_isaaclab_joint_order(values: np.ndarray) -> np.ndarray:
+    return values[..., MJLAB_TO_ISAACLAB_G1_JOINT_INDEX]

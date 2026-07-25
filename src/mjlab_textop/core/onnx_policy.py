@@ -9,7 +9,7 @@ import torch
 import warp as wp
 from tensordict import TensorDict
 
-from textop_protocol.g1 import G1_JOINT_COUNT, TEXTOP_TO_MJLAB_G1_JOINT_INDEX
+from textop_protocol.g1 import G1_JOINT_COUNT, ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
 
 OnnxExecutionProvider = Literal["cpu", "cuda"]
 _TEXTOP_ONNX_OBS_DIM = 431
@@ -125,7 +125,7 @@ class OnnxPolicy:
         index = self._textop_to_mjlab.get(device)
         if index is None:
             index = torch.tensor(
-                TEXTOP_TO_MJLAB_G1_JOINT_INDEX,
+                ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
                 dtype=torch.long,
                 device=device,
             )

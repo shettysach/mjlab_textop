@@ -8,7 +8,7 @@ import torch
 from textop_protocol.g1 import (
     G1_JOINT_COUNT,
     G1_JOINT_NAMES,
-    mjlab_to_textop_joint_order,
+    mjlab_to_isaaclab_joint_order,
 )
 from textop_protocol.motion import MotionBlock, MotionFrames, StreamControl
 
@@ -83,8 +83,8 @@ def robotmdar_motion_dict_to_block(
     return MotionBlock(
         index=index,
         motion=MotionFrames(
-            joint_pos=mjlab_to_textop_joint_order(joint_pos_mjlab),
-            joint_vel=mjlab_to_textop_joint_order(joint_vel_mjlab),
+            joint_pos=mjlab_to_isaaclab_joint_order(joint_pos_mjlab),
+            joint_vel=mjlab_to_isaaclab_joint_order(joint_vel_mjlab),
             anchor_pos_w=motion_dict["root_trans_offset"][0].detach().cpu().numpy(),
             anchor_quat_w=root_rot_xyzw[:, [3, 0, 1, 2]],
         ),

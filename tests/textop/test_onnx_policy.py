@@ -11,7 +11,7 @@ from tensordict import TensorDict
 import mjlab_textop.core.onnx_policy as onnx_policy
 from mjlab_textop.core.onnx_policy import OnnxPolicy, OnnxPolicyRunner
 from textop_protocol.g1 import (
-    TEXTOP_TO_MJLAB_G1_JOINT_INDEX as ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
+    ISAACLAB_TO_MJLAB_G1_JOINT_INDEX as ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
 )
 
 

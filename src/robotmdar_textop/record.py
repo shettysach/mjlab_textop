@@ -7,8 +7,8 @@ from pathlib import Path
 
 from robotmdar_textop.args import add_generator_arguments
 from robotmdar_textop.runtime import make_robotmdar_generator
-from textop_protocol.g1 import TEXTOP_FPS
 from textop_protocol.recording import save_robotmdar_raw_record
+from textop_protocol.timing import FPS
 
 
 def run_record(args: argparse.Namespace) -> None:
@@ -38,7 +38,7 @@ def run_record(args: argparse.Namespace) -> None:
     save_robotmdar_raw_record(
         args.output,
         recorded_blocks,
-        fps=TEXTOP_FPS,
+        fps=FPS,
         prompt=args.prompt,
         guidance_scale=args.guidance_scale,
     )

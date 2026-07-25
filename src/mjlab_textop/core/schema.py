@@ -1,2 +1,0 @@
-ROOT_BODY_INDEX = 0  # pelvis
-FUTURE_STEPS = 5
