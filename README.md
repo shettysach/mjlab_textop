@@ -281,11 +281,10 @@ uv run --extra cu128 mjlab-textop play-live \
   --checkpoint-file "${CHECKPOINT}" \
   --host 127.0.0.1 \
   --port 8765 \
-  observation:observation-params \
-  --observation.url http://127.0.0.1:8766/observation \
-  --observation.every-frames 20 \
-  --observation.image-width 320 \
-  --observation.image-height 240
+  obs \
+  --url http://127.0.0.1:8766/observation \
+  --every-frames 20 \
+  --image-size 320 240
 ```
 
 Or run with the released ONNX policy:
@@ -296,15 +295,14 @@ uv run --extra cu128 mjlab-textop play-live \
   --onnx-provider cuda \
   --host 127.0.0.1 \
   --port 8765 \
-  observation:observation-params \
-  --observation.url http://127.0.0.1:8766/observation \
-  --observation.every-frames 20 \
-  --observation.image-width 320 \
-  --observation.image-height 240
+  obs \
+  --url http://127.0.0.1:8766/observation \
+  --every-frames 20 \
+  --image-size 320 240
 ```
 
 Live observations are disabled by default. The
-`observation:observation-params` subcommand enables the HTTP observation
+`obs` subcommand enables the HTTP observation
 publisher.
 
 ### Live scheduling and feedback
@@ -320,7 +318,7 @@ coalesced so the next request uses the newest one. The last selected prompt
 remains active between queries.
 
 The `play-live` publisher controls the image cadence with
-`--observation.every-frames`. A value of `20` at the 50 Hz reference rate
+`--every-frames`. A value of `20` at the 50 Hz reference rate
 sends at most 2.5 images per second. There is no separate producer-side
 every-N-blocks query option.
 
@@ -328,7 +326,7 @@ MJLab observations are HTTP JSON posts containing a base64 JPEG render. Safety
 updates can carry collision-stop state and a recovery epoch without an image.
 Collision-only observations do not trigger VLM queries.
 
-Enable `--reference-debug-vis` to render the live RobotMDAR reference as
+Enable `--ref-vis` to render the live RobotMDAR reference as
 a translucent ghost beside the simulated robot.
 
 ### ONNX runtime behavior
@@ -354,11 +352,10 @@ uv run --extra cu128 mjlab-textop play-live \
   --host 127.0.0.1 \
   --port 8765 \
   --task straight \
-  observation:observation-params \
-  --observation.url http://127.0.0.1:8766/observation \
-  --observation.every-frames 20 \
-  --observation.image-width 320 \
-  --observation.image-height 240
+  obs \
+  --url http://127.0.0.1:8766/observation \
+  --every-frames 20 \
+  --image-size 320 240
 ```
 
 The environment owns success and termination logic while the producer supplies

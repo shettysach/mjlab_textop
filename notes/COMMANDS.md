@@ -68,7 +68,7 @@ uv run python -m robotmdar_textop.produce \
 
 The first VLM request starts after the initial motion block is generated. Later
 requests only use new images; images received during inference are coalesced to
-the newest one. `--observation.every-frames` on `play-live` controls the maximum
+the newest one. `--every-frames` after `obs` controls the maximum
 query rate. Repeated RobotMDAR prompts reuse a bounded text-embedding cache
 automatically. Each VLM request includes at most five user-image turns: four
 completed user/assistant pairs plus the current image. Returned reasoning is
@@ -93,16 +93,15 @@ uv run --extra cu128 mjlab-textop play-live \
   --onnx-provider cuda \
   --device cuda:0 \
   --task portrait-corridors \
-  observation:observation-params \
-  --observation.url http://127.0.0.1:8766/observation \
-  --observation.every-frames 20 \
-  --observation.image-width 320 \
-  --observation.image-height 240
+  obs \
+  --url http://127.0.0.1:8766/observation \
+  --every-frames 20 \
+  --image-size 320 240
 ```
 
 Motion arrays are transferred to the MJLab device once per field and block,
-rather than once per frame. Add `--reference-debug-vis` before
-`observation:observation-params` only when the ghost reference is useful.
+rather than once per frame. Add `--ref-vis` before `obs` only when the
+ghost reference is useful.
 
 ### CPU ONNX fallback
 
@@ -118,11 +117,10 @@ uv run --extra cu128 mjlab-textop play-live \
   --onnx-provider cpu \
   --device cuda:0 \
   --task straight \
-  observation:observation-params \
-  --observation.url http://127.0.0.1:8766/observation \
-  --observation.every-frames 20 \
-  --observation.image-width 320 \
-  --observation.image-height 240
+  obs \
+  --url http://127.0.0.1:8766/observation \
+  --every-frames 20 \
+  --image-size 320 240
 ```
 
 ### More conservative VLM cadence
@@ -138,11 +136,10 @@ uv run --extra cu128 mjlab-textop play-live \
   --onnx-provider cuda \
   --device cuda:0 \
   --task straight \
-  observation:observation-params \
-  --observation.url http://127.0.0.1:8766/observation \
-  --observation.every-frames 40 \
-  --observation.image-width 320 \
-  --observation.image-height 240
+  obs \
+  --url http://127.0.0.1:8766/observation \
+  --every-frames 40 \
+  --image-size 320 240
 ```
 
 [1]: https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md "llama.cpp server README"

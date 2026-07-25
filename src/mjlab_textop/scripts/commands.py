@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal, TypeAlias
 
 import tyro
 from mjlab.scripts.play import PlayConfig, run_play
@@ -33,6 +33,22 @@ class NormalizeCommand:
 
 
 @dataclass(kw_only=True)
+class ObservationParams:
+    url: str = "http://127.0.0.1:8766/observation"
+    timeout_sec: float = 1.0
+    every_frames: int = 20
+    image_size: tuple[int, int] = (320, 240)
+    camera_distance: float = 2.0
+    camera_azimuth: float = 0.0
+    camera_elevation: float = -15.0
+
+
+ObservationConfig: TypeAlias = tyro.conf.OmitSubcommandPrefixes[
+    Annotated[ObservationParams, tyro.conf.subcommand("obs")] | None
+]
+
+
+@dataclass(kw_only=True)
 class PlayLiveCommand:
     task: TaskSet | None = None
     checkpoint_file: str | None = None
@@ -44,20 +60,8 @@ class PlayLiveCommand:
     num_envs: int = 1
     max_queue_blocks: int = 8
     reset_robot_to_reference: bool = True
-    reference_debug_vis: bool = False
-    observation: ObservationParams | None = None
-
-
-@dataclass(kw_only=True)
-class ObservationParams:
-    url: str = "http://127.0.0.1:8766/observation"
-    timeout_sec: float = 1.0
-    every_frames: int = 20
-    image_width: int = 320
-    image_height: int = 240
-    camera_distance: float = 2.0
-    camera_azimuth: float = 0.0
-    camera_elevation: float = -15.0
+    ref_vis: bool = False
+    observation: ObservationConfig = None
 
 
 def play_live_textop_motion(
@@ -65,6 +69,7 @@ def play_live_textop_motion(
     *,
     policy: ResolvedPolicy,
 ) -> None:
+    image_size = cfg.observation.image_size if cfg.observation else (None, None)
     task_name = register_task(
         cfg.task,
         runner_cls=policy.runner_cls,
@@ -77,7 +82,7 @@ def play_live_textop_motion(
         source_mode="live",
         num_envs=cfg.num_envs,
         reset_robot_to_reference=cfg.reset_robot_to_reference,
-        reference_debug_vis=cfg.reference_debug_vis,
+        reference_debug_vis=cfg.ref_vis,
         observation=_make_online_observation(cfg),
     )
     play_cfg = PlayConfig(
@@ -85,8 +90,8 @@ def play_live_textop_motion(
         checkpoint_file=str(policy.file),
         num_envs=cfg.num_envs,
         device=cfg.device,
-        video_width=cfg.observation.image_width if cfg.observation else None,
-        video_height=cfg.observation.image_height if cfg.observation else None,
+        video_width=image_size[0],
+        video_height=image_size[1],
     )
     run_play(task_name, play_cfg)
 
@@ -100,8 +105,8 @@ def _make_online_observation(cfg: PlayLiveCommand) -> OnlineObservationCfg | Non
         timeout_sec=cfg.observation.timeout_sec,
     )
     camera = make_torso_observation_camera(
-        width=cfg.observation.image_width,
-        height=cfg.observation.image_height,
+        width=cfg.observation.image_size[0],
+        height=cfg.observation.image_size[1],
         distance=cfg.observation.camera_distance,
         azimuth=cfg.observation.camera_azimuth,
         elevation=cfg.observation.camera_elevation,

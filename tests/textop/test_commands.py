@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+import tyro
 from mjlab.tasks.tracking.mdp.commands import MotionCommandCfg
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
@@ -22,6 +23,29 @@ from mjlab_textop.scripts.commands import (
     play_live_textop_motion,
 )
 from mjlab_textop.scripts.utils import ResolvedPolicy, resolve_policy
+
+
+def test_play_live_cli_uses_concise_observation_subcommand() -> None:
+    cfg = tyro.cli(
+        PlayLiveCommand,
+        args=[
+            "--ref-vis",
+            "obs",
+            "--url",
+            "http://127.0.0.1:9000/observation",
+            "--every-frames",
+            "40",
+            "--image-size",
+            "640",
+            "480",
+        ],
+    )
+
+    assert cfg.ref_vis is True
+    assert cfg.observation is not None
+    assert cfg.observation.url == "http://127.0.0.1:9000/observation"
+    assert cfg.observation.every_frames == 40
+    assert cfg.observation.image_size == (640, 480)
 
 
 def test_make_future_time_steps_clamps_at_end() -> None:
