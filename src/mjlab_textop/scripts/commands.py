@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Annotated, Literal, TypeAlias
+from typing import Annotated, TypeAlias
 
 import tyro
 from mjlab.scripts.play import PlayConfig, run_play
@@ -43,9 +43,13 @@ class ObservationParams:
     camera_elevation: float = -15.0
 
 
-ObservationConfig: TypeAlias = tyro.conf.OmitSubcommandPrefixes[
-    Annotated[ObservationParams, tyro.conf.subcommand("obs")] | None
-]
+ObservationConfig: TypeAlias = (
+    Annotated[
+        ObservationParams,
+        tyro.conf.subcommand("obs", prefix_name=False),
+    ]
+    | None
+)
 
 
 @dataclass(kw_only=True)
@@ -53,7 +57,6 @@ class PlayLiveCommand:
     task: TaskSet | None = None
     checkpoint_file: str | None = None
     onnx_file: str | None = None
-    onnx_provider: Literal["cpu", "cuda"] = "cpu"
     host: str = "127.0.0.1"
     port: int = 8765
     device: str = "cuda:0"
@@ -61,7 +64,7 @@ class PlayLiveCommand:
     max_queue_blocks: int = 8
     reset_robot_to_reference: bool = True
     ref_vis: bool = False
-    observation: ObservationConfig = None
+    obs: ObservationConfig = None
 
 
 def play_live_textop_motion(
@@ -69,7 +72,7 @@ def play_live_textop_motion(
     *,
     policy: ResolvedPolicy,
 ) -> None:
-    image_size = cfg.observation.image_size if cfg.observation else (None, None)
+    image_size = cfg.obs.image_size if cfg.obs else (None, None)
     task_name = register_task(
         cfg.task,
         runner_cls=policy.runner_cls,
@@ -97,24 +100,24 @@ def play_live_textop_motion(
 
 
 def _make_online_observation(cfg: PlayLiveCommand) -> OnlineObservationCfg | None:
-    if cfg.observation is None:
+    if cfg.obs is None:
         return None
 
     publisher = HttpObservationPublisher(
-        url=cfg.observation.url,
-        timeout_sec=cfg.observation.timeout_sec,
+        url=cfg.obs.url,
+        timeout_sec=cfg.obs.timeout_sec,
     )
     camera = make_torso_observation_camera(
-        width=cfg.observation.image_size[0],
-        height=cfg.observation.image_size[1],
-        distance=cfg.observation.camera_distance,
-        azimuth=cfg.observation.camera_azimuth,
-        elevation=cfg.observation.camera_elevation,
+        width=cfg.obs.image_size[0],
+        height=cfg.obs.image_size[1],
+        distance=cfg.obs.camera_distance,
+        azimuth=cfg.obs.camera_azimuth,
+        elevation=cfg.obs.camera_elevation,
     )
 
     return OnlineObservationCfg(
         publisher=publisher,
-        publish_interval=cfg.observation.every_frames,
+        publish_interval=cfg.obs.every_frames,
         camera=camera,
     )
 
@@ -127,7 +130,6 @@ class PlayOnlineCommand:
     motion_file: str = field(default=tyro.MISSING)
     checkpoint_file: str | None = None
     onnx_file: str | None = None
-    onnx_provider: Literal["cpu", "cuda"] = "cpu"
     device: str = "cuda:0"
     num_envs: int = 1
     block_size: int = 8

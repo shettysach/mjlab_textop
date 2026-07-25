@@ -30,7 +30,7 @@ class ResolvedPolicy:
 def resolve_policy(
     checkpoint_file: str | Path | None,
     onnx_file: str | Path | None,
-    onnx_provider: OnnxExecutionProvider = "cpu",
+    device: str = "cpu",
 ) -> ResolvedPolicy:
     if checkpoint_file is not None and onnx_file is not None:
         raise ValueError("Pass exactly one of --checkpoint-file or --onnx-file")
@@ -51,7 +51,16 @@ def resolve_policy(
                 Path(onnx_file).expanduser().resolve(),
                 "ONNX policy file",
             ),
-            onnx_provider=onnx_provider,
+            onnx_provider=_onnx_provider_for_device(device),
         )
 
     raise ValueError("Pass exactly one of --checkpoint-file or --onnx-file")
+
+
+def _onnx_provider_for_device(device: str) -> OnnxExecutionProvider:
+    device_type = device.partition(":")[0]
+    if device_type == "cuda":
+        return "cuda"
+    if device_type == "cpu":
+        return "cpu"
+    raise ValueError(f"ONNX policy requires a CPU or CUDA device, got {device!r}")

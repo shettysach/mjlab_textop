@@ -31,21 +31,21 @@ def test_play_live_cli_uses_concise_observation_subcommand() -> None:
         args=[
             "--ref-vis",
             "obs",
-            "--url",
+            "--obs.url",
             "http://127.0.0.1:9000/observation",
-            "--every-frames",
+            "--obs.every-frames",
             "40",
-            "--image-size",
+            "--obs.image-size",
             "640",
             "480",
         ],
     )
 
     assert cfg.ref_vis is True
-    assert cfg.observation is not None
-    assert cfg.observation.url == "http://127.0.0.1:9000/observation"
-    assert cfg.observation.every_frames == 40
-    assert cfg.observation.image_size == (640, 480)
+    assert cfg.obs is not None
+    assert cfg.obs.url == "http://127.0.0.1:9000/observation"
+    assert cfg.obs.every_frames == 40
+    assert cfg.obs.image_size == (640, 480)
 
 
 def test_make_future_time_steps_clamps_at_end() -> None:
@@ -86,22 +86,35 @@ def test_resolve_policy_accepts_onnx_file(tmp_path) -> None:
     )
 
     assert policy.runner_cls is OnnxPolicyRunner
+    assert policy.onnx_provider == "cpu"
     assert policy.file == onnx_file.resolve()
 
 
-def test_resolve_policy_selects_cuda_onnx_provider(tmp_path) -> None:
+def test_resolve_policy_selects_onnx_provider_from_device(tmp_path) -> None:
     onnx_file = tmp_path / "latest.onnx"
     onnx_file.write_text("onnx")
 
     policy = resolve_policy(
         checkpoint_file=None,
         onnx_file=str(onnx_file),
-        onnx_provider="cuda",
+        device="cuda:1",
     )
 
     assert policy.runner_cls is OnnxPolicyRunner
     assert policy.onnx_provider == "cuda"
     assert policy.file == onnx_file.resolve()
+
+
+def test_resolve_policy_rejects_unsupported_onnx_device(tmp_path) -> None:
+    onnx_file = tmp_path / "latest.onnx"
+    onnx_file.write_text("onnx")
+
+    with pytest.raises(ValueError, match="CPU or CUDA"):
+        resolve_policy(
+            checkpoint_file=None,
+            onnx_file=str(onnx_file),
+            device="mps",
+        )
 
 
 def test_resolve_policy_rejects_missing_policy() -> None:
@@ -171,7 +184,7 @@ def test_play_live_with_images_does_not_enable_video_recording(
     play_live_textop_motion(
         PlayLiveCommand(
             checkpoint_file=str(policy_file),
-            observation=ObservationParams(
+            obs=ObservationParams(
                 url="http://127.0.0.1:8766/observation",
             ),
         ),
@@ -215,7 +228,7 @@ def test_play_live_uses_custom_observation_camera_geometry(
     play_live_textop_motion(
         PlayLiveCommand(
             checkpoint_file=str(policy_file),
-            observation=ObservationParams(
+            obs=ObservationParams(
                 url="http://127.0.0.1:8766/observation",
                 camera_distance=1.25,
                 camera_azimuth=175.0,
@@ -253,7 +266,7 @@ def test_straight_live_uses_straight_task_registration(
         PlayLiveCommand(
             task="straight",
             onnx_file=str(onnx_file),
-            observation=ObservationParams(
+            obs=ObservationParams(
                 url="http://127.0.0.1:8766/observation",
             ),
         ),
@@ -291,7 +304,7 @@ def test_blocked_straight_live_uses_blocked_straight_task_registration(
         PlayLiveCommand(
             task="blocked-straight",
             onnx_file=str(onnx_file),
-            observation=ObservationParams(
+            obs=ObservationParams(
                 url="http://127.0.0.1:8766/observation",
             ),
         ),
@@ -329,7 +342,7 @@ def test_side_goals_live_uses_side_goals_task_registration(
         PlayLiveCommand(
             task="side-goals",
             onnx_file=str(onnx_file),
-            observation=ObservationParams(
+            obs=ObservationParams(
                 url="http://127.0.0.1:8766/observation",
             ),
         ),

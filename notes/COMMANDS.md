@@ -68,7 +68,7 @@ uv run python -m robotmdar_textop.produce \
 
 The first VLM request starts after the initial motion block is generated. Later
 requests only use new images; images received during inference are coalesced to
-the newest one. `--every-frames` after `obs` controls the maximum
+the newest one. `--obs.every-frames` after `obs` controls the maximum
 query rate. Repeated RobotMDAR prompts reuse a bounded text-embedding cache
 automatically. Each VLM request includes at most five user-image turns: four
 completed user/assistant pairs plus the current image. Returned reasoning is
@@ -90,13 +90,12 @@ MKL_NUM_THREADS=4 \
 OPENBLAS_NUM_THREADS=4 \
 uv run --extra cu128 mjlab-textop play-live \
   --onnx-file "$ONNX_PATH" \
-  --onnx-provider cuda \
   --device cuda:0 \
   --task portrait-corridors \
   obs \
-  --url http://127.0.0.1:8766/observation \
-  --every-frames 20 \
-  --image-size 320 240
+  --obs.url http://127.0.0.1:8766/observation \
+  --obs.every-frames 20 \
+  --obs.image-size 320 240
 ```
 
 Motion arrays are transferred to the MJLab device once per field and block,
@@ -105,22 +104,20 @@ ghost reference is useful.
 
 ### CPU ONNX fallback
 
-If CUDA ONNX Runtime still crashes, keep MJLab on `cuda:0` and change only the
-provider:
+To run both MJLab and ONNX Runtime on the CPU:
 
 ```bash
 OMP_NUM_THREADS=4 \
 MKL_NUM_THREADS=4 \
 OPENBLAS_NUM_THREADS=4 \
-uv run --extra cu128 mjlab-textop play-live \
+uv run --extra cpu mjlab-textop play-live \
   --onnx-file "$ONNX_PATH" \
-  --onnx-provider cpu \
-  --device cuda:0 \
+  --device cpu \
   --task straight \
   obs \
-  --url http://127.0.0.1:8766/observation \
-  --every-frames 20 \
-  --image-size 320 240
+  --obs.url http://127.0.0.1:8766/observation \
+  --obs.every-frames 20 \
+  --obs.image-size 320 240
 ```
 
 ### More conservative VLM cadence
@@ -133,13 +130,12 @@ MKL_NUM_THREADS=4 \
 OPENBLAS_NUM_THREADS=4 \
 uv run --extra cu128 mjlab-textop play-live \
   --onnx-file "$ONNX_PATH" \
-  --onnx-provider cuda \
   --device cuda:0 \
   --task straight \
   obs \
-  --url http://127.0.0.1:8766/observation \
-  --every-frames 40 \
-  --image-size 320 240
+  --obs.url http://127.0.0.1:8766/observation \
+  --obs.every-frames 40 \
+  --obs.image-size 320 240
 ```
 
 [1]: https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md "llama.cpp server README"

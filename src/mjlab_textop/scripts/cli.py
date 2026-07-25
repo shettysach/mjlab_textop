@@ -42,7 +42,7 @@ def run_command(cfg: Command) -> None:
             policy = resolve_policy(
                 checkpoint_file=cfg.checkpoint_file,
                 onnx_file=cfg.onnx_file,
-                onnx_provider=cfg.onnx_provider,
+                device=cfg.device,
             )
             play_online_textop_motion(
                 cfg,
@@ -55,7 +55,7 @@ def run_command(cfg: Command) -> None:
             policy = resolve_policy(
                 checkpoint_file=cfg.checkpoint_file,
                 onnx_file=cfg.onnx_file,
-                onnx_provider=cfg.onnx_provider,
+                device=cfg.device,
             )
             play_live_textop_motion(
                 cfg,
