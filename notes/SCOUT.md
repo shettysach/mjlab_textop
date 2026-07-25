@@ -70,7 +70,7 @@ Install [pi-mcp-adapter](https://pi.dev/packages/pi-mcp-adapter). The project
 contains this `.mcp.json` configuration:
 
 ```json
-
+{
   "mcpServers": {
     "mjlab-scout": {
       "command": "uv",
@@ -87,9 +87,7 @@ contains this `.mcp.json` configuration:
 }
 ```
 
-Use `--device cpu` when testing without CUDA. Let the adapter launch the command
-rather than launching it yourself. Start Pi from the repository root so the
-relative executable path resolves correctly.
+Start Pi from the repository root so the relative executable path resolves correctly.
 
 The Phase 1 skill is:
 
@@ -101,8 +99,7 @@ Make that skill available to Pi through its skill discovery mechanism. A useful
 Phase 1 request is:
 
 ```text
-Use the mjlab-scout skill to inspect portrait-corridors and write TASK.md in the
-current working directory.
+Use the mjlab-scout skill to inspect portrait-corridors and write TASK.md in the current working directory.
 ```
 
 The expected tool sequence is:
@@ -189,33 +186,3 @@ Run the complete project suite with:
 ```bash
 .venv/bin/pytest -q
 ```
-
-## Verify the Phase 1 output
-
-`TASK.md` should contain exactly these conceptual sections:
-
-```text
-# Objective
-# Environment
-# Success
-```
-
-It should describe only visible, qualitative information. It should not contain
-coordinates, MJLab implementation names, an oracle route, or Scout tool
-instructions. Once it looks correct, start Phase 2 in a clean context and give
-that run the generated `TASK.md`.
-
-## Troubleshooting
-
-- No terminal output after launch is normal for a stdio MCP server.
-- If Pi cannot see the tools, use an absolute command path and set `cwd` to the
-  repository root.
-- If `load_task` fails on device initialization, verify the selected `cpu` or
-  `cu128` extra and make the `--device` value match it.
-- An EGL or OpenGL error means the process cannot access a rendering backend.
-  On a headless machine, expose the NVIDIA/EGL devices to the process; for a
-  container, this usually means enabling GPU and graphics capabilities.
-- MJLab diagnostics go to stderr. Any ordinary text on stdout would corrupt the
-  MCP stream.
-- Only one task is active per Scout process. `load_task` replaces the previous
-  task, while `close_task` releases it explicitly.

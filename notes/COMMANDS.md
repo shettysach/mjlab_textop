@@ -23,22 +23,15 @@ Use the FP16 multimodal projector on the RTX 2080 Ti:
   --threads 4 \
   --threads-batch 8 \
   --reasoning on \
-  --reasoning-budget 2048 \
-  --n-predict 4096 \
+  --reasoning-budget -1 \
+  --n-predict - \
   --metrics \
   --perf
 ```
 
-This limits reasoning to 256 tokens rather than allowing it to consume the
-entire completion budget. `--reasoning-budget` accepts a positive
-reasoning-token limit, while `-1` is unrestricted. ([GitHub][1])
-
-
 ```text
 llama-server: --reasoning-budget 384 --n-predict 448
 ```
-
-More reasoning increases VLM latency, so keep the 256/320 pair as the baseline.
 
 ## 2. RobotMDAR producer
 
@@ -101,24 +94,6 @@ uv run --extra cu128 mjlab-textop play-live \
 Motion arrays are transferred to the MJLab device once per field and block,
 rather than once per frame. Add `--ref-vis` before `obs` only when the
 ghost reference is useful.
-
-### CPU ONNX fallback
-
-To run both MJLab and ONNX Runtime on the CPU:
-
-```bash
-OMP_NUM_THREADS=4 \
-MKL_NUM_THREADS=4 \
-OPENBLAS_NUM_THREADS=4 \
-uv run --extra cpu mjlab-textop play-live \
-  --onnx-file "$ONNX_PATH" \
-  --device cpu \
-  --task straight \
-  obs \
-  --obs.url http://127.0.0.1:8766/observation \
-  --obs.every-frames 20 \
-  --obs.image-size 320 240
-```
 
 ### More conservative VLM cadence
 
