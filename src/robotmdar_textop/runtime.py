@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+from robotmdar_textop.logging import format_stream_status
 from robotmdar_textop.motion import (
     robotmdar_motion_dict_to_block,
     slice_motion_dict_tail,
@@ -336,13 +337,16 @@ def log_stream_timing(
         generation_ms = (time.monotonic() - block_start_time) * 1000.0
         lag_ms = max(0.0, -sleep_seconds * 1000.0)
         log_message(
-            "stream "
-            f"block={block_count} frame={frame_index} "
-            f"prompt={prompt!r} "
-            f"prompt_source={prompt_source(prompt_controller)} "
-            f"gen_ms={generation_ms:.1f} "
-            f"lag_ms={lag_ms:.1f}"
-            f"{prompt_controller.log_suffix}"
+            format_stream_status(
+                block_count=block_count,
+                frame_index=frame_index,
+                prompt=prompt,
+                source=prompt_source(prompt_controller),
+                generation_ms=generation_ms,
+                lag_ms=lag_ms,
+                block_frames=block_frames,
+                suffix=prompt_controller.log_suffix,
+            )
         )
     return sleep_seconds
 

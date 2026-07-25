@@ -363,7 +363,7 @@ def test_vlm_planner_does_not_block_while_selector_runs() -> None:
 
     assert selector.started.wait(timeout=1)
     assert planner.log_suffix == (
-        " vlm_state=inflight vlm_last_query_block=0 vlm_last_query_image_revision=1"
+        " vlm=inflight last_q=(block: 0, img_revision: 1)"
     )
     assert _choose_and_mark_block_sent(planner, 1) == "walk forward"
     assert selector.calls == 1
@@ -372,7 +372,7 @@ def test_vlm_planner_does_not_block_while_selector_runs() -> None:
     assert selector.finished.wait(timeout=1)
     assert _choose_and_mark_block_sent(planner, 2) == "turn right"
     assert planner.log_suffix == (
-        " vlm_state=idle vlm_last_query_block=0 vlm_last_query_image_revision=1"
+        " vlm=idle last_q=(block: 0, img_revision: 1)"
     )
 
     planner.request_stop()
@@ -442,9 +442,8 @@ def test_vlm_planner_keeps_current_prompt_on_selector_errors() -> None:
     assert planner.last_error == "TimeoutError: vlm timed out"
     assert planner.current_prompt_source == "initial"
     assert (
-        planner.log_suffix == " vlm_state=idle vlm_last_query_block=0"
-        " vlm_last_query_image_revision=1"
-        " vlm_last_error='TimeoutError: vlm timed out'"
+        planner.log_suffix == " vlm=idle last_q=(block: 0, img_revision: 1)"
+        " error='TimeoutError: vlm timed out'"
     )
 
     planner.request_stop()
@@ -465,7 +464,7 @@ def test_vlm_planner_keeps_last_good_prompt_on_empty_selector_result() -> None:
     assert planner.last_error is None
     assert planner.current_prompt_source == "vlm"
     assert planner.log_suffix == (
-        " vlm_state=idle vlm_last_query_block=0 vlm_last_query_image_revision=1"
+        " vlm=idle last_q=(block: 0, img_revision: 1)"
     )
 
     planner.request_stop()
@@ -596,8 +595,9 @@ def test_producer_log_includes_vlm_prompt_source(monkeypatch) -> None:
         prompt="stand",
     )
 
-    assert "prompt_source=initial" in messages[0]
-    assert "vlm_state=idle" in messages[0]
+    assert messages[0].startswith("[BLOCK 1] [FRAME 20] ")
+    assert "source=init" in messages[0]
+    assert "vlm=idle" in messages[0]
 
     planner.current_prompt_source = "vlm"
     log_stream_timing(
@@ -613,7 +613,7 @@ def test_producer_log_includes_vlm_prompt_source(monkeypatch) -> None:
         prompt="wave",
     )
 
-    assert "prompt_source=vlm" in messages[1]
+    assert "source=vlm" in messages[1]
 
     planner.request_stop()
 

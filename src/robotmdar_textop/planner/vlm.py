@@ -84,15 +84,17 @@ class VlmPromptPlanner:
     @property
     def log_suffix(self) -> str:
         state = "inflight" if self._future is not None else "idle"
-        suffix = f" vlm_state={state}"
-        if self._last_query_block is not None:
-            suffix += f" vlm_last_query_block={self._last_query_block}"
-        if self._last_query_image_revision is not None:
+        suffix = f" vlm={state}"
+        if (
+            self._last_query_block is not None
+            and self._last_query_image_revision is not None
+        ):
             suffix += (
-                f" vlm_last_query_image_revision={self._last_query_image_revision}"
+                f" last_q=(block: {self._last_query_block}, "
+                f"img_revision: {self._last_query_image_revision})"
             )
         if self.last_error is not None:
-            suffix += f" vlm_last_error={self.last_error!r}"
+            suffix += f" error={self.last_error!r}"
         return suffix
 
     def start(self) -> None:

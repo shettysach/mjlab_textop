@@ -126,7 +126,12 @@ def _prompt_source(
     planner: PromptController,
 ) -> str:
     if isinstance(planner, VlmPromptPlanner):
-        return planner.current_prompt_source
+        return {
+            "initial": "init",
+            "vlm": "vlm",
+            "collision_recovery": "recov",
+            "followup": "next",
+        }.get(planner.current_prompt_source, planner.current_prompt_source)
     return "manual"
 
 
