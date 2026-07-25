@@ -15,7 +15,7 @@ from textop_protocol.observation import (
     observation_to_json,
 )
 
-OBSERVATION_JPEG_QUALITY = 95
+JPEG_QUALITY = 85
 
 
 @dataclass(frozen=True)
@@ -112,5 +112,5 @@ def make_torso_observation_camera(
 
 def encode_render_image_jpeg(image: Any) -> bytes:
     buffer = BytesIO()
-    iio.imwrite(buffer, image, extension=".jpg", quality=OBSERVATION_JPEG_QUALITY)
+    iio.imwrite(buffer, image, extension=".jpg", quality=JPEG_QUALITY)
     return buffer.getvalue()

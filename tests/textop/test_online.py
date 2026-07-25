@@ -17,6 +17,8 @@ from mjlab_textop.core.feedback.observation import (
     make_torso_observation_camera,
 )
 from mjlab_textop.core.mdp.online_commands import (
+    LIVE_BUFFER_HIGH_WATERMARK_FRAMES,
+    LIVE_BUFFER_LOW_WATERMARK_FRAMES,
     OnlineMotionCommand,
     OnlineMotionCommandCfg,
     OnlineObservationReporter,
@@ -1356,11 +1358,18 @@ def test_online_command_live_polling_uses_hysteresis() -> None:
         OnlineMotionCommandCfg(source=QueueOnlineSource(), source_mode="live"),
         fake_env(),
     )
-    command.buffer.append_block(motion_block(index=0, frames=351))
+    command._clock.started = True
+    command.buffer.append_block(
+        motion_block(index=0, frames=LIVE_BUFFER_HIGH_WATERMARK_FRAMES + 1)
+    )
 
     assert command._should_poll_live_source() is False
 
-    command.current_frame = 201
+    command.current_frame = (
+        LIVE_BUFFER_HIGH_WATERMARK_FRAMES
+        - LIVE_BUFFER_LOW_WATERMARK_FRAMES
+        + 1
+    )
 
     assert command._should_poll_live_source() is True
 

@@ -116,8 +116,8 @@ def recv_textop_block(sock: socket.socket) -> MotionBlock | None:
     header = _recv_exact(sock, _HEADER.size, allow_eof=True)
     if header is None:
         return None
-    magic, version, flags, reserved, _index, _epoch, frames, prompt_size = _HEADER.unpack(
-        header
+    magic, version, flags, reserved, _index, _epoch, frames, prompt_size = (
+        _HEADER.unpack(header)
     )
     _validate_header(
         magic=magic,

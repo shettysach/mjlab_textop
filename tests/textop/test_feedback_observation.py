@@ -5,7 +5,7 @@ import json
 import pytest
 
 from mjlab_textop.core.feedback.observation import (
-    OBSERVATION_JPEG_QUALITY,
+    JPEG_QUALITY,
     HttpObservationPublisher,
     OnlineObservationCfg,
     encode_render_image_jpeg,
@@ -136,5 +136,5 @@ def test_encode_render_image_jpeg_uses_high_quality(monkeypatch) -> None:
     assert encode_render_image_jpeg(object()) == b"jpeg"
     assert calls == {
         "extension": ".jpg",
-        "quality": OBSERVATION_JPEG_QUALITY,
+        "quality": JPEG_QUALITY,
     }

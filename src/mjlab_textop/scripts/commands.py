@@ -42,7 +42,7 @@ class PlayLiveCommand:
     port: int = 8765
     device: str = "cuda:0"
     num_envs: int = 1
-    max_queue_blocks: int = 32
+    max_queue_blocks: int = 8
     reset_robot_to_reference: bool = True
     reference_debug_vis: bool = False
     observation: ObservationParams | None = None

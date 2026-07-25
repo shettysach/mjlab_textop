@@ -25,7 +25,7 @@ __all__ = [
 class SocketSourceCfg:
     host: str = "127.0.0.1"
     port: int = 8765
-    max_queue_blocks: int = 32
+    max_queue_blocks: int = 8
 
 
 @dataclass

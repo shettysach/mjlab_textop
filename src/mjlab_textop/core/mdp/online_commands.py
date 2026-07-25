@@ -31,8 +31,10 @@ from mjlab_textop.core.sim.collision import CollisionDetector
 from textop_protocol.g1 import G1_JOINT_COUNT
 from textop_protocol.timing import FPS, FUTURE_STEPS
 
-LIVE_BUFFER_LOW_WATERMARK_FRAMES = 150
-LIVE_BUFFER_HIGH_WATERMARK_FRAMES = 350
+# Keep one to two seconds of 50 Hz reference motion ahead. This favors prompt
+# responsiveness while retaining a one-second reserve for generation jitter.
+LIVE_BUFFER_LOW_WATERMARK_FRAMES = 50
+LIVE_BUFFER_HIGH_WATERMARK_FRAMES = 100
 
 __all__ = [
     "OnlineMotionCommand",
@@ -312,6 +314,11 @@ class OnlineMotionCommand(CommandTerm):
             self._reference_window.clear_cache()
 
     def _should_poll_live_source(self) -> bool:
+        # Producer indices are not mapped onto the consumer clock until startup.
+        # Drain enough input to form the first complete future window before
+        # interpreting their difference as buffered lead.
+        if not self._clock.started:
+            return True
         return self._clock.should_poll_live(
             self.buffer,
             low_watermark=LIVE_BUFFER_LOW_WATERMARK_FRAMES,
