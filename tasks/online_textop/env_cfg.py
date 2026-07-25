@@ -16,9 +16,9 @@ from mjlab_textop.core.mdp.observations import (
     joint_vel_rel_textop_order,
     last_action_textop_order,
 )
-from mjlab_textop.core.mdp.online_cleanup import OnlineTextOpCleanup
 from mjlab_textop.core.mdp.online_commands import (
     OnlineSourceMode,
+    OnlineTextOpCleanup,
     use_online_textop_motion_command,
 )
 from mjlab_textop.core.online.live import SocketSourceCfg

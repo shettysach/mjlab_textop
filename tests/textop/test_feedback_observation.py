@@ -11,7 +11,7 @@ from mjlab_textop.core.feedback.observation import (
     encode_render_image_jpeg,
     make_torso_observation_camera,
 )
-from textop_live_protocol.observation import (
+from textop_protocol.observation import (
     ObservationImage,
     ObservationMessage,
     observation_to_json,

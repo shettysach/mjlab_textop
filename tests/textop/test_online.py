@@ -16,18 +16,11 @@ from mjlab_textop.core.feedback.observation import (
     OnlineObservationState,
     make_torso_observation_camera,
 )
-from mjlab_textop.core.mdp import online_command_cfg, online_commands
-from mjlab_textop.core.mdp.collision_recovery import (
-    contains_geom_pair as _contains_geom_pair,
-)
-from mjlab_textop.core.mdp.collision_recovery import (
-    find_collision_geom_ids as _find_collision_geom_ids,
-)
-from mjlab_textop.core.mdp.online_cleanup import OnlineTextOpCleanup
 from mjlab_textop.core.mdp.online_commands import (
     OnlineMotionCommand,
     OnlineMotionCommandCfg,
     OnlineObservationReporter,
+    OnlineTextOpCleanup,
     use_online_textop_motion_command,
 )
 from mjlab_textop.core.online.buffer import (
@@ -40,23 +33,17 @@ from mjlab_textop.core.online.replay import (
 )
 from mjlab_textop.core.online.source import (
     MotionBlock,
-    MotionFrames,
     StreamControl,
 )
-from textop_live_protocol.g1 import (
+from mjlab_textop.core.sim.collision import (
+    contains_geom_pair as _contains_geom_pair,
+)
+from mjlab_textop.core.sim.collision import (
+    find_collision_geom_ids as _find_collision_geom_ids,
+)
+from textop_protocol.g1 import (
     TEXTOP_TO_MJLAB_G1_JOINT_INDEX as ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
 )
-
-
-def test_online_commands_reexports_config_api() -> None:
-    assert (
-        online_commands.OnlineMotionCommandCfg
-        is online_command_cfg.OnlineMotionCommandCfg
-    )
-    assert (
-        online_commands.use_online_textop_motion_command
-        is online_command_cfg.use_online_textop_motion_command
-    )
 
 
 class _LiveTextOpOnlineSource:
@@ -279,22 +266,6 @@ def test_rolling_buffer_discards_only_frames_behind_consumer() -> None:
     assert buffer.frame_count == 5
     assert buffer.can_start(0, 5) is False
     assert buffer.can_start(3, 5) is True
-
-
-def test_rolling_buffer_rejects_wrong_joint_count() -> None:
-    block = motion_block(frames=1)
-    bad = MotionBlock(
-        index=0,
-        motion=MotionFrames(
-            joint_pos=np.zeros((1, 28), dtype=np.float32),
-            joint_vel=block.joint_vel,
-            anchor_pos_w=block.anchor_pos_w,
-            anchor_quat_w=block.anchor_quat_w,
-        ),
-    )
-
-    with pytest.raises(ValueError, match=r"\[T, 29\]"):
-        RollingMotionBuffer().append_block(bad)
 
 
 def test_mjlab_npz_replay_source_chunks_and_round_trips_joint_order(tmp_path) -> None:
@@ -774,14 +745,6 @@ def test_online_command_replay_does_not_evict_preloaded_frames() -> None:
     assert command.buffer.earliest_index == 0
     assert command.buffer.frame_count == 1024
     assert command.future_joint_pos.shape == (1, 5, 29)
-
-
-def test_online_command_rejects_replay_source_without_reset() -> None:
-    with pytest.raises(TypeError, match="implement reset"):
-        OnlineMotionCommandCfg(
-            source=_LiveTextOpOnlineSource([motion_block(frames=8)]),
-            source_mode="replay",
-        )
 
 
 def test_online_command_cfg_with_live_source_cfg_is_deepcopyable() -> None:

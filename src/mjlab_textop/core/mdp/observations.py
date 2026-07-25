@@ -5,8 +5,8 @@ from mjlab.envs import ManagerBasedRlEnv
 from mjlab.envs.mdp.observations import joint_pos_rel, joint_vel_rel, last_action
 from mjlab.utils.lab_api.math import matrix_from_quat, subtract_frame_transforms
 
-from mjlab_textop.core.mdp.future_reference import FutureReferenceCommand
 from mjlab_textop.core.motion import MJLAB_TO_TEXTOP_G1_JOINT_INDEX
+from mjlab_textop.core.reference import FutureReferenceCommand
 
 _MJLAB_TO_TEXTOP_INDEX_CACHE: dict[torch.device, torch.Tensor] = {}
 

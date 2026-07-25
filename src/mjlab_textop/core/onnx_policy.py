@@ -9,7 +9,7 @@ import torch
 import warp as wp
 from tensordict import TensorDict
 
-from textop_live_protocol.g1 import G1_JOINT_COUNT, TEXTOP_TO_MJLAB_G1_JOINT_INDEX
+from textop_protocol.g1 import G1_JOINT_COUNT, TEXTOP_TO_MJLAB_G1_JOINT_INDEX
 
 OnnxExecutionProvider = Literal["cpu", "cuda"]
 _TEXTOP_ONNX_OBS_DIM = 431
@@ -215,15 +215,6 @@ def _resolve_cuda_device(
 
 
 def _share_torch_stream_with_warp(device: torch.device) -> torch.cuda.Stream:
-    """Run policy and action work on MJLab's simulation stream.
-
-    MJLab exposes Warp-owned simulation arrays through PyTorch and writes them on
-    Warp's current stream.  Leaving policy inference on PyTorch's default stream
-    creates an unsynchronized producer/consumer boundary when actuator targets are
-    copied into those arrays.  Sharing Warp's stream keeps ONNX Runtime, PyTorch
-    action processing, and the subsequent simulation step ordered without a
-    device-wide synchronization.
-    """
     warp_stream = wp.get_stream(str(device))
     torch_stream = torch.cuda.ExternalStream(
         warp_stream.cuda_stream,

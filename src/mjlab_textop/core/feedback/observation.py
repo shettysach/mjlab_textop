@@ -9,7 +9,7 @@ from typing import Any, Protocol
 import imageio.v3 as iio
 from mjlab.viewer import ViewerConfig
 
-from textop_live_protocol.observation import (
+from textop_protocol.observation import (
     ObservationImage,
     ObservationMessage,
     observation_to_json,

@@ -7,7 +7,7 @@ from typing import Any
 
 import numpy as np
 
-from textop_live_protocol.motion import (
+from textop_protocol.motion import (
     MotionBlock,
     normalize_quat,
     validate_frame_vector_array,

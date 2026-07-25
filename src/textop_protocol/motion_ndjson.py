@@ -5,7 +5,7 @@ from typing import Any
 
 import numpy as np
 
-from textop_live_protocol.motion import (
+from textop_protocol.motion import (
     MotionBlock,
     MotionFrames,
     StreamControl,

@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from mjlab_textop.core.schema import ROOT_BODY_INDEX
-from textop_live_protocol.g1 import G1_JOINT_COUNT, TEXTOP_TO_MJLAB_G1_JOINT_INDEX
+from textop_protocol.g1 import G1_JOINT_COUNT, TEXTOP_TO_MJLAB_G1_JOINT_INDEX
 
 MJLAB_TO_TEXTOP_G1_JOINT_INDEX = np.argsort(TEXTOP_TO_MJLAB_G1_JOINT_INDEX)
 

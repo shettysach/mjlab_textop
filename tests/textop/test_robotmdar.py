@@ -18,8 +18,8 @@ from robotmdar_textop.motion import (
     robotmdar_motion_dict_to_block,
     slice_motion_dict_tail,
 )
-from textop_live_protocol.g1 import G1_JOINT_NAMES as MJLAB_G1_JOINT_NAMES
-from textop_live_protocol.recording import (
+from textop_protocol.g1 import G1_JOINT_NAMES as MJLAB_G1_JOINT_NAMES
+from textop_protocol.recording import (
     load_robotmdar_raw_record,
     save_robotmdar_raw_record,
 )

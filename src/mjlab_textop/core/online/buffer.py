@@ -7,10 +7,7 @@ import torch
 from mjlab_textop.core.motion import (
     reindex_textop_g1_joints_to_mjlab,
 )
-from textop_live_protocol.motion import (
-    MotionBlock,
-    validate_motion_block,
-)
+from textop_protocol.motion import MotionBlock
 
 
 @dataclass(frozen=True)
@@ -50,8 +47,6 @@ class RollingMotionBuffer:
         self._latest_index = None
 
     def append_block(self, block: MotionBlock) -> None:
-        block = validate_motion_block(block)
-
         joint_pos = reindex_textop_g1_joints_to_mjlab(block.motion.joint_pos)
         joint_vel = reindex_textop_g1_joints_to_mjlab(block.motion.joint_vel)
 
@@ -99,16 +94,12 @@ class RollingMotionBuffer:
         return all((frame + offset) in self._frames for offset in range(future_steps))
 
     def earliest_start_frame(self, future_steps: int) -> int | None:
-        if future_steps <= 0:
-            raise ValueError(f"future_steps must be positive, got {future_steps}")
         for frame in sorted(self._frames):
             if self.can_start(frame, future_steps):
                 return frame
         return None
 
     def latest_start_frame(self, future_steps: int) -> int | None:
-        if future_steps <= 0:
-            raise ValueError(f"future_steps must be positive, got {future_steps}")
         for frame in sorted(self._frames, reverse=True):
             if self.can_start(frame, future_steps):
                 return frame
@@ -119,8 +110,6 @@ class RollingMotionBuffer:
         frame: int,
         future_steps: int,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, int]:
-        if future_steps <= 0:
-            raise ValueError(f"future_steps must be positive, got {future_steps}")
         if not self._frames:
             raise RuntimeError("Online TextOp buffer has no frames")
 

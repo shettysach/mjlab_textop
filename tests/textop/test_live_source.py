@@ -15,7 +15,7 @@ from mjlab_textop.core.online.live import (
     textop_block_to_ndjson_message,
 )
 from mjlab_textop.core.online.source import StreamControl
-from textop_live_protocol import motion, motion_ndjson
+from textop_protocol import motion, motion_ndjson
 
 
 def test_live_source_uses_shared_protocol_objects() -> None:

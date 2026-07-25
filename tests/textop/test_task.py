@@ -5,8 +5,10 @@ from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
 
 from mjlab_textop.core.feedback.observation import OnlineObservationCfg
 from mjlab_textop.core.mdp.offline_commands import OfflineMotionCommandCfg
-from mjlab_textop.core.mdp.online_cleanup import OnlineTextOpCleanup
-from mjlab_textop.core.mdp.online_commands import OnlineMotionCommandCfg
+from mjlab_textop.core.mdp.online_commands import (
+    OnlineMotionCommandCfg,
+    OnlineTextOpCleanup,
+)
 from mjlab_textop.core.online.source import (
     MotionBlock,
     MotionFrames,

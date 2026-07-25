@@ -24,7 +24,7 @@ def motion_block(
         axis=1,
     )
     anchor_quat_w = np.tile(
-        np.array([2.0, 0.0, 0.0, 0.0], dtype=np.float32), (frames, 1)
+        np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32), (frames, 1)
     )
     return MotionBlock(
         index=index,

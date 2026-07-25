@@ -14,8 +14,8 @@ from mjlab_textop.core.kinematics import (
     differentiate_quaternions,
 )
 from mjlab_textop.core.motion import reindex_textop_g1_joints_to_mjlab
-from textop_live_protocol.g1 import G1_JOINT_NAMES as MJLAB_G1_JOINT_NAMES
-from textop_live_protocol.recording import load_robotmdar_raw_record
+from textop_protocol.g1 import G1_JOINT_NAMES as MJLAB_G1_JOINT_NAMES
+from textop_protocol.recording import load_robotmdar_raw_record
 
 
 def normalize(

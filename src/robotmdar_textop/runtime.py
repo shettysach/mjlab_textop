@@ -13,9 +13,9 @@ from robotmdar_textop.motion import (
     robotmdar_motion_dict_to_block,
     slice_motion_dict_tail,
 )
-from textop_live_protocol.g1 import TEXTOP_FPS
-from textop_live_protocol.motion import MotionBlock
-from textop_live_protocol.motion_ndjson import textop_block_to_ndjson_message
+from textop_protocol.g1 import TEXTOP_FPS
+from textop_protocol.motion import MotionBlock
+from textop_protocol.motion_ndjson import textop_block_to_ndjson_message
 
 PROMPT_DIR = Path(__file__).resolve().parent / "prompt"
 DEFAULT_VLM_SYSTEM_PROMPT_FILE = Path("TASK.md")

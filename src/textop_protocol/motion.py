@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from textop_live_protocol.g1 import G1_JOINT_COUNT
+from textop_protocol.g1 import G1_JOINT_COUNT
 
 
 @dataclass(frozen=True)

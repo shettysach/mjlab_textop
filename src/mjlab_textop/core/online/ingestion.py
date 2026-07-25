@@ -5,7 +5,7 @@ from typing import Callable
 
 from mjlab_textop.core.online.buffer import RollingMotionBuffer
 from mjlab_textop.core.online.source import OnlineSource
-from textop_live_protocol.motion import MotionBlock
+from textop_protocol.motion import MotionBlock
 
 
 class OnlineBlockIngestor:

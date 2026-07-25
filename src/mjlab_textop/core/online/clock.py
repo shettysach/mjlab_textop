@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from mjlab_textop.core.online.buffer import RollingMotionBuffer
+from mjlab_textop.core.online.types import OnlineSourceMode
 
 
 @dataclass
@@ -23,7 +24,7 @@ class OnlineReferenceClock:
         self,
         buffer: RollingMotionBuffer,
         *,
-        source_mode: str,
+        source_mode: OnlineSourceMode,
         future_steps: int,
     ) -> int | None:
         if source_mode == "live":

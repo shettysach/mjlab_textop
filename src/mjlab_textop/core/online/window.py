@@ -74,9 +74,6 @@ class OnlineReferenceWindow:
 
     def reference_root_velocity(self, frame: int, *, dt: float) -> torch.Tensor:
         """Estimate world-frame root velocity from adjacent reference poses."""
-        if dt <= 0.0:
-            raise ValueError(f"dt must be positive, got {dt}")
-
         pair_start = frame
         if not self.buffer.can_start(pair_start, 2):
             pair_start = frame - 1

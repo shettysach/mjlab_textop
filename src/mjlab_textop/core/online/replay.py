@@ -10,7 +10,7 @@ from mjlab_textop.core.online.source import (
     QueueOnlineSource,
 )
 from mjlab_textop.core.schema import ROOT_BODY_INDEX
-from textop_live_protocol.motion import (
+from textop_protocol.motion import (
     MotionBlock,
     MotionFrames,
 )

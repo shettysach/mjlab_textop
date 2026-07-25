@@ -9,10 +9,10 @@ from mjlab_textop.core.motion import (
     load_mjlab_motion,
     reindex_textop_g1_joints_to_mjlab,
 )
-from textop_live_protocol.g1 import (
+from textop_protocol.g1 import (
     G1_JOINT_NAMES as MJLAB_G1_JOINT_NAMES,
 )
-from textop_live_protocol.g1 import (
+from textop_protocol.g1 import (
     TEXTOP_TO_MJLAB_G1_JOINT_INDEX as ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
 )
 

@@ -71,7 +71,7 @@ packages = [
   "src/mjlab_textop",
   "src/mjlab_scout",
   "src/robotmdar_textop",
-  "src/textop_live_protocol",
+  "src/textop_protocol",
   "tasks",
 ]
 

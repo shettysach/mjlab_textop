@@ -6,7 +6,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-from textop_live_protocol.observation import (
+from textop_protocol.observation import (
     ObservationMessage,
     parse_observation_json,
 )

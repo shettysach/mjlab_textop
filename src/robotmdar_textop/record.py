@@ -7,8 +7,8 @@ from pathlib import Path
 
 from robotmdar_textop.args import add_generator_arguments
 from robotmdar_textop.runtime import make_robotmdar_generator
-from textop_live_protocol.g1 import TEXTOP_FPS
-from textop_live_protocol.recording import save_robotmdar_raw_record
+from textop_protocol.g1 import TEXTOP_FPS
+from textop_protocol.recording import save_robotmdar_raw_record
 
 
 def run_record(args: argparse.Namespace) -> None:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import deque
 from typing import Protocol, runtime_checkable
 
-from textop_live_protocol.motion import (
+from textop_protocol.motion import (
     MotionBlock,
     MotionFrames,
     StreamControl,
@@ -24,6 +24,9 @@ __all__ = [
 class OnlineSource(Protocol):
     def poll(self) -> MotionBlock | None:
         """Return the next available block, or None when no block is ready."""
+
+    def close(self) -> None:
+        """Release source resources when the environment closes."""
 
 
 @runtime_checkable
@@ -47,6 +50,9 @@ class QueueOnlineSource:
         if not self._blocks:
             return None
         return self._blocks.popleft()
+
+    def close(self) -> None:
+        pass
 
     def reset(self) -> None:
         self._blocks = deque(self._initial_blocks)

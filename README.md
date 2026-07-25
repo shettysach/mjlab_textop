@@ -5,7 +5,7 @@ normalization, policy training, offline replay, and live text-to-motion control.
 
 ## Source layout
 
-- `src/textop_live_protocol` owns the shared motion and observation contracts.
+- `src/textop_protocol` owns the shared motion and observation contracts.
 - `src/robotmdar_textop` owns RobotMDAR generation and prompt planning.
 - `src/mjlab_textop` owns MJLab policy execution and simulation integration.
 - `src/mjlab_scout` owns the MCP task-inspection service.
@@ -87,7 +87,7 @@ uvx hf download Yochish/TextOp-Data \
 RobotMDAR commands below run in this environment and can be launched from any
 directory. `PYTHONPATH` must contain the `src` directory—not the repository
 root—so Python can import both `robotmdar_textop` and
-`textop_live_protocol`. The MJLab environment does not need this setting;
+`textop_protocol`. The MJLab environment does not need this setting;
 `uv run` installs the project there.
 
 ### ONNX policy

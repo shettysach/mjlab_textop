@@ -5,12 +5,12 @@ from typing import Any
 import numpy as np
 import torch
 
-from textop_live_protocol.g1 import (
+from textop_protocol.g1 import (
     G1_JOINT_COUNT,
     G1_JOINT_NAMES,
     mjlab_to_textop_joint_order,
 )
-from textop_live_protocol.motion import MotionBlock, MotionFrames, StreamControl
+from textop_protocol.motion import MotionBlock, MotionFrames, StreamControl
 
 # RobotMDAR predicts 23 G1 DoFs.
 # MJLab G1 has 29 joints; RobotMDAR does not output wrist joints.
