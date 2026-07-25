@@ -29,6 +29,13 @@ class VlmPromptSelection:
 
 
 @dataclass(frozen=True)
+class VlmExecutionContext:
+    previous_decision: str | None
+    executed_sequence: tuple[str, ...]
+    current_command: str
+
+
+@dataclass(frozen=True)
 class _VlmUserTurn:
     prompt: str
     image_data_url: str | None
@@ -65,6 +72,8 @@ class VlmPromptPlanner:
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._last_query_block: int | None = None
         self._last_query_image_revision: int | None = None
+        self._last_vlm_decision: str | None = None
+        self._executed_since_query: list[str] = [initial_prompt]
         self._sequencer = CommandSequencer(
             initial_prompt, hold_blocks=command_hold_blocks
         )
@@ -147,9 +156,17 @@ class VlmPromptPlanner:
         self._last_query_block = block_count
         self._last_query_image_revision = observation.image_revision
         self._future_epoch = self._selection_epoch
+        execution_context = VlmExecutionContext(
+            previous_decision=self._last_vlm_decision,
+            executed_sequence=tuple(self._executed_since_query)
+            or (self.current_prompt,),
+            current_command=self.current_prompt,
+        )
+        self._executed_since_query.clear()
         self._future = self._executor.submit(
             self.selector.choose_prompt_with_debug,
             observation=observation,
+            execution_context=execution_context,
         )
 
     def _enter_collision_recovery(self, recovery_epoch: int) -> None:
@@ -166,6 +183,8 @@ class VlmPromptPlanner:
     def _set_current(self, prompt: str, source: str) -> str:
         self.current_prompt = prompt
         self.current_prompt_source = source
+        if not self._executed_since_query or self._executed_since_query[-1] != prompt:
+            self._executed_since_query.append(prompt)
         return prompt
 
     def consume_pending_reasoning(self) -> str | None:
@@ -182,6 +201,7 @@ class VlmPromptPlanner:
             selection = self._future.result()
             if self._future_epoch == self._selection_epoch:
                 self.current_prompt = selection.prompt
+                self._last_vlm_decision = selection.prompt
                 self._pending_reasoning = selection.reasoning
                 received_command = True
             self.last_error = None
@@ -235,15 +255,24 @@ class OpenAIChatPromptSelector:
         self,
         *,
         observation: FeedbackObservation,
+        execution_context: VlmExecutionContext | None = None,
     ) -> str:
-        return self.choose_prompt_with_debug(observation=observation).prompt
+        return self.choose_prompt_with_debug(
+            observation=observation,
+            execution_context=execution_context,
+        ).prompt
 
     def choose_prompt_with_debug(
         self,
         *,
         observation: FeedbackObservation,
+        execution_context: VlmExecutionContext | None = None,
     ) -> VlmPromptSelection:
-        current_user = _make_user_turn(self.user_prompt, observation)
+        current_user = _make_user_turn(
+            self.user_prompt,
+            observation,
+            execution_context=execution_context,
+        )
         response = self._post_json(
             _make_chat_completions_payload(
                 current_user=current_user,
@@ -304,6 +333,8 @@ def _make_chat_completions_payload(
 def _make_user_turn(
     user_prompt: str,
     observation: FeedbackObservation,
+    *,
+    execution_context: VlmExecutionContext | None = None,
 ) -> _VlmUserTurn:
     image_data_url = None
     if observation.image_bytes is not None and observation.image_mime_type is not None:
@@ -311,7 +342,27 @@ def _make_user_turn(
             observation.image_bytes,
             observation.image_mime_type,
         )
-    return _VlmUserTurn(prompt=user_prompt, image_data_url=image_data_url)
+    prompt = (
+        user_prompt
+        if execution_context is None
+        else _execution_context_prompt(execution_context, user_prompt=user_prompt)
+    )
+    return _VlmUserTurn(prompt=prompt, image_data_url=image_data_url)
+
+
+def _execution_context_prompt(
+    context: VlmExecutionContext,
+    *,
+    user_prompt: str,
+) -> str:
+    previous = context.previous_decision or "none"
+    sequence = " -> ".join(context.executed_sequence) or context.current_command
+    return (
+        f"Previous decision: {previous}\n"
+        f"Executed sequence: {sequence}\n"
+        f"Current command: {context.current_command}\n\n"
+        f"{user_prompt}"
+    )
 
 
 def _make_user_message(turn: _VlmUserTurn) -> dict[str, Any]:

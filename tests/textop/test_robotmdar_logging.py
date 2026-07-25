@@ -94,3 +94,18 @@ def test_vlm_source_is_bright_green() -> None:
 
     assert f"source={GREEN}vlm{RESET}" in message
     assert f"vlm={GREEN}idle{RESET}" not in message
+
+
+def test_next_source_is_bright_yellow() -> None:
+    message = format_stream_status(
+        block_count=4,
+        frame_index=28,
+        prompt="stand",
+        source="next",
+        generation_ms=0.0,
+        lag_ms=0.0,
+        block_frames=7,
+        color=True,
+    )
+
+    assert f"source={YELLOW}next{RESET}" in message

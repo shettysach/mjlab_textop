@@ -17,6 +17,7 @@ from robotmdar_textop.feedback import (
 from robotmdar_textop.planner import (
     ManualPromptPlanner,
     OpenAIChatPromptSelector,
+    VlmExecutionContext,
     VlmPromptPlanner,
     VlmPromptSelection,
 )
@@ -79,9 +80,10 @@ class _FixedSelector:
         self.reasoning = reasoning
         self.calls = 0
         self.finished = threading.Event()
+        self.execution_contexts: list[VlmExecutionContext] = []
 
     def choose_prompt_with_debug(self, **kwargs) -> VlmPromptSelection:
-        del kwargs
+        self.execution_contexts.append(kwargs["execution_context"])
         self.calls += 1
         self.finished.set()
         return VlmPromptSelection(
@@ -104,7 +106,9 @@ class _BlockingSelector:
         self,
         *,
         observation: FeedbackObservation,
+        execution_context: VlmExecutionContext | None = None,
     ) -> VlmPromptSelection:
+        del execution_context
         self.calls += 1
         self.image_revisions.append(observation.image_revision)
         self.started.set()
@@ -343,6 +347,35 @@ def test_vlm_planner_locally_schedules_stand_after_lateral_command() -> None:
     provider.observation = _observation(image_revision=2)
     assert _choose_and_mark_block_sent(planner, 7) == "stand"
     _wait_for(lambda: selector.calls == 2)
+
+    planner.request_stop()
+
+
+def test_vlm_planner_reports_executed_followup_to_next_query() -> None:
+    provider = _FakeObservationProvider(_observation())
+    selector = _FixedSelector("turn right")
+    planner = VlmPromptPlanner(
+        feedback=provider,
+        selector=selector,
+        initial_prompt="stand",
+        command_hold_blocks=2,
+    )
+
+    assert _choose_and_mark_block_sent(planner, 0) == "stand"
+    assert selector.finished.wait(timeout=1)
+    assert _choose_and_mark_block_sent(planner, 1) == "turn right"
+    assert _choose_and_mark_block_sent(planner, 2) == "turn right"
+    assert _choose_and_mark_block_sent(planner, 3) == "stand"
+    provider.observation = _observation(image_revision=2)
+    assert _choose_and_mark_block_sent(planner, 4) == "stand"
+    assert _choose_and_mark_block_sent(planner, 5) == "stand"
+    _wait_for(lambda: selector.calls == 2)
+
+    assert selector.execution_contexts[1] == VlmExecutionContext(
+        previous_decision="turn right",
+        executed_sequence=("turn right", "stand"),
+        current_command="stand",
+    )
 
     planner.request_stop()
 
@@ -657,6 +690,11 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
             image_mime_type=None,
             image_revision=0,
         ),
+        execution_context=VlmExecutionContext(
+            previous_decision="turn right",
+            executed_sequence=("turn right", "stand"),
+            current_command="stand",
+        ),
     )
 
     assert prompt == "wave"
@@ -672,7 +710,12 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     )
     content = posted["payload"]["messages"][1]["content"]
     assert content[0]["type"] == "text"
-    assert content[0]["text"] == _default_vlm_user_prompt()
+    assert content[0]["text"] == (
+        "Previous decision: turn right\n"
+        "Executed sequence: turn right -> stand\n"
+        "Current command: stand\n\n"
+        f"{_default_vlm_user_prompt()}"
+    )
     assert len(content) == 1
 
 

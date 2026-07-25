@@ -84,6 +84,7 @@ def _colored_source(source: str, *, enabled: bool) -> str:
     health: LogHealth | None = {
         "vlm": "good",
         "recov": "warning",
+        "next": "warning",
     }.get(source)
     if not enabled or health is None:
         return source
