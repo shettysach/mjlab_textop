@@ -5,9 +5,9 @@ import pytest
 from robotmdar_textop.logging import format_stream_status
 from textop_protocol.timing import FPS
 
-GREEN = "\x1b[32m"
-YELLOW = "\x1b[33m"
-RED = "\x1b[31m"
+GREEN = "\x1b[92m"
+YELLOW = "\x1b[93m"
+RED = "\x1b[91m"
 RESET = "\x1b[0m"
 
 
@@ -72,6 +72,25 @@ def test_stream_status_leaves_states_and_identifiers_uncolored() -> None:
         color=True,
     )
 
-    assert message.startswith("[BLOCK 4] [FRAME 28] prompt='stand' source=recov")
+    assert message.startswith(
+        f"[BLOCK 4] [FRAME 28] prompt='stand' source={YELLOW}recov{RESET}"
+    )
     assert "vlm=idle last_q=(block: 3, img_revision: 2)" in message
     assert message.count(GREEN) == 2
+
+
+def test_vlm_source_is_bright_green() -> None:
+    message = format_stream_status(
+        block_count=4,
+        frame_index=28,
+        prompt="walk",
+        source="vlm",
+        generation_ms=0.0,
+        lag_ms=0.0,
+        block_frames=7,
+        suffix=" vlm=idle",
+        color=True,
+    )
+
+    assert f"source={GREEN}vlm{RESET}" in message
+    assert f"vlm={GREEN}idle{RESET}" not in message

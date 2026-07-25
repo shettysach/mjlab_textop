@@ -8,9 +8,9 @@ from textop_protocol.timing import FPS
 
 _RESET = "\x1b[0m"
 _COLORS = {
-    "good": "\x1b[32m",
-    "warning": "\x1b[33m",
-    "bad": "\x1b[31m",
+    "good": "\x1b[92m",
+    "warning": "\x1b[93m",
+    "bad": "\x1b[91m",
 }
 
 LogHealth = Literal["good", "warning", "bad"]
@@ -45,9 +45,10 @@ def format_stream_status(
         _lag_health(lag_ms),
         enabled=color,
     )
+    formatted_source = _colored_source(source, enabled=color)
     return (
         f"[BLOCK {block_count}] [FRAME {frame_index}] "
-        f"prompt={prompt!r} source={source} "
+        f"prompt={prompt!r} source={formatted_source} "
         f"gen_ms={generation} lag_ms={lag}{suffix}"
     )
 
@@ -77,3 +78,13 @@ def _colored_number(value: str, health: LogHealth, *, enabled: bool) -> str:
     if not enabled:
         return value
     return f"{_COLORS[health]}{value}{_RESET}"
+
+
+def _colored_source(source: str, *, enabled: bool) -> str:
+    health: LogHealth | None = {
+        "vlm": "good",
+        "recov": "warning",
+    }.get(source)
+    if not enabled or health is None:
+        return source
+    return f"{_COLORS[health]}{source}{_RESET}"
