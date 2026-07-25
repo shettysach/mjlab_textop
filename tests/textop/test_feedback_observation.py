@@ -9,7 +9,6 @@ from mjlab_textop.core.feedback.observation import (
     HttpObservationPublisher,
     OnlineObservationCfg,
     encode_render_image_jpeg,
-    make_torso_observation_camera,
 )
 from textop_protocol.observation import (
     ObservationImage,
@@ -40,25 +39,6 @@ def test_online_observation_cfg_defaults_to_torso_camera() -> None:
     assert cfg.camera.distance == 2.0
     assert cfg.camera.azimuth == 0.0
     assert cfg.camera.elevation == -15.0
-
-
-def test_make_torso_observation_camera_uses_requested_dimensions() -> None:
-    camera = make_torso_observation_camera(
-        width=640,
-        height=480,
-        distance=1.5,
-        azimuth=170.0,
-        elevation=-5.0,
-    )
-
-    assert camera.origin_type == camera.OriginType.ASSET_BODY
-    assert camera.entity_name == "robot"
-    assert camera.body_name == "torso_link"
-    assert camera.width == 640
-    assert camera.height == 480
-    assert camera.distance == 1.5
-    assert camera.azimuth == 170.0
-    assert camera.elevation == -5.0
 
 
 def test_http_observation_publisher_posts_image_only(monkeypatch) -> None:

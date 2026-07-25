@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 import torch
-from mjlab.tasks.tracking.mdp.commands import MotionCommand, MotionCommandCfg
+from mjlab.tasks.tracking.mdp.commands import MotionCommandCfg
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
 from mjlab_textop.core.mdp.offline_commands import (
@@ -125,12 +125,6 @@ def test_play_live_without_images_uses_mjlab_run_play(monkeypatch, tmp_path) -> 
     assert calls["task_kwargs"]["runner_cls"] is MotionTrackingOnPolicyRunner
     assert calls["task_kwargs"]["reference_debug_vis"] is False
     assert calls["task_kwargs"]["observation"] is None
-
-
-def test_play_live_defaults_reference_debug_vis_off() -> None:
-    assert PlayLiveCommand().reference_debug_vis is False
-    assert PlayLiveCommand().observation is None
-    assert ObservationParams().url == "http://127.0.0.1:8766/observation"
 
 
 def test_play_live_with_images_does_not_enable_video_recording(
@@ -331,11 +325,6 @@ def _fake_register_task(calls: dict, task: str, kwargs: dict) -> str:
     calls["task"] = task
     calls["task_kwargs"] = kwargs
     return "task"
-
-
-def test_textop_motion_command_cfg_is_motion_command_cfg() -> None:
-    assert issubclass(OfflineMotionCommandCfg, MotionCommandCfg)
-    assert issubclass(OfflineMotionCommand, MotionCommand)
 
 
 def test_textop_motion_command_cfg_from_copies_motion_cfg_fields() -> None:

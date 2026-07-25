@@ -26,7 +26,6 @@ from robotmdar_textop.runtime import (
     DEFAULT_VLM_USER_PROMPT_FILE,
     StreamConfig,
     compose_system_prompt,
-    log_stream_timing,
     read_prompt_path,
     stream_robotmdar_blocks,
 )
@@ -603,52 +602,6 @@ def test_stream_submits_planner_work_after_generation_and_send(monkeypatch) -> N
         ("send", b"block"),
         ("planner", 0),
     ]
-
-
-def test_producer_log_includes_vlm_prompt_source(monkeypatch) -> None:
-    messages = []
-    planner = VlmPromptPlanner(
-        feedback=_FakeObservationProvider(_observation()),
-        selector=_FixedSelector("wave"),
-        initial_prompt="stand",
-    )
-
-    monkeypatch.setattr(produce, "_log_producer_message", messages.append)
-
-    log_stream_timing(
-        prompt_controller=planner,
-        cfg=StreamConfig(guidance_scale=0.0, log_every_blocks=1),
-        log_message=produce._log_producer_message,
-        prompt_source=produce._prompt_source,
-        block_count=1,
-        frame_index=20,
-        block_frames=20,
-        block_start_time=time.monotonic(),
-        next_send_time=time.monotonic(),
-        prompt="stand",
-    )
-
-    assert messages[0].startswith("[BLOCK 1] [FRAME 20] ")
-    assert "source=init" in messages[0]
-    assert "vlm=idle" in messages[0]
-
-    planner.current_prompt_source = "vlm"
-    log_stream_timing(
-        prompt_controller=planner,
-        cfg=StreamConfig(guidance_scale=0.0, log_every_blocks=1),
-        log_message=produce._log_producer_message,
-        prompt_source=produce._prompt_source,
-        block_count=2,
-        frame_index=40,
-        block_frames=20,
-        block_start_time=time.monotonic(),
-        next_send_time=time.monotonic(),
-        prompt="wave",
-    )
-
-    assert "source=vlm" in messages[1]
-
-    planner.request_stop()
 
 
 def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> None:

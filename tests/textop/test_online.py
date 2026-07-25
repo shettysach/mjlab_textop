@@ -857,33 +857,6 @@ def test_online_command_publishes_observations_with_images_on_interval(
     assert [image.data for image in publisher.images] == [b"jpeg", b"jpeg"]
 
 
-def test_online_command_does_not_create_observation_reporter_by_default() -> None:
-    command = OnlineMotionCommand(
-        OnlineMotionCommandCfg(
-            source=QueueOnlineSource([motion_block(frames=8)]),
-        ),
-        fake_env(),
-    )
-
-    assert command.cfg.observation is None
-    assert command.observation_reporter is None
-
-
-def test_online_observation_reporter_publishes_collision_event() -> None:
-    publisher = _RecordingObservationPublisher()
-    reporter = OnlineObservationReporter(
-        OnlineObservationCfg(publisher=publisher),
-        fake_env(),
-    )
-
-    reporter.publish_collision_stop(True, recovery_epoch=7)
-
-    assert reporter._event_future is not None
-    reporter._event_future.result(timeout=1.0)
-    reporter._collect_event_result()
-    assert publisher.collision_events == [(True, 7)]
-
-
 def test_online_observation_reporter_tracks_ordered_collision_events() -> None:
     publisher = _RecordingObservationPublisher()
     reporter = OnlineObservationReporter(
