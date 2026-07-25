@@ -275,10 +275,15 @@ def stream_robotmdar_blocks(
     frame_index = 0
     next_send_time = time.monotonic()
     block_count = 0
+    previous_command: tuple[str, str] | None = None
 
     while not prompt_controller.should_stop:
         block_start_time = time.monotonic()
         current_prompt = prompt_controller.choose_prompt(block_count=block_count)
+        current_source = prompt_source(prompt_controller)
+        current_command = (current_prompt, current_source)
+        command_changed = current_command != previous_command
+        previous_command = current_command
         if after_prompt is not None:
             after_prompt(prompt_controller)
 
@@ -302,7 +307,8 @@ def stream_robotmdar_blocks(
             prompt_controller=prompt_controller,
             cfg=cfg,
             log_message=log_message,
-            prompt_source=prompt_source,
+            source=current_source,
+            command_changed=command_changed,
             block_count=block_count,
             frame_index=frame_index,
             block_frames=block_frames,
@@ -319,7 +325,8 @@ def log_stream_timing(
     prompt_controller: PromptController,
     cfg: StreamConfig,
     log_message: Callable[[str], None],
-    prompt_source: Callable[[PromptController], str],
+    source: str,
+    command_changed: bool,
     block_count: int,
     frame_index: int,
     block_frames: int,
@@ -329,11 +336,11 @@ def log_stream_timing(
 ) -> float:
     block_duration = block_frames / FPS
     sleep_seconds = next_send_time + block_duration - time.monotonic()
-    if (
+    periodic_log_due = (
         cfg.log_every_blocks > 0
         and block_count % cfg.log_every_blocks == 0
-        and not prompt_controller.input_active
-    ):
+    )
+    if (command_changed or periodic_log_due) and not prompt_controller.input_active:
         generation_ms = (time.monotonic() - block_start_time) * 1000.0
         lag_ms = max(0.0, -sleep_seconds * 1000.0)
         log_message(
@@ -341,7 +348,7 @@ def log_stream_timing(
                 block_count=block_count,
                 frame_index=frame_index,
                 prompt=prompt,
-                source=prompt_source(prompt_controller),
+                source=source,
                 generation_ms=generation_ms,
                 lag_ms=lag_ms,
                 block_frames=block_frames,

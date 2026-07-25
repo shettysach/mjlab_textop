@@ -126,6 +126,7 @@ class VlmPromptPlanner:
         if self._collision_recovery:
             self._collision_recovery = False
             self._sequencer.release()
+            self._set_current(self.current_prompt, "wait")
 
         if self._collect_finished_request():
             command = self._sequencer.activate(
@@ -135,9 +136,12 @@ class VlmPromptPlanner:
             )
             return self._set_current(command.text, command.source)
 
+        command_was_active = self._sequencer.busy
         command, changed = self._sequencer.advance(block_count)
         if changed:
             return self._set_current(command.text, command.source)
+        if command_was_active and not self._sequencer.busy:
+            return self._set_current(self.current_prompt, "wait")
         return self.current_prompt
 
     def on_block_sent(self, *, block_count: int) -> None:

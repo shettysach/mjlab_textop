@@ -345,6 +345,7 @@ def test_vlm_planner_locally_schedules_stand_after_lateral_command() -> None:
 
     provider.observation = _observation(image_revision=2)
     assert _choose_and_mark_block_sent(planner, 7) == "stand"
+    assert planner.current_prompt_source == "wait"
     _wait_for(lambda: selector.calls == 2)
 
     planner.request_stop()
@@ -555,7 +556,9 @@ def test_producer_log_prints_vlm_reasoning_once_when_enabled(monkeypatch) -> Non
     planner.request_stop()
 
 
-def test_stream_submits_planner_work_after_generation_and_send(monkeypatch) -> None:
+def test_stream_submits_planner_work_after_generation_and_logs_change(
+    monkeypatch,
+) -> None:
     events = []
 
     class Controller:
@@ -592,7 +595,7 @@ def test_stream_submits_planner_work_after_generation_and_send(monkeypatch) -> N
         generator=Generator(),
         prompt_controller=Controller(),
         cfg=StreamConfig(guidance_scale=5.0, log_every_blocks=0),
-        log_message=lambda _message: None,
+        log_message=lambda _message: events.append(("log", None)),
         prompt_source=lambda _controller: "test",
     )
 
@@ -601,6 +604,7 @@ def test_stream_submits_planner_work_after_generation_and_send(monkeypatch) -> N
         ("generate", 0),
         ("send", b"block"),
         ("planner", 0),
+        ("log", None),
     ]
 
 
