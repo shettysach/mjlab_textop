@@ -551,8 +551,8 @@ def test_stream_submits_planner_work_after_generation_and_send(monkeypatch) -> N
             events.append(("send", data))
 
     monkeypatch.setattr(
-        "robotmdar_textop.runtime.textop_block_to_ndjson_message",
-        lambda _block: "block\n",
+        "robotmdar_textop.runtime.textop_block_to_wire",
+        lambda _block: b"block",
     )
     monkeypatch.setattr("robotmdar_textop.runtime.time.sleep", lambda _delay: None)
 
@@ -568,7 +568,7 @@ def test_stream_submits_planner_work_after_generation_and_send(monkeypatch) -> N
     assert events == [
         ("choose", 0),
         ("generate", 0),
-        ("send", b"block\n"),
+        ("send", b"block"),
         ("planner", 0),
     ]
 

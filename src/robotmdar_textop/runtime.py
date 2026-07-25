@@ -14,7 +14,7 @@ from robotmdar_textop.motion import (
     slice_motion_dict_tail,
 )
 from textop_protocol.motion import MotionBlock
-from textop_protocol.motion_ndjson import textop_block_to_ndjson_message
+from textop_protocol.motion_stream import textop_block_to_wire
 from textop_protocol.timing import FPS
 
 PROMPT_DIR = Path(__file__).resolve().parent / "prompt"
@@ -287,7 +287,7 @@ def stream_robotmdar_blocks(
             guidance_scale=cfg.guidance_scale,
             recovery_epoch=prompt_controller.recovery_epoch,
         )
-        conn.sendall(textop_block_to_ndjson_message(block).encode("utf-8"))
+        conn.sendall(textop_block_to_wire(block))
         # Start asynchronous planner work only after motion generation so a
         # colocated VLM can use the real-time pacing window instead of
         # contending with RobotMDAR for the GPU.

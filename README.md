@@ -216,7 +216,7 @@ uv run --extra cu128 mjlab-textop play-online \
 ## Live workflow
 
 Live control uses a RobotMDAR producer and an MJLab consumer connected over
-localhost NDJSON. When VLM prompt selection is enabled, the producer also
+localhost via a versioned binary protocol. When VLM prompt selection is enabled, the producer also
 receives MJLab observations over HTTP and queries an OpenAI-compatible chat
 server.
 

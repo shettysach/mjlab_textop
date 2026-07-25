@@ -42,6 +42,7 @@ def run_producer(args: argparse.Namespace) -> None:
                 f"Waiting for MJLab consumer on {args.host}:{args.port}"
             )
             conn, addr = server.accept()
+            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             _log_producer_message(f"MJLab consumer connected from {addr}")
             with conn:
                 stream_robotmdar_blocks(
@@ -67,7 +68,7 @@ def run_producer(args: argparse.Namespace) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Stream RobotMDAR text-to-motion blocks to MJLab over NDJSON TCP.",
+        description="Stream RobotMDAR text-to-motion blocks to MJLab over binary TCP.",
     )
     add_generator_arguments(parser)
     add_stream_arguments(parser)

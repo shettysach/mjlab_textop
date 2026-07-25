@@ -11,11 +11,11 @@ from mjlab_textop.core.online import source
 from mjlab_textop.core.online.live import (
     SocketOnlineSource,
     SocketSourceCfg,
-    parse_textop_block_message,
-    textop_block_to_ndjson_message,
+    textop_block_from_wire,
+    textop_block_to_wire,
 )
 from mjlab_textop.core.online.source import StreamControl
-from textop_protocol import motion, motion_ndjson
+from textop_protocol import motion, motion_stream
 
 
 def test_live_source_uses_shared_protocol_objects() -> None:
@@ -23,22 +23,20 @@ def test_live_source_uses_shared_protocol_objects() -> None:
     assert source.MotionFrames is motion.MotionFrames
     assert source.StreamControl is motion.StreamControl
     assert source.validate_motion_block is motion.validate_motion_block
-    assert parse_textop_block_message is motion_ndjson.parse_textop_block_message
-    assert (
-        textop_block_to_ndjson_message is motion_ndjson.textop_block_to_ndjson_message
-    )
+    assert textop_block_from_wire is motion_stream.textop_block_from_wire
+    assert textop_block_to_wire is motion_stream.textop_block_to_wire
 
 
-def test_textop_block_ndjson_round_trip() -> None:
+def test_textop_block_binary_round_trip() -> None:
     block = replace(
         motion_block(index=100, frames=8),
         control=StreamControl(prompt="stand", recovery_epoch=3),
     )
 
-    message = textop_block_to_ndjson_message(block)
-    parsed = parse_textop_block_message(message)
+    record = textop_block_to_wire(block)
+    parsed = textop_block_from_wire(record)
 
-    assert '"fps"' not in message
+    assert record[:4] == b"TXOP"
     assert parsed.index == 100
     assert parsed.control.prompt == "stand"
     assert parsed.control.recovery_epoch == 3
@@ -51,34 +49,28 @@ def test_textop_block_ndjson_round_trip() -> None:
     )
 
 
-def test_textop_block_parser_rejects_missing_field() -> None:
-    with pytest.raises(ValueError, match="missing required fields"):
-        parse_textop_block_message({"index": 0})
+def test_textop_block_parser_rejects_truncated_record() -> None:
+    with pytest.raises(ValueError, match="shorter than its header"):
+        textop_block_from_wire(b"TXOP")
 
 
-def test_textop_block_parser_rejects_bad_shape() -> None:
-    block = motion_block(index=0, frames=8)
-    message = {
-        "index": 0,
-        "joint_pos": np.zeros((8, 28), dtype=np.float32).tolist(),
-        "joint_vel": block.joint_vel.tolist(),
-        "anchor_pos_w": block.anchor_pos_w.tolist(),
-        "anchor_quat_w": block.anchor_quat_w.tolist(),
-    }
+def test_textop_block_parser_rejects_corrupt_magic() -> None:
+    record = bytearray(textop_block_to_wire(motion_block(index=0, frames=8)))
+    record[:4] = b"NOPE"
 
-    with pytest.raises(ValueError, match=r"\[T, 29\]"):
-        parse_textop_block_message(message)
+    with pytest.raises(ValueError, match="magic"):
+        textop_block_from_wire(bytes(record))
 
 
 def test_socket_source_blocks_when_queue_is_full() -> None:
     source = SocketOnlineSource(SocketSourceCfg(max_queue_blocks=1))
-    source.append_message(textop_block_to_ndjson_message(motion_block(index=0)))
+    source.append_wire_record(textop_block_to_wire(motion_block(index=0)))
 
     started = threading.Event()
 
     def append_second_block() -> None:
         started.set()
-        source.append_message(textop_block_to_ndjson_message(motion_block(index=8)))
+        source.append_wire_record(textop_block_to_wire(motion_block(index=8)))
 
     thread = threading.Thread(target=append_second_block)
     thread.start()
@@ -104,10 +96,19 @@ def test_socket_source_blocks_when_queue_is_full() -> None:
     assert source.diagnostics.queue_depth == 0
 
 
-def test_socket_source_records_bad_messages() -> None:
+def test_socket_source_records_bad_records() -> None:
     source = SocketOnlineSource()
 
-    source._handle_line(b"{not json}\n")
+    class BrokenSocket:
+        called = False
+
+        def recv(self, _size: int) -> bytes:
+            if self.called:
+                return b""
+            self.called = True
+            return b"NOPE"
+
+    source._handle_next_record(BrokenSocket())
 
     assert source.diagnostics.bad_messages == 1
     assert source.diagnostics.last_error is not None

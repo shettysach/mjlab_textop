@@ -1,24 +1,23 @@
 from __future__ import annotations
 
-import json
 import socket
 import threading
 from collections import deque
 from dataclasses import dataclass
-from typing import Any
 
 from textop_protocol.motion import MotionBlock
-from textop_protocol.motion_ndjson import (
-    parse_textop_block_message,
-    textop_block_to_ndjson_message,
+from textop_protocol.motion_stream import (
+    recv_textop_block,
+    textop_block_from_wire,
+    textop_block_to_wire,
 )
 
 __all__ = [
     "SocketOnlineSource",
     "SocketSourceCfg",
     "TextOpLiveDiagnostics",
-    "parse_textop_block_message",
-    "textop_block_to_ndjson_message",
+    "textop_block_from_wire",
+    "textop_block_to_wire",
 ]
 
 
@@ -90,34 +89,37 @@ class SocketOnlineSource:
             self._queue_condition.notify()
             return block
 
-    def append_message(self, message: str | bytes | dict[str, Any]) -> None:
-        self._append_block(parse_textop_block_message(message))
+    def append_wire_record(self, record: bytes) -> None:
+        self._append_block(textop_block_from_wire(record))
 
     def _reader_loop(self) -> None:
         try:
             with socket.create_connection(
                 (self.cfg.host, self.cfg.port), timeout=1.0
             ) as sock:
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 self._sock = sock
                 self.diagnostics.connected = True
-                with sock.makefile("rb") as reader:
-                    for line in reader:
-                        if self._stop.is_set():
-                            return
-                        self._handle_line(line)
-        except OSError as exc:
+                while not self._stop.is_set():
+                    self._handle_next_record(sock)
+        except (OSError, ValueError) as exc:
             self.diagnostics.last_error = str(exc)
         finally:
             self.diagnostics.connected = False
             self._sock = None
 
-    def _handle_line(self, line: bytes) -> None:
+    def _handle_next_record(self, sock: socket.socket) -> None:
         try:
-            self.append_message(line)
-        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            block = recv_textop_block(sock)
+            if block is None:
+                self._stop.set()
+                return
+            self._append_block(block)
+        except (ValueError, UnicodeDecodeError) as exc:
             with self._queue_condition:
                 self.diagnostics.bad_messages += 1
                 self.diagnostics.last_error = str(exc)
+            self._stop.set()
 
     def _append_block(self, block: MotionBlock) -> None:
         with self._queue_condition:
