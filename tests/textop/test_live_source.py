@@ -40,6 +40,10 @@ def test_textop_block_binary_round_trip() -> None:
     assert parsed.index == 100
     assert parsed.control.prompt == "stand"
     assert parsed.control.recovery_epoch == 3
+    assert parsed.joint_pos.flags.writeable
+    assert parsed.joint_vel.flags.writeable
+    assert parsed.anchor_pos_w.flags.writeable
+    assert parsed.anchor_quat_w.flags.writeable
     np.testing.assert_allclose(parsed.joint_pos, block.joint_pos)
     np.testing.assert_allclose(parsed.joint_vel, block.joint_vel)
     np.testing.assert_allclose(parsed.anchor_pos_w, block.anchor_pos_w)

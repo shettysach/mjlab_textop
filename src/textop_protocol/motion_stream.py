@@ -92,7 +92,10 @@ def textop_block_from_wire(record: bytes) -> MotionBlock:
     if not flags & _PROMPT_PRESENT:
         prompt = None
 
-    values = np.frombuffer(record, dtype="<f4", offset=prompt_end)
+    # ``record`` is immutable bytes, so frombuffer alone produces read-only
+    # arrays that PyTorch warns are unsafe to wrap. One payload-level copy keeps
+    # all four resulting array views writable.
+    values = np.frombuffer(record, dtype="<f4", offset=prompt_end).copy()
     joint_end = frames * 29
     velocity_end = joint_end + frames * 29
     position_end = velocity_end + frames * 3
