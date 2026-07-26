@@ -887,6 +887,7 @@ def test_http_vlm_prompt_selector_sends_bounded_complete_turns(monkeypatch) -> N
     assert posted[1]["messages"][2] == {
         "role": "assistant",
         "content": [{"type": "text", "text": "walk"}],
+        "reasoning_content": "The path ahead is open.",
     }
     assert posted[1]["messages"][1]["content"][1]["image_url"]["url"] == (
         "data:image/jpeg;base64,Zmlyc3Q="

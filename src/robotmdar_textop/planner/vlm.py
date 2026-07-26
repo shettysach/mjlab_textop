@@ -57,6 +57,7 @@ class _VlmUserTurn:
 class _VlmConversationTurn:
     user: _VlmUserTurn
     assistant_prompt: str
+    assistant_reasoning: str | None
 
 
 class VlmPromptPlanner:
@@ -330,6 +331,7 @@ class OpenAIChatPromptSelector:
             _VlmConversationTurn(
                 user=current_user,
                 assistant_prompt=prompt,
+                assistant_reasoning=reasoning,
             )
         )
         return VlmPromptSelection(
@@ -421,10 +423,13 @@ def _make_user_message(turn: _VlmUserTurn) -> dict[str, Any]:
 
 
 def _make_assistant_message(turn: _VlmConversationTurn) -> dict[str, Any]:
-    return {
+    message: dict[str, Any] = {
         "role": "assistant",
         "content": [{"type": "text", "text": turn.assistant_prompt}],
     }
+    if turn.assistant_reasoning is not None:
+        message["reasoning_content"] = turn.assistant_reasoning
+    return message
 
 
 def _image_data_url(data: bytes, mime_type: str) -> str:
