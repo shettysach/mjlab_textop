@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
@@ -83,6 +84,12 @@ class OnlineObservationReporter:
         if state.request_id is not None and state.request_id != self._last_request_id:
             assert state.source_frame is not None
             self._last_request_id = state.request_id
+            print(
+                f"obs_trace request={state.request_id} marker_seen "
+                f"source_frame={state.source_frame}",
+                file=sys.stderr,
+                flush=True,
+            )
             request = _ObservationRequest(
                 snapshot=self._capture_render_snapshot(),
                 request_id=state.request_id,
@@ -136,16 +143,45 @@ class OnlineObservationReporter:
         publisher: ObservationPublisher,
         request: _ObservationRequest,
     ) -> None:
-        rendered_image = self._render_image(request.snapshot)
-        data = encode_render_image_jpeg(rendered_image)
-        publisher.publish(
-            image=ObservationImage(
-                data=data,
-                mime_type="image/jpeg",
-            ),
-            request_id=request.request_id,
-            source_frame=request.source_frame,
-        )
+        trace = request.request_id is not None
+        try:
+            if trace:
+                print(
+                    f"obs_trace request={request.request_id} render_start",
+                    file=sys.stderr,
+                    flush=True,
+                )
+            rendered_image = self._render_image(request.snapshot)
+            data = encode_render_image_jpeg(rendered_image)
+            if trace:
+                print(
+                    f"obs_trace request={request.request_id} render_done",
+                    file=sys.stderr,
+                    flush=True,
+                )
+            publisher.publish(
+                image=ObservationImage(
+                    data=data,
+                    mime_type="image/jpeg",
+                ),
+                request_id=request.request_id,
+                source_frame=request.source_frame,
+            )
+        except Exception as exc:
+            if trace:
+                print(
+                    f"obs_trace request={request.request_id} failed="
+                    f"{type(exc).__name__}: {exc}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+            raise
+        if trace:
+            print(
+                f"obs_trace request={request.request_id} post_done",
+                file=sys.stderr,
+                flush=True,
+            )
 
     def publish_collision_stop(self, active: bool, *, recovery_epoch: int) -> None:
         if self.publisher is None or self._closed:
