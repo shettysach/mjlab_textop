@@ -22,7 +22,7 @@ from textop_protocol.motion import (
 _MAGIC = b"TXOP"
 _VERSION = 2
 _PROMPT_PRESENT = 1
-_NO_CHECKPOINT = -1
+_NO_OBSERVATION_REQUEST = -1
 _HEADER = struct.Struct("!4sBBHqqqII")
 _FLOATS_PER_FRAME = 29 + 29 + 3 + 4
 _MAX_FRAMES_PER_BLOCK = 4_096
@@ -48,9 +48,9 @@ def textop_block_to_wire(block: MotionBlock) -> bytes:
         block.index,
         block.control.recovery_epoch,
         (
-            _NO_CHECKPOINT
-            if block.control.checkpoint_id is None
-            else block.control.checkpoint_id
+            _NO_OBSERVATION_REQUEST
+            if block.control.observation_request_id is None
+            else block.control.observation_request_id
         ),
         frame_count,
         len(prompt_bytes),
@@ -79,7 +79,7 @@ def textop_block_from_wire(record: bytes) -> MotionBlock:
         reserved,
         index,
         recovery_epoch,
-        checkpoint_id,
+        observation_request_id,
         frames,
         prompt_size,
     ) = _HEADER.unpack_from(record)
@@ -125,8 +125,10 @@ def textop_block_from_wire(record: bytes) -> MotionBlock:
             control=StreamControl(
                 prompt=prompt,
                 recovery_epoch=recovery_epoch,
-                checkpoint_id=(
-                    None if checkpoint_id == _NO_CHECKPOINT else checkpoint_id
+                observation_request_id=(
+                    None
+                    if observation_request_id == _NO_OBSERVATION_REQUEST
+                    else observation_request_id
                 ),
             ),
         )
@@ -139,7 +141,7 @@ def recv_textop_block(sock: socket.socket) -> MotionBlock | None:
     header = _recv_exact(sock, _HEADER.size, allow_eof=True)
     if header is None:
         return None
-    magic, version, flags, reserved, _index, _epoch, _checkpoint, frames, prompt_size = (
+    magic, version, flags, reserved, _index, _epoch, _request, frames, prompt_size = (
         _HEADER.unpack(header)
     )
     _validate_header(

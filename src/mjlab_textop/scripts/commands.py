@@ -9,6 +9,7 @@ from mjlab.scripts.play import PlayConfig, run_play
 
 from mjlab_textop.core.feedback.observation import (
     HttpObservationPublisher,
+    ObservationMode,
     OnlineObservationCfg,
     make_torso_observation_camera,
 )
@@ -36,6 +37,7 @@ class NormalizeCommand:
 class ObservationParams:
     url: str = "http://127.0.0.1:8766/observation"
     timeout_sec: float = 1.0
+    mode: ObservationMode = "requested"
     every_frames: int = 20
     image_size: tuple[int, int] = (320, 240)
     camera_distance: float = 2.0
@@ -117,7 +119,8 @@ def _make_online_observation(cfg: PlayLiveCommand) -> OnlineObservationCfg | Non
 
     return OnlineObservationCfg(
         publisher=publisher,
-        publish_interval=cfg.obs.every_frames,
+        mode=cfg.obs.mode,
+        every_frames=cfg.obs.every_frames,
         camera=camera,
     )
 

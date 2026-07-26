@@ -33,7 +33,7 @@ class BlockPlan:
     prompt: str
     source: str
     recovery_epoch: int = 0
-    checkpoint_id: int | None = None
+    observation_request_id: int | None = None
     reset_pacing: bool = False
 
 
@@ -123,16 +123,16 @@ class RobotMdarGenerator:
         self._last_block = block
         return block
 
-    def checkpoint_block(
+    def observation_request_block(
         self,
         *,
         index: int,
         prompt: str,
         recovery_epoch: int,
-        checkpoint_id: int,
+        observation_request_id: int,
     ) -> MotionBlock:
         if self._last_block is None:
-            raise RuntimeError("Cannot create a checkpoint before generating motion")
+            raise RuntimeError("Cannot request an observation before generating motion")
         previous = self._last_block
 
         def repeat_last(value: np.ndarray) -> np.ndarray:
@@ -150,7 +150,7 @@ class RobotMdarGenerator:
             control=StreamControl(
                 prompt=prompt,
                 recovery_epoch=recovery_epoch,
-                checkpoint_id=checkpoint_id,
+                observation_request_id=observation_request_id,
             ),
         )
 
@@ -330,13 +330,13 @@ def stream_robotmdar_blocks(
             after_plan()
 
         block = (
-            generator.checkpoint_block(
+            generator.observation_request_block(
                 prompt=current_prompt,
                 index=frame_index,
                 recovery_epoch=plan.recovery_epoch,
-                checkpoint_id=plan.checkpoint_id,
+                observation_request_id=plan.observation_request_id,
             )
-            if plan.checkpoint_id is not None
+            if plan.observation_request_id is not None
             else generator.next_block(
                 prompt=current_prompt,
                 index=frame_index,
@@ -384,8 +384,7 @@ def log_stream_timing(
     block_duration = block_frames / FPS
     sleep_seconds = next_send_time + block_duration - time.monotonic()
     periodic_log_due = (
-        cfg.log_every_blocks > 0
-        and block_count % cfg.log_every_blocks == 0
+        cfg.log_every_blocks > 0 and block_count % cfg.log_every_blocks == 0
     )
     if (command_changed or periodic_log_due) and not prompt_controller.input_active:
         generation_ms = (time.monotonic() - block_start_time) * 1000.0

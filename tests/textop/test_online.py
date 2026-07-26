@@ -67,7 +67,7 @@ class _RecordingObservationPublisher:
         self.images = []
         self.collision_stops = []
         self.collision_events = []
-        self.checkpoints = []
+        self.requests = []
 
     def publish(
         self,
@@ -75,7 +75,7 @@ class _RecordingObservationPublisher:
         image=None,
         collision_stop=None,
         recovery_epoch=None,
-        checkpoint_id=None,
+        observation_request_id=None,
         source_frame=None,
     ) -> None:
         if image is not None:
@@ -83,8 +83,8 @@ class _RecordingObservationPublisher:
         if collision_stop is not None:
             self.collision_stops.append(collision_stop)
             self.collision_events.append((collision_stop, recovery_epoch))
-        if checkpoint_id is not None:
-            self.checkpoints.append((checkpoint_id, source_frame))
+        if observation_request_id is not None:
+            self.requests.append((observation_request_id, source_frame))
 
 
 class _BlockingObservationPublisher:
@@ -105,14 +105,14 @@ class _BlockingObservationPublisher:
         image=None,
         collision_stop=None,
         recovery_epoch=None,
-        checkpoint_id=None,
+        observation_request_id=None,
         source_frame=None,
     ) -> None:
         del image
         del collision_stop
         del recovery_epoch
         self.publish_count += 1
-        self.published.append((checkpoint_id, source_frame))
+        self.published.append((observation_request_id, source_frame))
         self.started.set()
         assert self.release.wait(timeout=1.0)
 
@@ -189,18 +189,18 @@ def test_rolling_buffer_stages_each_motion_field_once_per_block(monkeypatch) -> 
     assert tensor_shapes == [(8, 29), (8, 29), (8, 3), (8, 4)]
 
 
-def test_rolling_buffer_marks_checkpoint_on_first_block_frame_only() -> None:
+def test_rolling_buffer_marks_request_on_first_block_frame_only() -> None:
     buffer = RollingMotionBuffer()
     block = replace(
         motion_block(index=20, frames=8),
-        control=StreamControl(prompt="stand", checkpoint_id=7),
+        control=StreamControl(prompt="stand", observation_request_id=7),
     )
 
     buffer.append_block(block)
 
-    assert buffer.checkpoint_id_at(20) == 7
-    assert buffer.checkpoint_id_at(21) is None
-    assert buffer.checkpoint_id_at(27) is None
+    assert buffer.observation_request_id_at(20) == 7
+    assert buffer.observation_request_id_at(21) is None
+    assert buffer.observation_request_id_at(27) is None
 
 
 def test_rolling_buffer_overwrites_overlapping_block_frames() -> None:
@@ -862,7 +862,8 @@ def test_online_command_publishes_observations_with_images_on_interval(
             source=QueueOnlineSource([motion_block(frames=8)]),
             observation=OnlineObservationCfg(
                 publisher=publisher,
-                publish_interval=2,
+                mode="periodic",
+                every_frames=2,
             ),
         ),
         fake_env(robot_anchor_pos=(10.0, 20.0, 30.0)),
@@ -926,12 +927,13 @@ def test_online_observation_reporter_drops_observation_while_publish_inflight(
     reporter = OnlineObservationReporter(
         OnlineObservationCfg(
             publisher=publisher,
-            publish_interval=2,
+            mode="periodic",
+            every_frames=2,
         ),
         fake_env(),
     )
 
-    reporter.maybe_publish(_observation_state(frame=0))
+    reporter.maybe_publish(_observation_state(frame=0, observation_request_id=7))
     assert started.wait(timeout=1.0)
     reporter.maybe_publish(_observation_state(frame=2))
 
@@ -946,14 +948,13 @@ def test_online_observation_reporter_drops_observation_while_publish_inflight(
 
     assert len(render_calls) == 2
     assert publisher.publish_count == 2
+    assert publisher.published == [(None, 0), (None, 4)]
 
 
-def test_online_observation_reporter_never_drops_checkpoint_under_backpressure(
+def test_requested_observation_mode_ignores_frames_without_request(
     monkeypatch,
 ) -> None:
-    started = threading.Event()
-    release = threading.Event()
-    publisher = _BlockingObservationPublisher(started=started, release=release)
+    publisher = _RecordingObservationPublisher()
     snapshots = []
     monkeypatch.setattr(
         "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._capture_render_snapshot",
@@ -968,31 +969,26 @@ def test_online_observation_reporter_never_drops_checkpoint_under_backpressure(
         lambda image: b"jpeg",
     )
     reporter = OnlineObservationReporter(
-        OnlineObservationCfg(publisher=publisher, publish_interval=100),
+        OnlineObservationCfg(publisher=publisher),
         fake_env(),
     )
 
     reporter.maybe_publish(_observation_state(frame=0))
-    assert started.wait(timeout=1.0)
+    assert snapshots == []
+
     reporter.maybe_publish(
-        _observation_state(frame=2, checkpoint_id=7, source_frame=102)
+        _observation_state(frame=2, observation_request_id=7, source_frame=102)
     )
+    _wait_for_reporter_publish(reporter)
     reporter.maybe_publish(
-        _observation_state(frame=2, checkpoint_id=7, source_frame=102)
+        _observation_state(frame=2, observation_request_id=7, source_frame=102)
     )
 
-    assert len(snapshots) == 2
-    assert publisher.published == [(None, 0)]
-
-    release.set()
-    _wait_for_reporter_publish(reporter)
-    reporter.maybe_publish(_observation_state(frame=3))
-    _wait_for_reporter_publish(reporter)
-
-    assert publisher.published == [(None, 0), (7, 102)]
+    assert len(snapshots) == 1
+    assert publisher.requests == [(7, 102)]
 
 
-def test_online_observation_reporter_retries_failed_checkpoint(monkeypatch) -> None:
+def test_online_observation_reporter_retries_failed_request(monkeypatch) -> None:
     class FailOncePublisher:
         def __init__(self) -> None:
             self.published = []
@@ -1003,11 +999,11 @@ def test_online_observation_reporter_retries_failed_checkpoint(monkeypatch) -> N
             image=None,
             collision_stop=None,
             recovery_epoch=None,
-            checkpoint_id=None,
+            observation_request_id=None,
             source_frame=None,
         ) -> None:
             del image, collision_stop, recovery_epoch
-            self.published.append((checkpoint_id, source_frame))
+            self.published.append((observation_request_id, source_frame))
             if len(self.published) == 1:
                 raise OSError("receiver unavailable")
 
@@ -1030,7 +1026,7 @@ def test_online_observation_reporter_retries_failed_checkpoint(monkeypatch) -> N
     )
 
     reporter.maybe_publish(
-        _observation_state(frame=8, checkpoint_id=3, source_frame=80)
+        _observation_state(frame=8, observation_request_id=3, source_frame=80)
     )
     assert reporter._publish_future is not None
     with pytest.raises(OSError, match="receiver unavailable"):
@@ -1067,7 +1063,7 @@ def test_online_observation_reporter_renders_off_simulation_thread(
         lambda image: b"jpeg",
     )
     reporter = OnlineObservationReporter(
-        OnlineObservationCfg(publisher=publisher),
+        OnlineObservationCfg(publisher=publisher, mode="periodic"),
         fake_env(),
     )
 
@@ -1214,14 +1210,14 @@ def _wait_for_reporter_publish(reporter: OnlineObservationReporter) -> None:
 def _observation_state(
     *,
     frame: int,
-    checkpoint_id: int | None = None,
+    observation_request_id: int | None = None,
     source_frame: int | None = None,
 ) -> OnlineObservationState:
     return OnlineObservationState(
         frame=frame,
         started=True,
         source_frame=frame if source_frame is None else source_frame,
-        checkpoint_id=checkpoint_id,
+        observation_request_id=observation_request_id,
     )
 
 
@@ -1466,9 +1462,7 @@ def test_online_command_live_polling_uses_hysteresis() -> None:
     assert command._should_poll_live_source() is False
 
     command.current_frame = (
-        LIVE_BUFFER_HIGH_WATERMARK_FRAMES
-        - LIVE_BUFFER_LOW_WATERMARK_FRAMES
-        + 1
+        LIVE_BUFFER_HIGH_WATERMARK_FRAMES - LIVE_BUFFER_LOW_WATERMARK_FRAMES + 1
     )
 
     assert command._should_poll_live_source() is True

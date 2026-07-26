@@ -33,6 +33,8 @@ def test_play_live_cli_uses_concise_observation_subcommand() -> None:
             "obs",
             "--obs.url",
             "http://127.0.0.1:9000/observation",
+            "--obs.mode",
+            "periodic",
             "--obs.every-frames",
             "40",
             "--obs.image-size",
@@ -44,6 +46,7 @@ def test_play_live_cli_uses_concise_observation_subcommand() -> None:
     assert cfg.ref_vis is True
     assert cfg.obs is not None
     assert cfg.obs.url == "http://127.0.0.1:9000/observation"
+    assert cfg.obs.mode == "periodic"
     assert cfg.obs.every_frames == 40
     assert cfg.obs.image_size == (640, 480)
 
@@ -196,8 +199,10 @@ def test_play_live_with_images_does_not_enable_video_recording(
     assert play_cfg.video is False
     assert play_cfg.video_width == 320
     assert play_cfg.video_height == 240
-    assert calls["task_kwargs"]["observation"].publisher is not None
-    observation_camera = calls["task_kwargs"]["observation"].camera
+    observation = calls["task_kwargs"]["observation"]
+    assert observation.publisher is not None
+    assert observation.mode == "requested"
+    observation_camera = observation.camera
     assert observation_camera.origin_type == observation_camera.OriginType.ASSET_BODY
     assert observation_camera.entity_name == "robot"
     assert observation_camera.body_name == "torso_link"

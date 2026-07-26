@@ -19,7 +19,7 @@ class FeedbackObservation:
     image_revision: int = 0
     collision_stop: bool = False
     recovery_epoch: int = 0
-    checkpoint_id: int | None = None
+    observation_request_id: int | None = None
     source_frame: int | None = None
 
 
@@ -42,7 +42,7 @@ class HttpObservationReceiver:
         self._thread: threading.Thread | None = None
         self._server: ThreadingHTTPServer | None = None
         self._latest: FeedbackObservation | None = None
-        self._checkpoint: FeedbackObservation | None = None
+        self._requested_observation: FeedbackObservation | None = None
         self._closed = False
         self.last_error: str | None = None
 
@@ -73,20 +73,20 @@ class HttpObservationReceiver:
         with self._condition:
             return self._latest
 
-    def wait_for_checkpoint(self, checkpoint_id: int) -> FeedbackObservation:
+    def wait_for_observation(self, observation_request_id: int) -> FeedbackObservation:
         with self._condition:
             while True:
                 if self.last_error is not None:
                     raise RuntimeError(self.last_error)
                 if self._latest is not None and self._latest.collision_stop:
-                    self._checkpoint = None
+                    self._requested_observation = None
                     return self._latest
-                observation = self._checkpoint
+                observation = self._requested_observation
                 if observation is not None:
-                    self._checkpoint = None
+                    self._requested_observation = None
                 if (
                     observation is not None
-                    and observation.checkpoint_id == checkpoint_id
+                    and observation.observation_request_id == observation_request_id
                 ):
                     return observation
                 if self._closed:
@@ -103,8 +103,8 @@ class HttpObservationReceiver:
             raise
         with self._condition:
             self._latest = merge_feedback_message(self._latest, message)
-            if message.checkpoint_id is not None:
-                self._checkpoint = self._latest
+            if message.observation_request_id is not None:
+                self._requested_observation = self._latest
             self._condition.notify_all()
 
     def _make_server(self) -> ThreadingHTTPServer:
@@ -146,13 +146,13 @@ def merge_feedback_message(
     image_bytes = previous.image_bytes
     image_mime_type = previous.image_mime_type
     image_revision = previous.image_revision
-    checkpoint_id = previous.checkpoint_id
+    observation_request_id = previous.observation_request_id
     source_frame = previous.source_frame
     if message.image is not None:
         image_bytes = message.image.data
         image_mime_type = message.image.mime_type
         image_revision += 1
-        checkpoint_id = message.checkpoint_id
+        observation_request_id = message.observation_request_id
         source_frame = message.source_frame
 
     return FeedbackObservation(
@@ -169,6 +169,6 @@ def merge_feedback_message(
             if message.recovery_epoch is None
             else message.recovery_epoch
         ),
-        checkpoint_id=checkpoint_id,
+        observation_request_id=observation_request_id,
         source_frame=source_frame,
     )

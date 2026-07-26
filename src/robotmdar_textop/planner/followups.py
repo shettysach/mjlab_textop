@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -15,7 +14,7 @@ def vlm_command_followups(command: str) -> list[str]:
 
 
 def _stand_followup(command: str, *, transient_words: set[str]) -> list[str]:
-    words = set(re.findall(r"[a-z]+", command.lower()))
+    words = set(command.lower().split())
     if words & transient_words:
         return ["stand"]
     return []
@@ -62,8 +61,7 @@ class CommandSequencer:
         self.current = ActiveCommand(command, source)
         self._started_block = block_count
         self._pending.extend(
-            ActiveCommand(followup, "followup")
-            for followup in self._followups(command)
+            ActiveCommand(followup, "followup") for followup in self._followups(command)
         )
         return self.current
 

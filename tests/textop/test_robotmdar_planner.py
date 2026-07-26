@@ -42,7 +42,7 @@ class _FakeObservationProvider:
         self.observation = observation
         self.started = False
         self.closed = False
-        self.checkpoint: FeedbackObservation | None = None
+        self.request: FeedbackObservation | None = None
         self.waited_for: list[int] = []
 
     def start(self) -> None:
@@ -56,28 +56,30 @@ class _FakeObservationProvider:
 
     def acknowledge(
         self,
-        checkpoint_id: int,
+        observation_request_id: int,
         *,
         image_revision: int | None = None,
         source_frame: int | None = None,
     ) -> FeedbackObservation:
         observation = _observation(
-            image_revision=image_revision or checkpoint_id,
-            checkpoint_id=checkpoint_id,
-            source_frame=source_frame if source_frame is not None else checkpoint_id * 8,
+            image_revision=image_revision or observation_request_id,
+            observation_request_id=observation_request_id,
+            source_frame=(
+                source_frame if source_frame is not None else observation_request_id * 8
+            ),
         )
         self.observation = observation
-        self.checkpoint = observation
+        self.request = observation
         return observation
 
-    def wait_for_checkpoint(self, checkpoint_id: int) -> FeedbackObservation:
-        self.waited_for.append(checkpoint_id)
+    def wait_for_observation(self, observation_request_id: int) -> FeedbackObservation:
+        self.waited_for.append(observation_request_id)
         if self.observation is not None and self.observation.collision_stop:
             return self.observation
-        observation = self.checkpoint
-        self.checkpoint = None
+        observation = self.request
+        self.request = None
         assert observation is not None
-        assert observation.checkpoint_id == checkpoint_id
+        assert observation.observation_request_id == observation_request_id
         return observation
 
 
@@ -164,7 +166,7 @@ def _observation(
     image_revision: int = 1,
     collision_stop: bool = False,
     recovery_epoch: int = 0,
-    checkpoint_id: int | None = None,
+    observation_request_id: int | None = None,
     source_frame: int | None = None,
 ) -> FeedbackObservation:
     return FeedbackObservation(
@@ -173,7 +175,7 @@ def _observation(
         image_revision=image_revision,
         collision_stop=collision_stop,
         recovery_epoch=recovery_epoch,
-        checkpoint_id=checkpoint_id,
+        observation_request_id=observation_request_id,
         source_frame=source_frame,
     )
 
@@ -185,7 +187,7 @@ def _default_vlm_user_prompt() -> str:
 def test_parse_feedback_observation() -> None:
     observation = parse_feedback_observation(
         {
-            "protocol_version": 2,
+            "protocol_version": 3,
             "image": {
                 "mime_type": "image/jpeg",
                 "data": "anBlZyBieXRlcw==",
@@ -202,7 +204,7 @@ def test_parse_feedback_observation() -> None:
 def test_parse_collision_feedback_without_image() -> None:
     observation = parse_feedback_observation(
         {
-            "protocol_version": 2,
+            "protocol_version": 3,
             "collision_stop": True,
             "recovery_epoch": 7,
         }
@@ -218,11 +220,10 @@ def test_observation_receiver_merges_images_without_clearing_collision() -> None
     receiver = HttpObservationReceiver(port=8766)
 
     receiver.handle_post(
-        b'{"protocol_version":2,"collision_stop":true,"recovery_epoch":7}'
+        b'{"protocol_version":3,"collision_stop":true,"recovery_epoch":7}'
     )
     receiver.handle_post(
-        b'{"protocol_version":2,"image":{"mime_type":"image/jpeg",'
-        b'"data":"anBlZw=="}}'
+        b'{"protocol_version":3,"image":{"mime_type":"image/jpeg","data":"anBlZw=="}}'
     )
 
     observation = receiver.latest()
@@ -233,7 +234,7 @@ def test_observation_receiver_merges_images_without_clearing_collision() -> None
     assert observation.recovery_epoch == 7
 
     receiver.handle_post(
-        b'{"protocol_version":2,"collision_stop":false,"recovery_epoch":7}'
+        b'{"protocol_version":3,"collision_stop":false,"recovery_epoch":7}'
     )
 
     observation = receiver.latest()
@@ -244,8 +245,7 @@ def test_observation_receiver_merges_images_without_clearing_collision() -> None
     assert observation.recovery_epoch == 7
 
     receiver.handle_post(
-        b'{"protocol_version":2,"image":{"mime_type":"image/jpeg",'
-        b'"data":"anBlZw=="}}'
+        b'{"protocol_version":3,"image":{"mime_type":"image/jpeg","data":"anBlZw=="}}'
     )
 
     observation = receiver.latest()
@@ -253,48 +253,48 @@ def test_observation_receiver_merges_images_without_clearing_collision() -> None
     assert observation.image_revision == 2
 
 
-def test_observation_receiver_waits_for_exact_checkpoint() -> None:
+def test_observation_receiver_waits_for_exact_request() -> None:
     receiver = HttpObservationReceiver(port=8766)
     received: list[FeedbackObservation] = []
     thread = threading.Thread(
-        target=lambda: received.append(receiver.wait_for_checkpoint(7))
+        target=lambda: received.append(receiver.wait_for_observation(7))
     )
     thread.start()
 
     receiver.handle_post(
-        b'{"protocol_version":2,"source_frame":40,'
+        b'{"protocol_version":3,"source_frame":40,'
         b'"image":{"mime_type":"image/jpeg","data":"cGVyaW9kaWM="}}'
     )
     thread.join(timeout=0.05)
     assert thread.is_alive()
 
     receiver.handle_post(
-        b'{"protocol_version":2,"checkpoint_id":7,"source_frame":41,'
-        b'"image":{"mime_type":"image/jpeg","data":"Y2hlY2twb2ludA=="}}'
+        b'{"protocol_version":3,"observation_request_id":7,"source_frame":41,'
+        b'"image":{"mime_type":"image/jpeg","data":"cmVxdWVzdA=="}}'
     )
     thread.join(timeout=1)
 
     assert not thread.is_alive()
     assert len(received) == 1
-    assert received[0].image_bytes == b"checkpoint"
-    assert received[0].checkpoint_id == 7
+    assert received[0].image_bytes == b"request"
+    assert received[0].observation_request_id == 7
     assert received[0].source_frame == 41
 
 
-def test_observation_receiver_discards_checkpoint_preempted_by_collision() -> None:
+def test_observation_receiver_discards_request_preempted_by_collision() -> None:
     receiver = HttpObservationReceiver(port=8766)
     receiver.handle_post(
-        b'{"protocol_version":2,"checkpoint_id":7,"source_frame":41,'
-        b'"image":{"mime_type":"image/jpeg","data":"Y2hlY2twb2ludA=="}}'
+        b'{"protocol_version":3,"observation_request_id":7,"source_frame":41,'
+        b'"image":{"mime_type":"image/jpeg","data":"cmVxdWVzdA=="}}'
     )
     receiver.handle_post(
-        b'{"protocol_version":2,"collision_stop":true,"recovery_epoch":3}'
+        b'{"protocol_version":3,"collision_stop":true,"recovery_epoch":3}'
     )
 
-    observation = receiver.wait_for_checkpoint(7)
+    observation = receiver.wait_for_observation(7)
 
     assert observation.collision_stop is True
-    assert receiver._checkpoint is None
+    assert receiver._requested_observation is None
 
 
 def test_manual_prompt_planner_uses_current_prompt_without_starting_thread() -> None:
@@ -354,7 +354,7 @@ def test_command_followups_match_direction_words_only() -> None:
     assert command_followups("leftover motion") == []
 
 
-def test_vlm_planner_bounds_transient_command_then_emits_checkpoint() -> None:
+def test_vlm_planner_bounds_transient_command_then_emits_request() -> None:
     provider = _FakeObservationProvider(_observation(image_revision=99))
     selector = _FixedSelector("turn left")
     planner = VlmPromptPlanner(
@@ -372,11 +372,11 @@ def test_vlm_planner_bounds_transient_command_then_emits_checkpoint() -> None:
     assert _next_prompt(planner, 3) == "stand"
     assert selector.calls == 0
 
-    checkpoint = planner.next_plan(block_count=4)
-    assert checkpoint.prompt == "stand"
-    assert checkpoint.source == "checkpoint"
-    assert checkpoint.checkpoint_id == 1
-    assert planner.log_suffix == " vlm=awaiting_ack checkpoint=1"
+    request = planner.next_plan(block_count=4)
+    assert request.prompt == "stand"
+    assert request.source == "requested"
+    assert request.observation_request_id == 1
+    assert planner.log_suffix == " vlm=awaiting_observation request=1"
     assert selector.calls == 0
 
     provider.acknowledge(1, image_revision=100, source_frame=41)
@@ -386,13 +386,13 @@ def test_vlm_planner_bounds_transient_command_then_emits_checkpoint() -> None:
     assert next_plan.prompt == "turn left"
     assert next_plan.source == "vlm"
     assert next_plan.reset_pacing is True
-    assert "last_ack=(checkpoint: 1, source_frame: 41)" in planner.log_suffix
+    assert "last_observation=(request: 1, source_frame: 41)" in planner.log_suffix
 
     planner.request_stop()
     assert provider.closed is True
 
 
-def test_vlm_planner_queries_only_exact_checkpoint_observations() -> None:
+def test_vlm_planner_queries_only_exact_request_observations() -> None:
     provider = _FakeObservationProvider(_observation(image_revision=1))
     selector = _FixedSelector("wave")
     planner = VlmPromptPlanner(
@@ -403,8 +403,8 @@ def test_vlm_planner_queries_only_exact_checkpoint_observations() -> None:
 
     assert _next_prompt(planner, 0) == "stand"
     provider.observation = _observation(image_revision=500)
-    checkpoint = planner.next_plan(block_count=1)
-    assert checkpoint.source == "checkpoint"
+    request = planner.next_plan(block_count=1)
+    assert request.source == "requested"
     assert selector.calls == 0
 
     provider.acknowledge(1, image_revision=7, source_frame=88)
@@ -432,14 +432,14 @@ def test_vlm_planner_reports_completed_followup_to_next_query() -> None:
 
     assert _next_prompt(planner, 0) == "stand"
     assert _next_prompt(planner, 1) == "stand"
-    assert planner.next_plan(block_count=2).source == "checkpoint"
+    assert planner.next_plan(block_count=2).source == "requested"
     provider.acknowledge(1)
 
     assert _next_prompt(planner, 3) == "turn right"
     assert _next_prompt(planner, 4) == "turn right"
     assert _next_prompt(planner, 5) == "stand"
     assert _next_prompt(planner, 6) == "stand"
-    assert planner.next_plan(block_count=7).source == "checkpoint"
+    assert planner.next_plan(block_count=7).source == "requested"
     provider.acknowledge(2)
     planner.next_plan(block_count=8)
 
@@ -460,7 +460,7 @@ def test_vlm_planner_pauses_while_selector_runs() -> None:
     )
 
     assert _next_prompt(planner, 0) == "stand"
-    assert planner.next_plan(block_count=1).source == "checkpoint"
+    assert planner.next_plan(block_count=1).source == "requested"
     provider.acknowledge(1)
 
     result: list[BlockPlan] = []
@@ -490,7 +490,7 @@ def test_vlm_planner_discards_selection_if_collision_arrives_during_query() -> N
     )
 
     assert _next_prompt(planner, 0) == "stand"
-    assert planner.next_plan(block_count=1).source == "checkpoint"
+    assert planner.next_plan(block_count=1).source == "requested"
     provider.acknowledge(1)
 
     result: list[BlockPlan] = []
@@ -510,7 +510,7 @@ def test_vlm_planner_discards_selection_if_collision_arrives_during_query() -> N
     assert result[0].recovery_epoch == 9
 
 
-def test_vlm_planner_recovers_from_collision_while_awaiting_ack() -> None:
+def test_vlm_planner_recovers_from_collision_while_awaiting_observation() -> None:
     provider = _FakeObservationProvider()
     selector = _FixedSelector("walk")
     planner = VlmPromptPlanner(
@@ -520,7 +520,7 @@ def test_vlm_planner_recovers_from_collision_while_awaiting_ack() -> None:
     )
 
     assert _next_prompt(planner, 0) == "stand"
-    assert planner.next_plan(block_count=1).source == "checkpoint"
+    assert planner.next_plan(block_count=1).source == "requested"
     provider.observation = _observation(collision_stop=True, recovery_epoch=12)
 
     recovery = planner.next_plan(block_count=2)
@@ -531,7 +531,7 @@ def test_vlm_planner_recovers_from_collision_while_awaiting_ack() -> None:
 
     provider.observation = _observation(collision_stop=False, recovery_epoch=12)
     assert planner.next_plan(block_count=3).source == "followup"
-    assert planner.next_plan(block_count=4).source == "checkpoint"
+    assert planner.next_plan(block_count=4).source == "requested"
 
 
 def test_vlm_planner_fails_closed_on_selector_error() -> None:
@@ -544,7 +544,7 @@ def test_vlm_planner_fails_closed_on_selector_error() -> None:
     )
 
     assert _next_prompt(planner, 0) == "stand"
-    assert planner.next_plan(block_count=1).source == "checkpoint"
+    assert planner.next_plan(block_count=1).source == "requested"
     provider.acknowledge(1)
 
     with pytest.raises(RuntimeError, match="VLM request failed"):
@@ -570,7 +570,7 @@ def test_producer_log_prints_vlm_reasoning_once_when_enabled(monkeypatch) -> Non
     monkeypatch.setattr(produce, "_log_producer_message", messages.append)
 
     assert _next_prompt(planner, 0) == "stand"
-    assert planner.next_plan(block_count=1).source == "checkpoint"
+    assert planner.next_plan(block_count=1).source == "requested"
     provider.acknowledge(1)
     assert _next_prompt(planner, 2) == "wave"
 
@@ -629,19 +629,21 @@ def test_stream_generates_and_sends_planned_block(
     ]
 
 
-def test_stream_stops_generating_until_checkpoint_is_acknowledged(
+def test_stream_stops_generating_until_request_is_acknowledged(
     monkeypatch,
 ) -> None:
     wait_started = threading.Event()
     release_ack = threading.Event()
 
     class BlockingProvider(_FakeObservationProvider):
-        def wait_for_checkpoint(self, checkpoint_id: int) -> FeedbackObservation:
-            self.waited_for.append(checkpoint_id)
+        def wait_for_observation(
+            self, observation_request_id: int
+        ) -> FeedbackObservation:
+            self.waited_for.append(observation_request_id)
             wait_started.set()
             assert release_ack.wait(timeout=1)
             return _observation(
-                checkpoint_id=checkpoint_id,
+                observation_request_id=observation_request_id,
                 source_frame=17,
             )
 
@@ -652,12 +654,12 @@ def test_stream_stops_generating_until_checkpoint_is_acknowledged(
                 control=StreamControl(prompt=kwargs["prompt"]),
             )
 
-        def checkpoint_block(self, **kwargs) -> MotionBlock:
+        def observation_request_block(self, **kwargs) -> MotionBlock:
             return replace(
                 motion_block(index=kwargs["index"]),
                 control=StreamControl(
                     prompt=kwargs["prompt"],
-                    checkpoint_id=kwargs["checkpoint_id"],
+                    observation_request_id=kwargs["observation_request_id"],
                 ),
             )
 
@@ -700,8 +702,8 @@ def test_stream_stops_generating_until_checkpoint_is_acknowledged(
 
     assert len(sent) == 2
     assert sent[0].control.prompt == "stand"
-    assert sent[0].control.checkpoint_id is None
-    assert sent[1].control.checkpoint_id == 1
+    assert sent[0].control.observation_request_id is None
+    assert sent[1].control.observation_request_id == 1
     assert thread.is_alive()
 
     release_ack.set()

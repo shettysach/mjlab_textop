@@ -156,13 +156,12 @@ For manual control, omit the VLM options and use `--planner manual`.
 Task-specific VLM instructions default to `TASK.md`; the invariant and user
 prompts live under `src/robotmdar_textop/prompt`.
 
-VLM control is synchronized by checkpoint acknowledgments. After each bounded
-command and its generated `stand` transition, the producer sends a stationary
-checkpoint block and pauses. MJLab acknowledges that exact consumed reference
-frame with an image; only then does the producer query the VLM and resume.
-Periodic observations remain available for feedback but do not trigger VLM
-decisions. The producer and consumer must use the same motion and observation
-protocol version.
+VLM control uses requested observations. After each bounded command and its
+generated `stand` transition, the producer inserts a stationary observation
+request and pauses. MJLab responds when it reaches that exact reference frame;
+only then does the producer query the VLM and resume. Periodic mode is available
+for best-effort monitoring but does not drive this VLM planner. The producer and
+consumer must use the same motion and observation protocol version.
 
 ### 3. Start MJLab
 
@@ -174,9 +173,12 @@ uv run --extra cu128 mjlab-textop play-live \
   --task straight \
   obs \
   --obs.url http://127.0.0.1:8766/observation \
-  --obs.every-frames 20 \
+  --obs.mode requested \
   --obs.image-size 320 240
 ```
+
+Use `--obs.mode periodic --obs.every-frames 20` for best-effort observations
+instead of motion-synchronized requests.
 
 Use `--checkpoint-file "${CHECKPOINT}"` instead of the ONNX options to run a
 trained checkpoint. Omit `obs` and its options when observations are not

@@ -33,7 +33,7 @@ class _RenderSnapshot:
 @dataclass(frozen=True)
 class _ObservationRequest:
     snapshot: _RenderSnapshot
-    checkpoint_id: int | None
+    observation_request_id: int | None
     source_frame: int
 
 
@@ -51,8 +51,8 @@ class OnlineObservationReporter:
         self._publish_executor = ThreadPoolExecutor(max_workers=1)
         self._publish_future: Future[None] | None = None
         self._active_request: _ObservationRequest | None = None
-        self._pending_checkpoint: _ObservationRequest | None = None
-        self._last_checkpoint_id: int | None = None
+        self._pending_requested: _ObservationRequest | None = None
+        self._last_observation_request_id: int | None = None
         self._event_futures: deque[Future[None]] = deque()
         self.last_publish_error: str | None = None
         self._closed = False
@@ -61,34 +61,50 @@ class OnlineObservationReporter:
         if self._closed:
             return
         publisher = self.publisher
-        current_frame = state.frame
         if publisher is None or not state.started:
             return
         self._collect_publish_result()
+
+        if self._publish_future is None and self._pending_requested is not None:
+            request = self._pending_requested
+            self._pending_requested = None
+            self._start_publish(publisher, request)
+            return
+        if self.cfg.mode == "requested":
+            self._maybe_publish_requested(publisher, state)
+        else:
+            self._maybe_publish_periodic(publisher, state)
+
+    def _maybe_publish_requested(
+        self,
+        publisher: ObservationPublisher,
+        state: OnlineObservationState,
+    ) -> None:
         if (
-            state.checkpoint_id is not None
-            and state.checkpoint_id != self._last_checkpoint_id
+            state.observation_request_id is not None
+            and state.observation_request_id != self._last_observation_request_id
         ):
             assert state.source_frame is not None
-            self._last_checkpoint_id = state.checkpoint_id
+            self._last_observation_request_id = state.observation_request_id
             request = _ObservationRequest(
                 snapshot=self._capture_render_snapshot(),
-                checkpoint_id=state.checkpoint_id,
+                observation_request_id=state.observation_request_id,
                 source_frame=state.source_frame,
             )
             if self._publish_future is None:
                 self._start_publish(publisher, request)
             else:
-                self._pending_checkpoint = request
-            return
-        if self._publish_future is None and self._pending_checkpoint is not None:
-            request = self._pending_checkpoint
-            self._pending_checkpoint = None
-            self._start_publish(publisher, request)
-            return
+                self._pending_requested = request
+
+    def _maybe_publish_periodic(
+        self,
+        publisher: ObservationPublisher,
+        state: OnlineObservationState,
+    ) -> None:
+        current_frame = state.frame
         if (
             self._last_publish_frame is not None
-            and current_frame - self._last_publish_frame < self.cfg.publish_interval
+            and current_frame - self._last_publish_frame < self.cfg.every_frames
         ):
             return
         if self._publish_future is not None:
@@ -100,7 +116,7 @@ class OnlineObservationReporter:
             publisher,
             _ObservationRequest(
                 snapshot=self._capture_render_snapshot(),
-                checkpoint_id=None,
+                observation_request_id=None,
                 source_frame=state.source_frame,
             ),
         )
@@ -130,7 +146,7 @@ class OnlineObservationReporter:
                 data=data,
                 mime_type="image/jpeg",
             ),
-            checkpoint_id=request.checkpoint_id,
+            observation_request_id=request.observation_request_id,
             source_frame=request.source_frame,
         )
 
@@ -161,8 +177,8 @@ class OnlineObservationReporter:
         except Exception as exc:
             self.last_publish_error = f"{type(exc).__name__}: {exc}"
             request = self._active_request
-            if request is not None and request.checkpoint_id is not None:
-                self._pending_checkpoint = request
+            if request is not None and request.observation_request_id is not None:
+                self._pending_requested = request
         finally:
             self._publish_future = None
             self._active_request = None

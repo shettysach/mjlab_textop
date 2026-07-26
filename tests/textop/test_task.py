@@ -152,13 +152,13 @@ def test_online_textop_live_task_uses_live_source_mode() -> None:
         source=source,
         source_mode="live",
         observation=OnlineObservationCfg(
-            publish_interval=7,
+            every_frames=7,
         ),
     )
     env_cfg = load_env_cfg(task_name, play=True)
 
     assert env_cfg.commands["motion"].source_mode == "live"
-    assert env_cfg.commands["motion"].observation.publish_interval == 7
+    assert env_cfg.commands["motion"].observation.every_frames == 7
 
 
 def test_online_textop_onnx_env_cfg_uses_textop_deploy_timing() -> None:

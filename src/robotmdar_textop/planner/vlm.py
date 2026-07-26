@@ -24,7 +24,9 @@ class ObservationProvider(Protocol):
 
     def latest(self) -> FeedbackObservation | None: ...
 
-    def wait_for_checkpoint(self, checkpoint_id: int) -> FeedbackObservation: ...
+    def wait_for_observation(
+        self, observation_request_id: int
+    ) -> FeedbackObservation: ...
 
 
 @dataclass(frozen=True)
@@ -80,12 +82,12 @@ class VlmPromptPlanner:
         self._pending_reasoning: str | None = None
         self._stop = False
         self._initial_sequence_pending = True
-        self._awaiting_checkpoint: int | None = None
-        self._next_checkpoint_id = 1
+        self._awaiting_observation: int | None = None
+        self._next_observation_request_id = 1
         self._collision_recovery = False
         self._recovery_epoch = 0
-        self._last_ack_checkpoint: int | None = None
-        self._last_ack_source_frame: int | None = None
+        self._last_observation_request_id: int | None = None
+        self._last_observation_source_frame: int | None = None
         self._last_vlm_ms: float | None = None
         self._last_vlm_decision: str | None = None
         self._executed_since_query: list[str] = []
@@ -105,14 +107,16 @@ class VlmPromptPlanner:
 
     @property
     def log_suffix(self) -> str:
-        state = "awaiting_ack" if self._awaiting_checkpoint is not None else "idle"
+        state = (
+            "awaiting_observation" if self._awaiting_observation is not None else "idle"
+        )
         suffix = f" vlm={state}"
-        if self._awaiting_checkpoint is not None:
-            suffix += f" checkpoint={self._awaiting_checkpoint}"
-        if self._last_ack_checkpoint is not None:
+        if self._awaiting_observation is not None:
+            suffix += f" request={self._awaiting_observation}"
+        if self._last_observation_request_id is not None:
             suffix += (
-                f" last_ack=(checkpoint: {self._last_ack_checkpoint}, "
-                f"source_frame: {self._last_ack_source_frame})"
+                f" last_observation=(request: {self._last_observation_request_id}, "
+                f"source_frame: {self._last_observation_source_frame})"
             )
         if self._last_vlm_ms is not None:
             suffix += f" vlm_ms={self._last_vlm_ms:.1f}"
@@ -128,41 +132,39 @@ class VlmPromptPlanner:
         self.feedback.close()
 
     def next_plan(self, *, block_count: int) -> BlockPlan:
-        reset_pacing = self._awaiting_checkpoint is not None
-        selection = self._complete_checkpoint()
-        checkpoint_id = self._advance_prompt(
+        reset_pacing = self._awaiting_observation is not None
+        selection = self._complete_observation_request()
+        observation_request_id = self._advance_prompt(
             block_count=block_count,
             selection=selection,
         )
         plan = BlockPlan(
             prompt=self.current_prompt,
             source=self._current_source,
-            recovery_epoch=(
-                self._recovery_epoch if self._collision_recovery else 0
-            ),
-            checkpoint_id=checkpoint_id,
+            recovery_epoch=(self._recovery_epoch if self._collision_recovery else 0),
+            observation_request_id=observation_request_id,
             reset_pacing=reset_pacing,
         )
-        if checkpoint_id is None and (
+        if observation_request_id is None and (
             not self._executed_since_query
             or self._executed_since_query[-1] != plan.prompt
         ):
             self._executed_since_query.append(plan.prompt)
         return plan
 
-    def _complete_checkpoint(self) -> VlmPromptSelection | None:
-        checkpoint_id = self._awaiting_checkpoint
-        if checkpoint_id is None:
+    def _complete_observation_request(self) -> VlmPromptSelection | None:
+        observation_request_id = self._awaiting_observation
+        if observation_request_id is None:
             return None
 
-        observation = self.feedback.wait_for_checkpoint(checkpoint_id)
-        self._awaiting_checkpoint = None
+        observation = self.feedback.wait_for_observation(observation_request_id)
+        self._awaiting_observation = None
         if observation.collision_stop:
             self._enter_collision_recovery(observation.recovery_epoch)
             return None
 
-        self._last_ack_checkpoint = checkpoint_id
-        self._last_ack_source_frame = observation.source_frame
+        self._last_observation_request_id = observation_request_id
+        self._last_observation_source_frame = observation.source_frame
         execution_context = VlmExecutionContext(
             previous_decision=self._last_vlm_decision,
             executed_sequence=tuple(self._executed_since_query)
@@ -238,17 +240,17 @@ class VlmPromptPlanner:
             self._set_current(command.text, command.source)
             return None
         if command_was_active and not self._sequencer.busy:
-            checkpoint_id = self._next_checkpoint_id
-            self._next_checkpoint_id += 1
-            self._awaiting_checkpoint = checkpoint_id
-            self._set_current(self.current_prompt, "checkpoint")
-            return checkpoint_id
+            observation_request_id = self._next_observation_request_id
+            self._next_observation_request_id += 1
+            self._awaiting_observation = observation_request_id
+            self._set_current(self.current_prompt, "requested")
+            return observation_request_id
         return None
 
     def _enter_collision_recovery(self, recovery_epoch: int) -> None:
         if not self._collision_recovery:
             self._collision_recovery = True
-            self._awaiting_checkpoint = None
+            self._awaiting_observation = None
             self._executed_since_query.clear()
             command = self._sequencer.override("stand", source="collision_recovery")
             self._set_current(command.text, command.source)

@@ -64,7 +64,7 @@ def test_stream_source_uses_compact_log_label() -> None:
         block_count=1,
         frame_index=5,
         prompt="stand",
-        source="checkpoint",
+        source="requested",
         generation_ms=0.0,
         lag_ms=0.0,
         block_frames=5,

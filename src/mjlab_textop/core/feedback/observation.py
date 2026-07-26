@@ -4,7 +4,7 @@ import json
 import urllib.request
 from dataclasses import dataclass, field
 from io import BytesIO
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 import imageio.v3 as iio
 from mjlab.viewer import ViewerConfig
@@ -16,6 +16,7 @@ from textop_protocol.observation import (
 )
 
 JPEG_QUALITY = 85
+ObservationMode = Literal["periodic", "requested"]
 
 
 @dataclass(frozen=True)
@@ -23,7 +24,7 @@ class OnlineObservationState:
     frame: int
     started: bool
     source_frame: int | None = None
-    checkpoint_id: int | None = None
+    observation_request_id: int | None = None
 
 
 class ObservationPublisher(Protocol):
@@ -33,7 +34,7 @@ class ObservationPublisher(Protocol):
         image: ObservationImage | None,
         collision_stop: bool | None = None,
         recovery_epoch: int | None = None,
-        checkpoint_id: int | None = None,
+        observation_request_id: int | None = None,
         source_frame: int | None = None,
     ) -> None:
         """Publish one MJLab observation payload."""
@@ -42,16 +43,15 @@ class ObservationPublisher(Protocol):
 @dataclass(frozen=True, kw_only=True)
 class OnlineObservationCfg:
     publisher: ObservationPublisher | None = None
-    publish_interval: int = 1
+    mode: ObservationMode = "requested"
+    every_frames: int = 20
     camera: ViewerConfig = field(
         default_factory=lambda: make_torso_observation_camera()
     )
 
     def __post_init__(self) -> None:
-        if self.publish_interval <= 0:
-            raise ValueError(
-                f"publish_interval must be positive, got {self.publish_interval}"
-            )
+        if self.every_frames <= 0:
+            raise ValueError(f"every_frames must be positive, got {self.every_frames}")
 
 
 class HttpObservationPublisher:
@@ -74,7 +74,7 @@ class HttpObservationPublisher:
         image: ObservationImage | None,
         collision_stop: bool | None = None,
         recovery_epoch: int | None = None,
-        checkpoint_id: int | None = None,
+        observation_request_id: int | None = None,
         source_frame: int | None = None,
     ) -> None:
         request = urllib.request.Request(
@@ -85,7 +85,7 @@ class HttpObservationPublisher:
                         image=image,
                         collision_stop=collision_stop,
                         recovery_epoch=recovery_epoch,
-                        checkpoint_id=checkpoint_id,
+                        observation_request_id=observation_request_id,
                         source_frame=source_frame,
                     )
                 ),

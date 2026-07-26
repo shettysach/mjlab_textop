@@ -25,7 +25,7 @@ _SOURCE_LABEL = {
     "initial": "init",
     "collision_recovery": "recov",
     "followup": "next",
-    "checkpoint": "sync",
+    "requested": "sync",
 }
 
 

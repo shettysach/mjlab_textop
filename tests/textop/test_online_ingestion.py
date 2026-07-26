@@ -38,13 +38,13 @@ def test_recovery_realigns_producer_indices_and_keeps_mapping_afterward() -> Non
     assert buffer.latest_index == 15
 
 
-def test_recovery_preserves_checkpoint_and_source_frame_mapping() -> None:
+def test_recovery_preserves_request_and_source_frame_mapping() -> None:
     recovery_block = replace(
         motion_block(index=24, frames=8),
         control=StreamControl(
             prompt="stand",
             recovery_epoch=2,
-            checkpoint_id=11,
+            observation_request_id=11,
         ),
     )
     buffer = RollingMotionBuffer()
@@ -62,7 +62,7 @@ def test_recovery_preserves_checkpoint_and_source_frame_mapping() -> None:
         accepts=lambda block: True,
     )
 
-    assert buffer.checkpoint_id_at(4) == 11
+    assert buffer.observation_request_id_at(4) == 11
     assert ingestor.source_frame(4) == 24
 
 

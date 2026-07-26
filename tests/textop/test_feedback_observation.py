@@ -33,6 +33,8 @@ class _FakeResponse:
 def test_online_observation_cfg_defaults_to_torso_camera() -> None:
     cfg = OnlineObservationCfg()
 
+    assert cfg.mode == "requested"
+    assert cfg.every_frames == 20
     assert cfg.camera.origin_type == cfg.camera.OriginType.ASSET_BODY
     assert cfg.camera.entity_name == "robot"
     assert cfg.camera.body_name == "torso_link"
@@ -107,16 +109,16 @@ def test_make_http_observation_payload_supports_collision_event() -> None:
     }
 
 
-def test_make_http_observation_payload_supports_checkpoint_ack() -> None:
+def test_make_http_observation_payload_supports_request_ack() -> None:
     payload = observation_to_json(
         ObservationMessage(
             image=ObservationImage(data=b"jpeg", mime_type="image/jpeg"),
-            checkpoint_id=4,
+            observation_request_id=4,
             source_frame=123,
         )
     )
 
-    assert payload["checkpoint_id"] == 4
+    assert payload["observation_request_id"] == 4
     assert payload["source_frame"] == 123
 
 
@@ -125,12 +127,12 @@ def test_observation_parser_rejects_old_protocol_version() -> None:
         parse_observation_json({"protocol_version": 1})
 
 
-def test_observation_parser_requires_atomic_checkpoint_image() -> None:
+def test_observation_parser_requires_atomic_request_image() -> None:
     with pytest.raises(ValueError, match="require an image and source_frame"):
         parse_observation_json(
             {
                 "protocol_version": OBSERVATION_PROTOCOL_VERSION,
-                "checkpoint_id": 4,
+                "observation_request_id": 4,
                 "source_frame": 123,
             }
         )
