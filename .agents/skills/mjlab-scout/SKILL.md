@@ -45,13 +45,18 @@ branch, room, landmark, or direction learned from privileged views.
 ## Procedure
 
 1. Call `list_tasks` only if the task name is unknown, then call `load_task` once.
+
 2. Inspect **ALL camera preset views** returned by `load_task`, including `agent`,
    `overview`, `overhead`, and every task-specific preset. Only then compare the
    images and infer the environment, target, obstacles, distractors,
    and success condition. Never decide that one view is sufficient.
-3. Go in detail regarding the environment, where the robot starts, how many obstacles, corridors, turns, etc.
+
+3. Go in detail regarding the environment, where the robot starts, how many obstacles, 
+   corridors, turns, etc. are in the environment, and how to analyze and proceed further.
+
 4. Write `TASK.md` exactly according to the contract. Describe what Phase 2 needs
    to recognize, not a privileged target location, route, action plan, or the
    views and tools used to discover it.
+
 5. Call `close_task` after writing. If scouting or writing fails, still call
    `close_task` before reporting the failure.
