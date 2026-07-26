@@ -847,11 +847,7 @@ def test_online_command_publishes_observations_with_images_on_interval(
     publisher = _RecordingObservationPublisher()
     monkeypatch.setattr(
         "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._render_image",
-        lambda self, snapshot: np.zeros((1, 1, 3), dtype=np.uint8),
-    )
-    monkeypatch.setattr(
-        "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._capture_render_snapshot",
-        lambda self: object(),
+        lambda self: np.zeros((1, 1, 3), dtype=np.uint8),
     )
     monkeypatch.setattr(
         "mjlab_textop.core.feedback.online_reporter.encode_render_image_jpeg",
@@ -908,17 +904,13 @@ def test_online_observation_reporter_drops_observation_while_publish_inflight(
 
     monkeypatch.setattr(
         "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._render_image",
-        lambda self, snapshot: (
+        lambda self: (
             render_calls.append(len(render_calls))
             or np.zeros(
                 (1, 1, 3),
                 dtype=np.uint8,
             )
         ),
-    )
-    monkeypatch.setattr(
-        "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._capture_render_snapshot",
-        lambda self: object(),
     )
     monkeypatch.setattr(
         "mjlab_textop.core.feedback.online_reporter.encode_render_image_jpeg",
@@ -955,14 +947,11 @@ def test_requested_observation_mode_ignores_frames_without_request(
     monkeypatch,
 ) -> None:
     publisher = _RecordingObservationPublisher()
-    snapshots = []
-    monkeypatch.setattr(
-        "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._capture_render_snapshot",
-        lambda self: snapshots.append(object()) or snapshots[-1],
-    )
+    render_calls = []
     monkeypatch.setattr(
         "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._render_image",
-        lambda self, snapshot: np.zeros((1, 1, 3), dtype=np.uint8),
+        lambda self: render_calls.append(object())
+        or np.zeros((1, 1, 3), dtype=np.uint8),
     )
     monkeypatch.setattr(
         "mjlab_textop.core.feedback.online_reporter.encode_render_image_jpeg",
@@ -974,13 +963,13 @@ def test_requested_observation_mode_ignores_frames_without_request(
     )
 
     reporter.maybe_publish(_observation_state(frame=0))
-    assert snapshots == []
+    assert render_calls == []
 
     reporter.maybe_publish(_observation_state(frame=2, request_id=7, source_frame=102))
     _wait_for_reporter_publish(reporter)
     reporter.maybe_publish(_observation_state(frame=2, request_id=7, source_frame=102))
 
-    assert len(snapshots) == 1
+    assert len(render_calls) == 1
     assert publisher.requests == [(7, 102)]
 
 
@@ -1005,12 +994,8 @@ def test_online_observation_reporter_retries_failed_request(monkeypatch) -> None
 
     publisher = FailOncePublisher()
     monkeypatch.setattr(
-        "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._capture_render_snapshot",
-        lambda self: object(),
-    )
-    monkeypatch.setattr(
         "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._render_image",
-        lambda self, snapshot: np.zeros((1, 1, 3), dtype=np.uint8),
+        lambda self: np.zeros((1, 1, 3), dtype=np.uint8),
     )
     monkeypatch.setattr(
         "mjlab_textop.core.feedback.online_reporter.encode_render_image_jpeg",
@@ -1035,19 +1020,22 @@ def test_online_observation_reporter_retries_failed_request(monkeypatch) -> None
     assert reporter.last_publish_error is None
 
 
-def test_online_observation_reporter_renders_off_simulation_thread(
+def test_online_observation_reporter_renders_on_simulation_thread(
     monkeypatch,
 ) -> None:
-    publisher = _RecordingObservationPublisher()
+    publish_thread_ids = []
+
+    class ThreadRecordingPublisher(_RecordingObservationPublisher):
+        def publish(self, **kwargs) -> None:
+            publish_thread_ids.append(threading.get_ident())
+            super().publish(**kwargs)
+
+    publisher = ThreadRecordingPublisher()
     render_thread_ids = []
     simulation_thread_id = threading.get_ident()
     monkeypatch.setattr(
-        "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._capture_render_snapshot",
-        lambda self: object(),
-    )
-    monkeypatch.setattr(
         "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._render_image",
-        lambda self, snapshot: (
+        lambda self: (
             render_thread_ids.append(threading.get_ident())
             or np.zeros((1, 1, 3), dtype=np.uint8)
         ),
@@ -1065,7 +1053,9 @@ def test_online_observation_reporter_renders_off_simulation_thread(
     _wait_for_reporter_publish(reporter)
 
     assert render_thread_ids
-    assert render_thread_ids[0] != simulation_thread_id
+    assert render_thread_ids == [simulation_thread_id]
+    assert publish_thread_ids
+    assert publish_thread_ids[0] != simulation_thread_id
     reporter.close()
 
 
@@ -1180,9 +1170,7 @@ def test_online_observation_reporter_uses_observation_camera(monkeypatch) -> Non
         env,
     )
 
-    snapshot = SimpleNamespace(yaw_degrees=90.0)
-
-    assert reporter._render_image(snapshot) == "rendered"
+    assert reporter._render_image() == "rendered"
     assert calls["cfg"] is observation_camera
     assert calls["cfg"] is not env_viewer_camera
     assert calls["initialized"] is True

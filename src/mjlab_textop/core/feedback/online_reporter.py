@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import sys
 from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 import torch
@@ -22,18 +20,8 @@ from mjlab_textop.core.feedback.observation import (
 
 
 @dataclass(frozen=True)
-class _RenderSnapshot:
-    nworld: int
-    qpos: torch.Tensor
-    qvel: torch.Tensor
-    mocap_pos: torch.Tensor
-    mocap_quat: torch.Tensor
-    yaw_degrees: float | None
-
-
-@dataclass(frozen=True)
 class _ObservationRequest:
-    snapshot: _RenderSnapshot
+    image: np.ndarray
     request_id: int | None
     source_frame: int
 
@@ -84,14 +72,8 @@ class OnlineObservationReporter:
         if state.request_id is not None and state.request_id != self._last_request_id:
             assert state.source_frame is not None
             self._last_request_id = state.request_id
-            print(
-                f"obs_trace request={state.request_id} marker_seen "
-                f"source_frame={state.source_frame}",
-                file=sys.stderr,
-                flush=True,
-            )
             request = _ObservationRequest(
-                snapshot=self._capture_render_snapshot(),
+                image=self._render_image().copy(),
                 request_id=state.request_id,
                 source_frame=state.source_frame,
             )
@@ -119,7 +101,7 @@ class OnlineObservationReporter:
         self._start_publish(
             publisher,
             _ObservationRequest(
-                snapshot=self._capture_render_snapshot(),
+                image=self._render_image().copy(),
                 request_id=None,
                 source_frame=state.source_frame,
             ),
@@ -133,55 +115,25 @@ class OnlineObservationReporter:
     ) -> None:
         self._active_request = request
         self._publish_future = self._publish_executor.submit(
-            self._render_and_publish,
+            self._encode_and_publish,
             publisher,
             request,
         )
 
-    def _render_and_publish(
+    def _encode_and_publish(
         self,
         publisher: ObservationPublisher,
         request: _ObservationRequest,
     ) -> None:
-        trace = request.request_id is not None
-        try:
-            if trace:
-                print(
-                    f"obs_trace request={request.request_id} render_start",
-                    file=sys.stderr,
-                    flush=True,
-                )
-            rendered_image = self._render_image(request.snapshot)
-            data = encode_render_image_jpeg(rendered_image)
-            if trace:
-                print(
-                    f"obs_trace request={request.request_id} render_done",
-                    file=sys.stderr,
-                    flush=True,
-                )
-            publisher.publish(
-                image=ObservationImage(
-                    data=data,
-                    mime_type="image/jpeg",
-                ),
-                request_id=request.request_id,
-                source_frame=request.source_frame,
-            )
-        except Exception as exc:
-            if trace:
-                print(
-                    f"obs_trace request={request.request_id} failed="
-                    f"{type(exc).__name__}: {exc}",
-                    file=sys.stderr,
-                    flush=True,
-                )
-            raise
-        if trace:
-            print(
-                f"obs_trace request={request.request_id} post_done",
-                file=sys.stderr,
-                flush=True,
-            )
+        data = encode_render_image_jpeg(request.image)
+        publisher.publish(
+            image=ObservationImage(
+                data=data,
+                mime_type="image/jpeg",
+            ),
+            request_id=request.request_id,
+            source_frame=request.source_frame,
+        )
 
     def publish_collision_stop(self, active: bool, *, recovery_epoch: int) -> None:
         if self.publisher is None or self._closed:
@@ -230,26 +182,13 @@ class OnlineObservationReporter:
             return
         self._closed = True
         try:
-            self._publish_executor.submit(self._close_renderer)
             self._publish_executor.shutdown(wait=True)
             self._collect_publish_result()
             self._collect_event_result()
         finally:
             self._close_renderer()
 
-    def _capture_render_snapshot(self) -> _RenderSnapshot:
-        """Copy the small dynamic state while the simulation thread is paused."""
-        data = self.env.sim.data
-        return _RenderSnapshot(
-            nworld=int(data.nworld),
-            qpos=_copy_tensor_to_cpu(data.qpos),
-            qvel=_copy_tensor_to_cpu(data.qvel),
-            mocap_pos=_copy_tensor_to_cpu(data.mocap_pos),
-            mocap_quat=_copy_tensor_to_cpu(data.mocap_quat),
-            yaw_degrees=_body_yaw_degrees(self.env, self.cfg.camera),
-        )
-
-    def _render_image(self, snapshot: _RenderSnapshot) -> np.ndarray:
+    def _render_image(self) -> np.ndarray:
         renderer = self._image_renderer
         env = self.env
         if renderer is None:
@@ -263,20 +202,16 @@ class OnlineObservationReporter:
             renderer.initialize()
             self._image_renderer = renderer
 
-        if snapshot.yaw_degrees is not None:
-            renderer._cam.azimuth = self.cfg.camera.azimuth + snapshot.yaw_degrees
-        renderer.update(snapshot, debug_vis_callback=env.update_visualizers)
+        yaw_degrees = _body_yaw_degrees(env, self.cfg.camera)
+        if yaw_degrees is not None:
+            renderer._cam.azimuth = self.cfg.camera.azimuth + yaw_degrees
+        renderer.update(env.sim.data, debug_vis_callback=env.update_visualizers)
         return renderer.render()
 
     def _close_renderer(self) -> None:
         if self._image_renderer is not None:
             self._image_renderer.close()
             self._image_renderer = None
-
-
-def _copy_tensor_to_cpu(value: Any) -> torch.Tensor:
-    return value.detach().to(device="cpu", copy=True)
-
 
 def _body_yaw_degrees(
     env: ManagerBasedRlEnv,
