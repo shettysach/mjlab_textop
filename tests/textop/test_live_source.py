@@ -98,6 +98,50 @@ def test_socket_source_blocks_when_queue_is_full() -> None:
     assert source.diagnostics.queue_depth == 0
 
 
+def test_socket_source_uses_timeout_only_while_connecting(monkeypatch) -> None:
+    calls = {}
+
+    class FakeSocket:
+        timeout = 1.0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return
+
+        def settimeout(self, timeout) -> None:
+            self.timeout = timeout
+
+        def setsockopt(self, level, option, value) -> None:
+            calls["socket_option"] = (level, option, value)
+
+    sock = FakeSocket()
+
+    def create_connection(address, *, timeout):
+        calls["connection"] = (address, timeout)
+        return sock
+
+    monkeypatch.setattr(
+        "mjlab_textop.core.online.live.socket.create_connection",
+        create_connection,
+    )
+    source = SocketOnlineSource(SocketSourceCfg(host="producer", port=9000))
+
+    def handle_next_record(connected_socket) -> None:
+        assert connected_socket is sock
+        assert sock.timeout is None
+        source._stop.set()
+
+    monkeypatch.setattr(source, "_handle_next_record", handle_next_record)
+
+    source._reader_loop()
+
+    assert calls["connection"] == (("producer", 9000), 1.0)
+    assert sock.timeout is None
+    assert source.diagnostics.last_error is None
+
+
 def test_socket_source_records_bad_records() -> None:
     source = SocketOnlineSource()
 

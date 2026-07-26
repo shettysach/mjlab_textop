@@ -97,6 +97,10 @@ class SocketOnlineSource:
             with socket.create_connection(
                 (self.cfg.host, self.cfg.port), timeout=1.0
             ) as sock:
+                # The timeout bounds connection establishment only. Once
+                # connected, an idle motion stream is valid while the producer
+                # waits for a simulation checkpoint or VLM response.
+                sock.settimeout(None)
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 self._sock = sock
                 self.diagnostics.connected = True
