@@ -10,8 +10,11 @@ from time import monotonic
 from typing import Any, Protocol
 
 from robotmdar_textop.feedback import FeedbackObservation
-from robotmdar_textop.planner.followups import CommandSequencer
-from textop_protocol.motion import MotionBlock
+from robotmdar_textop.planner.followups import (
+    CommandSequencer,
+    vlm_command_followups,
+)
+from robotmdar_textop.runtime import BlockPlan
 
 
 class ObservationProvider(Protocol):
@@ -72,13 +75,11 @@ class VlmPromptPlanner:
         self.feedback = feedback
         self.selector = selector
         self.current_prompt = initial_prompt
-        self.current_prompt_source = "initial"
+        self._current_source = "initial"
         self.last_error: str | None = None
         self._pending_reasoning: str | None = None
         self._stop = False
-        self._pending_selection: VlmPromptSelection | None = None
         self._initial_sequence_pending = True
-        self._checkpoint_to_emit: int | None = None
         self._awaiting_checkpoint: int | None = None
         self._next_checkpoint_id = 1
         self._collision_recovery = False
@@ -91,7 +92,7 @@ class VlmPromptPlanner:
         self._sequencer = CommandSequencer(
             initial_prompt,
             hold_blocks=command_hold_blocks,
-            include_walk_followup=True,
+            followups=vlm_command_followups,
         )
 
     @property
@@ -101,10 +102,6 @@ class VlmPromptPlanner:
     @property
     def input_active(self) -> bool:
         return False
-
-    @property
-    def recovery_epoch(self) -> int:
-        return self._recovery_epoch if self._collision_recovery else 0
 
     @property
     def log_suffix(self) -> str:
@@ -123,10 +120,6 @@ class VlmPromptPlanner:
             suffix += f" error={self.last_error!r}"
         return suffix
 
-    @property
-    def checkpoint_id(self) -> int | None:
-        return self._checkpoint_to_emit
-
     def start(self) -> None:
         self.feedback.start()
 
@@ -134,20 +127,39 @@ class VlmPromptPlanner:
         self._stop = True
         self.feedback.close()
 
-    def before_next_block(self) -> bool:
+    def next_plan(self, *, block_count: int) -> BlockPlan:
+        reset_pacing = self._awaiting_checkpoint is not None
+        selection = self._complete_checkpoint()
+        checkpoint_id = self._advance_prompt(
+            block_count=block_count,
+            selection=selection,
+        )
+        plan = BlockPlan(
+            prompt=self.current_prompt,
+            source=self._current_source,
+            recovery_epoch=(
+                self._recovery_epoch if self._collision_recovery else 0
+            ),
+            checkpoint_id=checkpoint_id,
+            reset_pacing=reset_pacing,
+        )
+        if checkpoint_id is None and (
+            not self._executed_since_query
+            or self._executed_since_query[-1] != plan.prompt
+        ):
+            self._executed_since_query.append(plan.prompt)
+        return plan
+
+    def _complete_checkpoint(self) -> VlmPromptSelection | None:
         checkpoint_id = self._awaiting_checkpoint
         if checkpoint_id is None:
-            return False
+            return None
 
         observation = self.feedback.wait_for_checkpoint(checkpoint_id)
         self._awaiting_checkpoint = None
         if observation.collision_stop:
             self._enter_collision_recovery(observation.recovery_epoch)
-            return True
-        if observation.checkpoint_id != checkpoint_id:
-            raise RuntimeError(
-                f"Expected checkpoint {checkpoint_id}, got {observation.checkpoint_id}"
-            )
+            return None
 
         self._last_ack_checkpoint = checkpoint_id
         self._last_ack_source_frame = observation.source_frame
@@ -173,16 +185,20 @@ class VlmPromptPlanner:
         latest = self.feedback.latest()
         if latest is not None and latest.collision_stop:
             self._enter_collision_recovery(latest.recovery_epoch)
-            return True
-        self._pending_selection = selection
+            return None
         self.last_error = None
-        return True
+        return selection
 
-    def choose_prompt(self, *, block_count: int) -> str:
+    def _advance_prompt(
+        self,
+        *,
+        block_count: int,
+        selection: VlmPromptSelection | None,
+    ) -> int | None:
         observation = self.feedback.latest()
         if observation is not None and observation.collision_stop:
             self._enter_collision_recovery(observation.recovery_epoch)
-            return self.current_prompt
+            return None
         if self._collision_recovery:
             self._collision_recovery = False
             self._sequencer.release()
@@ -192,20 +208,19 @@ class VlmPromptPlanner:
                 block_count=block_count,
                 replace=True,
             )
-            return self._set_current(command.text, command.source)
+            self._set_current(command.text, command.source)
+            return None
 
-        if self._pending_selection is not None:
-            selection = self._pending_selection
-            self._pending_selection = None
-            self.current_prompt = selection.prompt
+        if selection is not None:
             self._last_vlm_decision = selection.prompt
             self._pending_reasoning = selection.reasoning
             command = self._sequencer.activate(
-                self.current_prompt,
+                selection.prompt,
                 source="vlm",
                 block_count=block_count,
             )
-            return self._set_current(command.text, command.source)
+            self._set_current(command.text, command.source)
+            return None
 
         if self._initial_sequence_pending:
             self._initial_sequence_pending = False
@@ -214,51 +229,34 @@ class VlmPromptPlanner:
                 source="initial",
                 block_count=block_count,
             )
-            return self._set_current(command.text, command.source)
+            self._set_current(command.text, command.source)
+            return None
 
         command_was_active = self._sequencer.busy
         command, changed = self._sequencer.advance(block_count)
         if changed:
-            return self._set_current(command.text, command.source)
+            self._set_current(command.text, command.source)
+            return None
         if command_was_active and not self._sequencer.busy:
-            self._checkpoint_to_emit = self._next_checkpoint_id
+            checkpoint_id = self._next_checkpoint_id
             self._next_checkpoint_id += 1
-            return self._set_current(self.current_prompt, "checkpoint")
-        return self.current_prompt
-
-    def on_block_sent(self, *, block_count: int, block: MotionBlock) -> None:
-        checkpoint_id = self._checkpoint_to_emit
-        if checkpoint_id is None:
-            prompt = block.control.prompt or self.current_prompt
-            if (
-                not self._executed_since_query
-                or self._executed_since_query[-1] != prompt
-            ):
-                self._executed_since_query.append(prompt)
-            return
-        if block.control.checkpoint_id != checkpoint_id:
-            raise RuntimeError(
-                f"Checkpoint block mismatch: expected {checkpoint_id}, "
-                f"got {block.control.checkpoint_id}"
-            )
-        self._awaiting_checkpoint = checkpoint_id
-        self._checkpoint_to_emit = None
+            self._awaiting_checkpoint = checkpoint_id
+            self._set_current(self.current_prompt, "checkpoint")
+            return checkpoint_id
+        return None
 
     def _enter_collision_recovery(self, recovery_epoch: int) -> None:
         if not self._collision_recovery:
             self._collision_recovery = True
-            self._pending_selection = None
-            self._checkpoint_to_emit = None
             self._awaiting_checkpoint = None
             self._executed_since_query.clear()
             command = self._sequencer.override("stand", source="collision_recovery")
             self._set_current(command.text, command.source)
         self._recovery_epoch = recovery_epoch
 
-    def _set_current(self, prompt: str, source: str) -> str:
+    def _set_current(self, prompt: str, source: str) -> None:
         self.current_prompt = prompt
-        self.current_prompt_source = source
-        return prompt
+        self._current_source = source
 
     def consume_pending_reasoning(self) -> str | None:
         reasoning = self._pending_reasoning

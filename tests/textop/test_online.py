@@ -977,6 +977,9 @@ def test_online_observation_reporter_never_drops_checkpoint_under_backpressure(
     reporter.maybe_publish(
         _observation_state(frame=2, checkpoint_id=7, source_frame=102)
     )
+    reporter.maybe_publish(
+        _observation_state(frame=2, checkpoint_id=7, source_frame=102)
+    )
 
     assert len(snapshots) == 2
     assert publisher.published == [(None, 0)]

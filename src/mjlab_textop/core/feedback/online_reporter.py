@@ -31,7 +31,7 @@ class _RenderSnapshot:
 
 
 @dataclass(frozen=True)
-class _PendingObservation:
+class _ObservationRequest:
     snapshot: _RenderSnapshot
     checkpoint_id: int | None
     source_frame: int
@@ -50,9 +50,9 @@ class OnlineObservationReporter:
         self._image_renderer: OffscreenRenderer | None = None
         self._publish_executor = ThreadPoolExecutor(max_workers=1)
         self._publish_future: Future[None] | None = None
-        self._active_observation: _PendingObservation | None = None
-        self._pending_checkpoint: _PendingObservation | None = None
-        self._requested_checkpoint_ids: set[int] = set()
+        self._active_request: _ObservationRequest | None = None
+        self._pending_checkpoint: _ObservationRequest | None = None
+        self._last_checkpoint_id: int | None = None
         self._event_futures: deque[Future[None]] = deque()
         self.last_publish_error: str | None = None
         self._closed = False
@@ -67,11 +67,11 @@ class OnlineObservationReporter:
         self._collect_publish_result()
         if (
             state.checkpoint_id is not None
-            and state.checkpoint_id not in self._requested_checkpoint_ids
+            and state.checkpoint_id != self._last_checkpoint_id
         ):
             assert state.source_frame is not None
-            self._requested_checkpoint_ids.add(state.checkpoint_id)
-            request = _PendingObservation(
+            self._last_checkpoint_id = state.checkpoint_id
+            request = _ObservationRequest(
                 snapshot=self._capture_render_snapshot(),
                 checkpoint_id=state.checkpoint_id,
                 source_frame=state.source_frame,
@@ -79,10 +79,6 @@ class OnlineObservationReporter:
             if self._publish_future is None:
                 self._start_publish(publisher, request)
             else:
-                if self._pending_checkpoint is not None:
-                    raise RuntimeError(
-                        "Received another checkpoint while one is pending"
-                    )
                 self._pending_checkpoint = request
             return
         if self._publish_future is None and self._pending_checkpoint is not None:
@@ -102,7 +98,7 @@ class OnlineObservationReporter:
         assert state.source_frame is not None
         self._start_publish(
             publisher,
-            _PendingObservation(
+            _ObservationRequest(
                 snapshot=self._capture_render_snapshot(),
                 checkpoint_id=None,
                 source_frame=state.source_frame,
@@ -113,9 +109,9 @@ class OnlineObservationReporter:
     def _start_publish(
         self,
         publisher: ObservationPublisher,
-        request: _PendingObservation,
+        request: _ObservationRequest,
     ) -> None:
-        self._active_observation = request
+        self._active_request = request
         self._publish_future = self._publish_executor.submit(
             self._render_and_publish,
             publisher,
@@ -125,7 +121,7 @@ class OnlineObservationReporter:
     def _render_and_publish(
         self,
         publisher: ObservationPublisher,
-        request: _PendingObservation,
+        request: _ObservationRequest,
     ) -> None:
         rendered_image = self._render_image(request.snapshot)
         data = encode_render_image_jpeg(rendered_image)
@@ -164,16 +160,12 @@ class OnlineObservationReporter:
             self.last_publish_error = None
         except Exception as exc:
             self.last_publish_error = f"{type(exc).__name__}: {exc}"
-            request = self._active_observation
+            request = self._active_request
             if request is not None and request.checkpoint_id is not None:
-                if self._pending_checkpoint is not None:
-                    raise RuntimeError(
-                        "Cannot retry checkpoint while another is pending"
-                    ) from exc
                 self._pending_checkpoint = request
         finally:
             self._publish_future = None
-            self._active_observation = None
+            self._active_request = None
 
     def _collect_event_result(self) -> None:
         while self._event_futures and self._event_futures[0].done():

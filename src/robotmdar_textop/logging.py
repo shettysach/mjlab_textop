@@ -21,6 +21,12 @@ _SOURCE_HEALTH: dict[str, LogHealth] = {
     "next": "warning",
     "sync": "warning",
 }
+_SOURCE_LABEL = {
+    "initial": "init",
+    "collision_recovery": "recov",
+    "followup": "next",
+    "checkpoint": "sync",
+}
 
 
 def format_stream_status(
@@ -88,7 +94,8 @@ def _colored_number(value: str, health: LogHealth, *, enabled: bool) -> str:
 
 
 def _colored_source(source: str, *, enabled: bool) -> str:
-    health = _SOURCE_HEALTH.get(source)
+    label = _SOURCE_LABEL.get(source, source)
+    health = _SOURCE_HEALTH.get(label)
     if not enabled or health is None:
-        return source
-    return f"{_COLORS[health]}{source}{_RESET}"
+        return label
+    return f"{_COLORS[health]}{label}{_RESET}"

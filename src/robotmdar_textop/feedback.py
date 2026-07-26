@@ -38,12 +38,11 @@ class HttpObservationReceiver:
         self.host = host
         self.port = port
         self.path = path
-        self._lock = threading.Lock()
-        self._condition = threading.Condition(self._lock)
+        self._condition = threading.Condition()
         self._thread: threading.Thread | None = None
         self._server: ThreadingHTTPServer | None = None
         self._latest: FeedbackObservation | None = None
-        self._checkpoints: dict[int, FeedbackObservation] = {}
+        self._checkpoint: FeedbackObservation | None = None
         self._closed = False
         self.last_error: str | None = None
 
@@ -71,7 +70,7 @@ class HttpObservationReceiver:
             self._thread = None
 
     def latest(self) -> FeedbackObservation | None:
-        with self._lock:
+        with self._condition:
             return self._latest
 
     def wait_for_checkpoint(self, checkpoint_id: int) -> FeedbackObservation:
@@ -80,9 +79,15 @@ class HttpObservationReceiver:
                 if self.last_error is not None:
                     raise RuntimeError(self.last_error)
                 if self._latest is not None and self._latest.collision_stop:
+                    self._checkpoint = None
                     return self._latest
-                observation = self._checkpoints.pop(checkpoint_id, None)
+                observation = self._checkpoint
                 if observation is not None:
+                    self._checkpoint = None
+                if (
+                    observation is not None
+                    and observation.checkpoint_id == checkpoint_id
+                ):
                     return observation
                 if self._closed:
                     raise RuntimeError("Observation receiver closed while waiting")
@@ -99,7 +104,7 @@ class HttpObservationReceiver:
         with self._condition:
             self._latest = merge_feedback_message(self._latest, message)
             if message.checkpoint_id is not None:
-                self._checkpoints[message.checkpoint_id] = self._latest
+                self._checkpoint = self._latest
             self._condition.notify_all()
 
     def _make_server(self) -> ThreadingHTTPServer:

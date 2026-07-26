@@ -28,6 +28,15 @@ INVARIANT_CONTROLLER_PROMPT = PROMPT_DIR / "INVARIANT.md"
 _TEXT_EMBEDDING_CACHE_SIZE = 16
 
 
+@dataclass(frozen=True)
+class BlockPlan:
+    prompt: str
+    source: str
+    recovery_epoch: int = 0
+    checkpoint_id: int | None = None
+    reset_pacing: bool = False
+
+
 class PromptController(Protocol):
     @property
     def should_stop(self) -> bool: ...
@@ -38,17 +47,7 @@ class PromptController(Protocol):
     @property
     def log_suffix(self) -> str: ...
 
-    @property
-    def recovery_epoch(self) -> int: ...
-
-    def choose_prompt(self, *, block_count: int) -> str: ...
-
-    def before_next_block(self) -> bool: ...
-
-    @property
-    def checkpoint_id(self) -> int | None: ...
-
-    def on_block_sent(self, *, block_count: int, block: MotionBlock) -> None: ...
+    def next_plan(self, *, block_count: int) -> BlockPlan: ...
 
 
 class RobotMdarGeneratorArgs(Protocol):
@@ -139,11 +138,12 @@ class RobotMdarGenerator:
         def repeat_last(value: np.ndarray) -> np.ndarray:
             return np.repeat(value[-1:], FUTURE_STEPS, axis=0)
 
+        joint_pos = repeat_last(previous.joint_pos)
         return MotionBlock(
             index=index,
             motion=MotionFrames(
-                joint_pos=repeat_last(previous.joint_pos),
-                joint_vel=np.zeros_like(repeat_last(previous.joint_vel)),
+                joint_pos=joint_pos,
+                joint_vel=np.zeros_like(joint_pos),
                 anchor_pos_w=repeat_last(previous.anchor_pos_w),
                 anchor_quat_w=repeat_last(previous.anchor_quat_w),
             ),
@@ -309,8 +309,7 @@ def stream_robotmdar_blocks(
     prompt_controller: PromptController,
     cfg: StreamConfig,
     log_message: Callable[[str], None],
-    prompt_source: Callable[[PromptController], str],
-    after_prompt: Callable[[PromptController], None] | None = None,
+    after_plan: Callable[[], None] | None = None,
 ) -> None:
     frame_index = 0
     next_send_time = time.monotonic()
@@ -318,37 +317,34 @@ def stream_robotmdar_blocks(
     previous_command: tuple[str, str] | None = None
 
     while not prompt_controller.should_stop:
-        if prompt_controller.before_next_block():
+        plan = prompt_controller.next_plan(block_count=block_count)
+        if plan.reset_pacing:
             next_send_time = time.monotonic()
         block_start_time = time.monotonic()
-        current_prompt = prompt_controller.choose_prompt(block_count=block_count)
-        current_source = prompt_source(prompt_controller)
+        current_prompt = plan.prompt
+        current_source = plan.source
         current_command = (current_prompt, current_source)
         command_changed = current_command != previous_command
         previous_command = current_command
-        if after_prompt is not None:
-            after_prompt(prompt_controller)
+        if after_plan is not None:
+            after_plan()
 
-        checkpoint_id = prompt_controller.checkpoint_id
         block = (
             generator.checkpoint_block(
                 prompt=current_prompt,
                 index=frame_index,
-                recovery_epoch=prompt_controller.recovery_epoch,
-                checkpoint_id=checkpoint_id,
+                recovery_epoch=plan.recovery_epoch,
+                checkpoint_id=plan.checkpoint_id,
             )
-            if checkpoint_id is not None
+            if plan.checkpoint_id is not None
             else generator.next_block(
                 prompt=current_prompt,
                 index=frame_index,
                 guidance_scale=cfg.guidance_scale,
-                recovery_epoch=prompt_controller.recovery_epoch,
+                recovery_epoch=plan.recovery_epoch,
             )
         )
         conn.sendall(textop_block_to_wire(block))
-        # A checkpoint transitions the controller into its acknowledgment
-        # barrier only after the complete marker block is on the wire.
-        prompt_controller.on_block_sent(block_count=block_count, block=block)
 
         block_frames = block.joint_pos.shape[0]
         frame_index += block_frames

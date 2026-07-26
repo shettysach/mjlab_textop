@@ -4,7 +4,7 @@ import threading
 from dataclasses import dataclass
 
 from robotmdar_textop.planner.followups import CommandSequencer
-from textop_protocol.motion import MotionBlock
+from robotmdar_textop.runtime import BlockPlan
 
 
 @dataclass
@@ -34,19 +34,8 @@ class ManualPromptPlanner:
         return self.prompt.input_active
 
     @property
-    def recovery_epoch(self) -> int:
-        return 0
-
-    @property
     def log_suffix(self) -> str:
         return "\nEnter text prompt (or q to exit): "
-
-    @property
-    def checkpoint_id(self) -> int | None:
-        return None
-
-    def before_next_block(self) -> bool:
-        return False
 
     def start(self) -> None:
         self._thread = threading.Thread(
@@ -59,25 +48,23 @@ class ManualPromptPlanner:
     def request_stop(self) -> None:
         self.prompt.stop = True
 
-    def choose_prompt(self, *, block_count: int) -> str:
+    def next_plan(self, *, block_count: int) -> BlockPlan:
         if (
             self.prompt.revision != self._last_prompt_revision
             or self.prompt.text != self._last_prompt_text
         ):
             self._last_prompt_revision = self.prompt.revision
             self._last_prompt_text = self.prompt.text
-            return self._sequencer.activate(
+            command = self._sequencer.activate(
                 self.prompt.text,
                 source="manual",
                 block_count=block_count,
                 replace=True,
-            ).text
+            )
+        else:
+            command, _ = self._sequencer.advance(block_count)
 
-        command, _ = self._sequencer.advance(block_count)
-        return command.text
-
-    def on_block_sent(self, *, block_count: int, block: MotionBlock) -> None:
-        del block_count, block
+        return BlockPlan(prompt=command.text, source="manual")
 
 
 def _prompt_loop(prompt: PromptState) -> None:

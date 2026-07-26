@@ -18,13 +18,13 @@ from robotmdar_textop.feedback import HttpObservationReceiver
 from robotmdar_textop.planner.manual import PromptState
 from robotmdar_textop.planner.vlm import OpenAIChatPromptSelector
 from robotmdar_textop.runtime import (
+    BlockPlan,
     StreamConfig,
     compose_system_prompt,
     make_robotmdar_generator,
     read_prompt_path,
     stream_robotmdar_blocks,
 )
-from textop_protocol.motion import MotionBlock
 
 
 def run_debug(args: argparse.Namespace) -> None:
@@ -71,7 +71,6 @@ def run_debug(args: argparse.Namespace) -> None:
                         log_every_blocks=args.log_every,
                     ),
                     log_message=_log_debug_message,
-                    prompt_source=lambda _controller: "manual",
                 )
     except KeyboardInterrupt:
         _log_debug_message("Stopping RobotMDAR debug producer.")
@@ -114,23 +113,9 @@ class PromptStateController:
     def log_suffix(self) -> str:
         return ""
 
-    @property
-    def recovery_epoch(self) -> int:
-        return 0
-
-    @property
-    def checkpoint_id(self) -> int | None:
-        return None
-
-    def before_next_block(self) -> bool:
-        return False
-
-    def choose_prompt(self, *, block_count: int) -> str:
+    def next_plan(self, *, block_count: int) -> BlockPlan:
         del block_count
-        return self.prompt.text
-
-    def on_block_sent(self, *, block_count: int, block: MotionBlock) -> None:
-        del block_count, block
+        return BlockPlan(prompt=self.prompt.text, source="manual")
 
 
 def _prompt_loop(

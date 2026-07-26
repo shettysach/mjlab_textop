@@ -22,9 +22,13 @@ from robotmdar_textop.planner import (
     VlmPromptPlanner,
     VlmPromptSelection,
 )
-from robotmdar_textop.planner.followups import command_followups
+from robotmdar_textop.planner.followups import (
+    command_followups,
+    vlm_command_followups,
+)
 from robotmdar_textop.runtime import (
     DEFAULT_VLM_USER_PROMPT_FILE,
+    BlockPlan,
     StreamConfig,
     compose_system_prompt,
     read_prompt_path,
@@ -38,7 +42,7 @@ class _FakeObservationProvider:
         self.observation = observation
         self.started = False
         self.closed = False
-        self.checkpoints: dict[int, FeedbackObservation] = {}
+        self.checkpoint: FeedbackObservation | None = None
         self.waited_for: list[int] = []
 
     def start(self) -> None:
@@ -63,19 +67,18 @@ class _FakeObservationProvider:
             source_frame=source_frame if source_frame is not None else checkpoint_id * 8,
         )
         self.observation = observation
-        self.checkpoints[checkpoint_id] = observation
+        self.checkpoint = observation
         return observation
 
     def wait_for_checkpoint(self, checkpoint_id: int) -> FeedbackObservation:
         self.waited_for.append(checkpoint_id)
         if self.observation is not None and self.observation.collision_stop:
             return self.observation
-        try:
-            return self.checkpoints.pop(checkpoint_id)
-        except KeyError as exc:
-            raise AssertionError(
-                f"checkpoint {checkpoint_id} has not been acknowledged"
-            ) from exc
+        observation = self.checkpoint
+        self.checkpoint = None
+        assert observation is not None
+        assert observation.checkpoint_id == checkpoint_id
+        return observation
 
 
 class _FakeResponse:
@@ -147,21 +150,11 @@ class _BlockingSelector:
         return VlmPromptSelection(prompt=self.prompt, reasoning=None, response={})
 
 
-def _choose_and_mark_block_sent(
+def _next_prompt(
     planner: VlmPromptPlanner,
     block_count: int,
 ) -> str:
-    prompt = planner.choose_prompt(block_count=block_count)
-    block = replace(
-        motion_block(index=block_count * 8),
-        control=StreamControl(
-            prompt=prompt,
-            recovery_epoch=planner.recovery_epoch,
-            checkpoint_id=planner.checkpoint_id,
-        ),
-    )
-    planner.on_block_sent(block_count=block_count, block=block)
-    return prompt
+    return planner.next_plan(block_count=block_count).prompt
 
 
 def _observation(
@@ -288,14 +281,30 @@ def test_observation_receiver_waits_for_exact_checkpoint() -> None:
     assert received[0].source_frame == 41
 
 
+def test_observation_receiver_discards_checkpoint_preempted_by_collision() -> None:
+    receiver = HttpObservationReceiver(port=8766)
+    receiver.handle_post(
+        b'{"protocol_version":2,"checkpoint_id":7,"source_frame":41,'
+        b'"image":{"mime_type":"image/jpeg","data":"Y2hlY2twb2ludA=="}}'
+    )
+    receiver.handle_post(
+        b'{"protocol_version":2,"collision_stop":true,"recovery_epoch":3}'
+    )
+
+    observation = receiver.wait_for_checkpoint(7)
+
+    assert observation.collision_stop is True
+    assert receiver._checkpoint is None
+
+
 def test_manual_prompt_planner_uses_current_prompt_without_starting_thread() -> None:
     planner = ManualPromptPlanner("walk forward")
 
-    assert planner.choose_prompt(block_count=0) == "walk forward"
+    assert planner.next_plan(block_count=0).prompt == "walk forward"
 
     planner.prompt.text = "turn left"
 
-    assert planner.choose_prompt(block_count=1) == "turn left"
+    assert planner.next_plan(block_count=1).prompt == "turn left"
     assert planner.should_stop is False
     assert planner.input_active is False
     assert "Enter text prompt" in planner.log_suffix
@@ -304,42 +313,42 @@ def test_manual_prompt_planner_uses_current_prompt_without_starting_thread() -> 
 def test_manual_prompt_planner_locally_schedules_stand_after_lateral_command() -> None:
     planner = ManualPromptPlanner("step left", command_hold_blocks=2)
 
-    assert planner.choose_prompt(block_count=0) == "step left"
-    assert planner.choose_prompt(block_count=1) == "step left"
-    assert planner.choose_prompt(block_count=2) == "stand"
+    assert planner.next_plan(block_count=0).prompt == "step left"
+    assert planner.next_plan(block_count=1).prompt == "step left"
+    assert planner.next_plan(block_count=2).prompt == "stand"
 
     planner.prompt.text = "turn right"
     planner.prompt.revision += 1
 
-    assert planner.choose_prompt(block_count=3) == "turn right"
-    assert planner.choose_prompt(block_count=4) == "turn right"
-    assert planner.choose_prompt(block_count=5) == "stand"
+    assert planner.next_plan(block_count=3).prompt == "turn right"
+    assert planner.next_plan(block_count=4).prompt == "turn right"
+    assert planner.next_plan(block_count=5).prompt == "stand"
 
 
 def test_manual_prompt_planner_accepts_repeated_manual_command() -> None:
     planner = ManualPromptPlanner("step left")
 
-    assert planner.choose_prompt(block_count=0) == "step left"
-    assert planner.choose_prompt(block_count=1) == "stand"
+    assert planner.next_plan(block_count=0).prompt == "step left"
+    assert planner.next_plan(block_count=1).prompt == "stand"
 
     planner.prompt.revision += 1
 
-    assert planner.choose_prompt(block_count=2) == "step left"
-    assert planner.choose_prompt(block_count=3) == "stand"
+    assert planner.next_plan(block_count=2).prompt == "step left"
+    assert planner.next_plan(block_count=3).prompt == "stand"
 
 
 def test_manual_prompt_planner_does_not_bound_walk_commands() -> None:
     planner = ManualPromptPlanner("walk", command_hold_blocks=1)
 
-    assert planner.choose_prompt(block_count=0) == "walk"
-    assert planner.choose_prompt(block_count=1) == "walk"
-    assert planner.choose_prompt(block_count=2) == "walk"
+    assert planner.next_plan(block_count=0).prompt == "walk"
+    assert planner.next_plan(block_count=1).prompt == "walk"
+    assert planner.next_plan(block_count=2).prompt == "walk"
 
 
 def test_command_followups_match_direction_words_only() -> None:
     assert command_followups("turn RIGHT") == ["stand"]
     assert command_followups("walk") == []
-    assert command_followups("walk", include_walk=True) == ["stand"]
+    assert vlm_command_followups("walk") == ["stand"]
     assert command_followups("bright light") == []
     assert command_followups("move upright") == []
     assert command_followups("leftover motion") == []
@@ -357,23 +366,26 @@ def test_vlm_planner_bounds_transient_command_then_emits_checkpoint() -> None:
 
     planner.start()
     assert provider.started is True
-    assert _choose_and_mark_block_sent(planner, 0) == "walk"
-    assert _choose_and_mark_block_sent(planner, 1) == "walk"
-    assert _choose_and_mark_block_sent(planner, 2) == "stand"
-    assert _choose_and_mark_block_sent(planner, 3) == "stand"
+    assert _next_prompt(planner, 0) == "walk"
+    assert _next_prompt(planner, 1) == "walk"
+    assert _next_prompt(planner, 2) == "stand"
+    assert _next_prompt(planner, 3) == "stand"
     assert selector.calls == 0
 
-    assert _choose_and_mark_block_sent(planner, 4) == "stand"
-    assert planner.current_prompt_source == "checkpoint"
+    checkpoint = planner.next_plan(block_count=4)
+    assert checkpoint.prompt == "stand"
+    assert checkpoint.source == "checkpoint"
+    assert checkpoint.checkpoint_id == 1
     assert planner.log_suffix == " vlm=awaiting_ack checkpoint=1"
     assert selector.calls == 0
 
     provider.acknowledge(1, image_revision=100, source_frame=41)
-    assert planner.before_next_block() is True
+    next_plan = planner.next_plan(block_count=5)
     assert provider.waited_for == [1]
     assert selector.calls == 1
-    assert _choose_and_mark_block_sent(planner, 5) == "turn left"
-    assert planner.current_prompt_source == "vlm"
+    assert next_plan.prompt == "turn left"
+    assert next_plan.source == "vlm"
+    assert next_plan.reset_pacing is True
     assert "last_ack=(checkpoint: 1, source_frame: 41)" in planner.log_suffix
 
     planner.request_stop()
@@ -389,14 +401,14 @@ def test_vlm_planner_queries_only_exact_checkpoint_observations() -> None:
         initial_prompt="stand",
     )
 
-    assert _choose_and_mark_block_sent(planner, 0) == "stand"
+    assert _next_prompt(planner, 0) == "stand"
     provider.observation = _observation(image_revision=500)
-    assert _choose_and_mark_block_sent(planner, 1) == "stand"
-    assert planner.current_prompt_source == "checkpoint"
+    checkpoint = planner.next_plan(block_count=1)
+    assert checkpoint.source == "checkpoint"
     assert selector.calls == 0
 
     provider.acknowledge(1, image_revision=7, source_frame=88)
-    assert planner.before_next_block() is True
+    planner.next_plan(block_count=2)
 
     assert selector.calls == 1
     assert selector.execution_contexts == [
@@ -418,19 +430,18 @@ def test_vlm_planner_reports_completed_followup_to_next_query() -> None:
         command_hold_blocks=2,
     )
 
-    assert _choose_and_mark_block_sent(planner, 0) == "stand"
-    assert _choose_and_mark_block_sent(planner, 1) == "stand"
-    assert _choose_and_mark_block_sent(planner, 2) == "stand"
+    assert _next_prompt(planner, 0) == "stand"
+    assert _next_prompt(planner, 1) == "stand"
+    assert planner.next_plan(block_count=2).source == "checkpoint"
     provider.acknowledge(1)
-    assert planner.before_next_block() is True
 
-    assert _choose_and_mark_block_sent(planner, 3) == "turn right"
-    assert _choose_and_mark_block_sent(planner, 4) == "turn right"
-    assert _choose_and_mark_block_sent(planner, 5) == "stand"
-    assert _choose_and_mark_block_sent(planner, 6) == "stand"
-    assert _choose_and_mark_block_sent(planner, 7) == "stand"
+    assert _next_prompt(planner, 3) == "turn right"
+    assert _next_prompt(planner, 4) == "turn right"
+    assert _next_prompt(planner, 5) == "stand"
+    assert _next_prompt(planner, 6) == "stand"
+    assert planner.next_plan(block_count=7).source == "checkpoint"
     provider.acknowledge(2)
-    assert planner.before_next_block() is True
+    planner.next_plan(block_count=8)
 
     assert selector.execution_contexts[1] == VlmExecutionContext(
         previous_decision="turn right",
@@ -448,12 +459,14 @@ def test_vlm_planner_pauses_while_selector_runs() -> None:
         initial_prompt="stand",
     )
 
-    assert _choose_and_mark_block_sent(planner, 0) == "stand"
-    assert _choose_and_mark_block_sent(planner, 1) == "stand"
+    assert _next_prompt(planner, 0) == "stand"
+    assert planner.next_plan(block_count=1).source == "checkpoint"
     provider.acknowledge(1)
 
-    result: list[bool] = []
-    thread = threading.Thread(target=lambda: result.append(planner.before_next_block()))
+    result: list[BlockPlan] = []
+    thread = threading.Thread(
+        target=lambda: result.append(planner.next_plan(block_count=2))
+    )
     thread.start()
     assert selector.started.wait(timeout=1)
     assert thread.is_alive()
@@ -462,8 +475,9 @@ def test_vlm_planner_pauses_while_selector_runs() -> None:
     selector.release.set()
     thread.join(timeout=1)
     assert not thread.is_alive()
-    assert result == [True]
-    assert _choose_and_mark_block_sent(planner, 2) == "turn right"
+    assert len(result) == 1
+    assert result[0].prompt == "turn right"
+    assert result[0].reset_pacing is True
 
 
 def test_vlm_planner_discards_selection_if_collision_arrives_during_query() -> None:
@@ -475,11 +489,14 @@ def test_vlm_planner_discards_selection_if_collision_arrives_during_query() -> N
         initial_prompt="stand",
     )
 
-    assert _choose_and_mark_block_sent(planner, 0) == "stand"
-    assert _choose_and_mark_block_sent(planner, 1) == "stand"
+    assert _next_prompt(planner, 0) == "stand"
+    assert planner.next_plan(block_count=1).source == "checkpoint"
     provider.acknowledge(1)
 
-    thread = threading.Thread(target=planner.before_next_block)
+    result: list[BlockPlan] = []
+    thread = threading.Thread(
+        target=lambda: result.append(planner.next_plan(block_count=2))
+    )
     thread.start()
     assert selector.started.wait(timeout=1)
     provider.observation = _observation(collision_stop=True, recovery_epoch=9)
@@ -487,9 +504,10 @@ def test_vlm_planner_discards_selection_if_collision_arrives_during_query() -> N
     thread.join(timeout=1)
 
     assert not thread.is_alive()
-    assert _choose_and_mark_block_sent(planner, 2) == "stand"
-    assert planner.current_prompt_source == "collision_recovery"
-    assert planner.recovery_epoch == 9
+    assert len(result) == 1
+    assert result[0].prompt == "stand"
+    assert result[0].source == "collision_recovery"
+    assert result[0].recovery_epoch == 9
 
 
 def test_vlm_planner_recovers_from_collision_while_awaiting_ack() -> None:
@@ -501,20 +519,19 @@ def test_vlm_planner_recovers_from_collision_while_awaiting_ack() -> None:
         initial_prompt="stand",
     )
 
-    assert _choose_and_mark_block_sent(planner, 0) == "stand"
-    assert _choose_and_mark_block_sent(planner, 1) == "stand"
+    assert _next_prompt(planner, 0) == "stand"
+    assert planner.next_plan(block_count=1).source == "checkpoint"
     provider.observation = _observation(collision_stop=True, recovery_epoch=12)
 
-    assert planner.before_next_block() is True
+    recovery = planner.next_plan(block_count=2)
     assert selector.calls == 0
-    assert _choose_and_mark_block_sent(planner, 2) == "stand"
-    assert planner.current_prompt_source == "collision_recovery"
+    assert recovery.prompt == "stand"
+    assert recovery.source == "collision_recovery"
+    assert recovery.reset_pacing is True
 
     provider.observation = _observation(collision_stop=False, recovery_epoch=12)
-    assert _choose_and_mark_block_sent(planner, 3) == "stand"
-    assert planner.current_prompt_source == "followup"
-    assert _choose_and_mark_block_sent(planner, 4) == "stand"
-    assert planner.current_prompt_source == "checkpoint"
+    assert planner.next_plan(block_count=3).source == "followup"
+    assert planner.next_plan(block_count=4).source == "checkpoint"
 
 
 def test_vlm_planner_fails_closed_on_selector_error() -> None:
@@ -526,12 +543,12 @@ def test_vlm_planner_fails_closed_on_selector_error() -> None:
         initial_prompt="stand",
     )
 
-    assert _choose_and_mark_block_sent(planner, 0) == "stand"
-    assert _choose_and_mark_block_sent(planner, 1) == "stand"
+    assert _next_prompt(planner, 0) == "stand"
+    assert planner.next_plan(block_count=1).source == "checkpoint"
     provider.acknowledge(1)
 
     with pytest.raises(RuntimeError, match="VLM request failed"):
-        planner.before_next_block()
+        planner.next_plan(block_count=2)
 
     assert planner.should_stop is True
     assert planner.last_error == "TimeoutError: vlm timed out"
@@ -552,11 +569,10 @@ def test_producer_log_prints_vlm_reasoning_once_when_enabled(monkeypatch) -> Non
 
     monkeypatch.setattr(produce, "_log_producer_message", messages.append)
 
-    assert _choose_and_mark_block_sent(planner, 0) == "stand"
-    assert _choose_and_mark_block_sent(planner, 1) == "stand"
+    assert _next_prompt(planner, 0) == "stand"
+    assert planner.next_plan(block_count=1).source == "checkpoint"
     provider.acknowledge(1)
-    assert planner.before_next_block() is True
-    assert _choose_and_mark_block_sent(planner, 2) == "wave"
+    assert _next_prompt(planner, 2) == "wave"
 
     args = Namespace(vlm_reasoning=True)
     produce._log_vlm_reasoning_if_available(planner=planner, args=args)
@@ -567,7 +583,7 @@ def test_producer_log_prints_vlm_reasoning_once_when_enabled(monkeypatch) -> Non
     ]
 
 
-def test_stream_runs_controller_hooks_around_generation_and_logs_change(
+def test_stream_generates_and_sends_planned_block(
     monkeypatch,
 ) -> None:
     events = []
@@ -576,21 +592,11 @@ def test_stream_runs_controller_hooks_around_generation_and_logs_change(
         should_stop = False
         input_active = False
         log_suffix = ""
-        recovery_epoch = 0
-        checkpoint_id = None
 
-        def before_next_block(self) -> bool:
-            events.append(("before", None))
-            return False
-
-        def choose_prompt(self, *, block_count: int) -> str:
-            events.append(("choose", block_count))
-            return "stand"
-
-        def on_block_sent(self, *, block_count: int, block: MotionBlock) -> None:
-            del block
-            events.append(("planner", block_count))
+        def next_plan(self, *, block_count: int) -> BlockPlan:
+            events.append(("plan", block_count))
             self.should_stop = True
+            return BlockPlan(prompt="stand", source="test")
 
     class Generator:
         def next_block(self, **kwargs):
@@ -613,15 +619,12 @@ def test_stream_runs_controller_hooks_around_generation_and_logs_change(
         prompt_controller=Controller(),
         cfg=StreamConfig(guidance_scale=5.0, log_every_blocks=0),
         log_message=lambda _message: events.append(("log", None)),
-        prompt_source=lambda _controller: "test",
     )
 
     assert events == [
-        ("before", None),
-        ("choose", 0),
+        ("plan", 0),
         ("generate", 0),
         ("send", b"block"),
-        ("planner", 0),
         ("log", None),
     ]
 
@@ -687,7 +690,6 @@ def test_stream_stops_generating_until_checkpoint_is_acknowledged(
                 prompt_controller=planner,
                 cfg=StreamConfig(guidance_scale=5.0, log_every_blocks=0),
                 log_message=lambda _message: None,
-                prompt_source=lambda controller: controller.current_prompt_source,
             )
         except BaseException as exc:
             errors.append(exc)

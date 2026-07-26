@@ -17,7 +17,6 @@ from robotmdar_textop.planner.vlm import (
     VlmPromptPlanner,
 )
 from robotmdar_textop.runtime import (
-    PromptController,
     StreamConfig,
     compose_system_prompt,
     make_robotmdar_generator,
@@ -54,9 +53,8 @@ def run_producer(args: argparse.Namespace) -> None:
                         log_every_blocks=args.log_every,
                     ),
                     log_message=_log_producer_message,
-                    prompt_source=_prompt_source,
-                    after_prompt=lambda controller: _log_vlm_reasoning_if_available(
-                        planner=controller,
+                    after_plan=lambda: _log_vlm_reasoning_if_available(
+                        planner=planner,
                         args=args,
                     ),
                 )
@@ -110,7 +108,7 @@ def _log_producer_message(message: str) -> None:
 
 def _log_vlm_reasoning_if_available(
     *,
-    planner: PromptController,
+    planner: ManualPromptPlanner | VlmPromptPlanner,
     args: argparse.Namespace,
 ) -> None:
     if not args.vlm_reasoning:
@@ -120,20 +118,6 @@ def _log_vlm_reasoning_if_available(
     reasoning = planner.consume_pending_reasoning()
     if reasoning is not None:
         _log_producer_message(f"vlm_reasoning {reasoning}")
-
-
-def _prompt_source(
-    planner: PromptController,
-) -> str:
-    if isinstance(planner, VlmPromptPlanner):
-        return {
-            "initial": "init",
-            "vlm": "vlm",
-            "collision_recovery": "recov",
-            "followup": "next",
-            "checkpoint": "sync",
-        }.get(planner.current_prompt_source, planner.current_prompt_source)
-    return "manual"
 
 
 def make_prompt_planner(

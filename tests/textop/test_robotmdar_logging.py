@@ -57,3 +57,18 @@ def test_lag_color_uses_control_frame_duration(
     )
 
     assert f"lag_ms={color_code}{lag_ms:.1f}{RESET}" in message
+
+
+def test_stream_source_uses_compact_log_label() -> None:
+    message = format_stream_status(
+        block_count=1,
+        frame_index=5,
+        prompt="stand",
+        source="checkpoint",
+        generation_ms=0.0,
+        lag_ms=0.0,
+        block_frames=5,
+        color=False,
+    )
+
+    assert "source=sync" in message

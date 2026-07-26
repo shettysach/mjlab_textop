@@ -2,18 +2,20 @@ from __future__ import annotations
 
 import re
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
 
 
-def command_followups(
-    command: str,
-    *,
-    include_walk: bool = False,
-) -> list[str]:
+def command_followups(command: str) -> list[str]:
+    return _stand_followup(command, transient_words={"left", "right"})
+
+
+def vlm_command_followups(command: str) -> list[str]:
+    return _stand_followup(command, transient_words={"left", "right", "walk"})
+
+
+def _stand_followup(command: str, *, transient_words: set[str]) -> list[str]:
     words = set(re.findall(r"[a-z]+", command.lower()))
-    transient_words = {"left", "right"}
-    if include_walk:
-        transient_words.add("walk")
     if words & transient_words:
         return ["stand"]
     return []
@@ -33,13 +35,13 @@ class CommandSequencer:
         initial: str,
         *,
         hold_blocks: int,
-        include_walk_followup: bool = False,
+        followups: Callable[[str], list[str]] = command_followups,
     ) -> None:
         if hold_blocks <= 0:
             raise ValueError(f"hold_blocks must be positive, got {hold_blocks}")
         self.hold_blocks = hold_blocks
         self.current = ActiveCommand(initial, "initial")
-        self.include_walk_followup = include_walk_followup
+        self._followups = followups
         self._started_block: int | None = None
         self._pending: deque[ActiveCommand] = deque()
 
@@ -61,10 +63,7 @@ class CommandSequencer:
         self._started_block = block_count
         self._pending.extend(
             ActiveCommand(followup, "followup")
-            for followup in command_followups(
-                command,
-                include_walk=self.include_walk_followup,
-            )
+            for followup in self._followups(command)
         )
         return self.current
 
