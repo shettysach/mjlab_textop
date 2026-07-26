@@ -37,7 +37,7 @@ def test_portrait_corridors_spec_adds_three_textured_portraits_and_walls() -> No
     assert set(cameras) == {"corridor_left", "corridor_center", "corridor_right"}
     camera_positions = [tuple(camera.pos) for camera in cameras.values()]
     assert [position[0] for position in camera_positions] == pytest.approx(
-        [0.6, 0.6, 0.6]
+        [1.8, 1.8, 1.8]
     )
     assert [position[1:] for position in camera_positions] == [
         (2.0, 1.25),
@@ -45,6 +45,12 @@ def test_portrait_corridors_spec_adds_three_textured_portraits_and_walls() -> No
         (-2.0, 1.25),
     ]
     assert [camera.fovy for camera in cameras.values()] == [65.0, 65.0, 65.0]
+    divider_positions = [
+        tuple(body.pos)
+        for body in spec.bodies
+        if "_divider_" in body.name
+    ]
+    assert [position[0] for position in divider_positions] == pytest.approx([4.0, 4.0])
     portrait_positions = {
         body.name: tuple(float(value) for value in body.pos)
         for body in spec.bodies
@@ -55,6 +61,15 @@ def test_portrait_corridors_spec_adds_three_textured_portraits_and_walls() -> No
     # in front of it to remain visible from inside the corridors.
     assert all(position[0] < 5.9 for position in portrait_positions.values())
     model = spec.compile()
+    divider_geom_ids = [
+        mujoco.mj_name2id(
+            model,
+            mujoco.mjtObj.mjOBJ_GEOM,  # ty: ignore[unresolved-attribute]
+            f"portrait_corridors_divider_{index}_wall_collision",
+        )
+        for index in (1, 2)
+    ]
+    assert model.geom_size[divider_geom_ids, 0].tolist() == pytest.approx([2.0, 2.0])
     assert model.ntex == 3
     assert model.nmesh == 3
     assert model.ncam == 3

@@ -26,7 +26,7 @@ def make_portrait_corridors_spec_fn(
     start_x: float = -2.0,
     corridor_length: float = 8.0,
     corridor_width: float = 2.0,
-    divider_start_x: float = 0.8,
+    divider_start_x: float | None = None,
     wall_height: float = 2.5,
     wall_thickness: float = 0.2,
     wall_rgba: tuple[float, float, float, float] = (0.5, 0.5, 0.5, 1.0),
@@ -35,6 +35,11 @@ def make_portrait_corridors_spec_fn(
 
     def add_portrait_corridors(spec: MjSpec) -> None:
         end_x = start_x + corridor_length
+        resolved_divider_start_x = (
+            start_x + corridor_length * 0.5
+            if divider_start_x is None
+            else divider_start_x
+        )
         half_total_width = corridor_width * 1.5
         half_wall_height = wall_height * 0.5
         half_wall_thickness = wall_thickness * 0.5
@@ -67,8 +72,8 @@ def make_portrait_corridors_spec_fn(
 
         # The dividers begin ahead of the robot, leaving space to choose a
         # corridor by stepping left or right before committing forward.
-        divider_center_x = (divider_start_x + end_x) * 0.5
-        divider_half_length = (end_x - divider_start_x) * 0.5
+        divider_center_x = (resolved_divider_start_x + end_x) * 0.5
+        divider_half_length = (end_x - resolved_divider_start_x) * 0.5
         for index, y in enumerate((-corridor_width * 0.5, corridor_width * 0.5), 1):
             _add_wall(
                 spec,
@@ -78,7 +83,7 @@ def make_portrait_corridors_spec_fn(
                 rgba=wall_rgba,
             )
 
-        camera_x = divider_start_x - 0.2
+        camera_x = resolved_divider_start_x - 0.2
         for corridor, y in (
             ("left", corridor_width),
             ("center", 0.0),
