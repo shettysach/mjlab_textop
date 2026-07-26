@@ -5,6 +5,8 @@ from base64 import b64decode, b64encode
 from dataclasses import dataclass
 from typing import Any
 
+OBSERVATION_PROTOCOL_VERSION = 2
+
 
 @dataclass(frozen=True)
 class ObservationImage:
@@ -14,17 +16,24 @@ class ObservationImage:
 
 @dataclass(frozen=True)
 class ObservationMessage:
+    protocol_version: int = OBSERVATION_PROTOCOL_VERSION
     image: ObservationImage | None = None
     collision_stop: bool | None = None
     recovery_epoch: int | None = None
+    checkpoint_id: int | None = None
+    source_frame: int | None = None
 
 
 def observation_to_json(message: ObservationMessage) -> dict[str, Any]:
-    payload: dict[str, Any] = {}
+    payload: dict[str, Any] = {"protocol_version": message.protocol_version}
     if message.collision_stop is not None:
         payload["collision_stop"] = message.collision_stop
     if message.recovery_epoch is not None:
         payload["recovery_epoch"] = message.recovery_epoch
+    if message.checkpoint_id is not None:
+        payload["checkpoint_id"] = message.checkpoint_id
+    if message.source_frame is not None:
+        payload["source_frame"] = message.source_frame
     if message.image is not None:
         payload["image"] = {
             "mime_type": message.image.mime_type,
@@ -41,6 +50,13 @@ def parse_observation_json(
     if isinstance(payload, str):
         payload = json.loads(payload)
 
+    protocol_version = payload.get("protocol_version")
+    if protocol_version != OBSERVATION_PROTOCOL_VERSION:
+        raise ValueError(
+            "Unsupported observation protocol version: "
+            f"{protocol_version!r}; expected {OBSERVATION_PROTOCOL_VERSION}"
+        )
+
     encoded_image = payload.get("image")
     image = None
     if encoded_image is not None:
@@ -49,8 +65,24 @@ def parse_observation_json(
             mime_type=str(encoded_image["mime_type"]),
         )
 
+    checkpoint_id = payload.get("checkpoint_id")
+    source_frame = payload.get("source_frame")
+    for name, value in (
+        ("checkpoint_id", checkpoint_id),
+        ("source_frame", source_frame),
+    ):
+        if value is not None and (
+            not isinstance(value, int) or isinstance(value, bool) or value < 0
+        ):
+            raise ValueError(f"{name} must be a non-negative integer or null")
+    if checkpoint_id is not None and (image is None or source_frame is None):
+        raise ValueError("Checkpoint observations require an image and source_frame")
+
     return ObservationMessage(
+        protocol_version=protocol_version,
         image=image,
         collision_stop=payload.get("collision_stop"),
         recovery_epoch=payload.get("recovery_epoch"),
+        checkpoint_id=checkpoint_id,
+        source_frame=source_frame,
     )

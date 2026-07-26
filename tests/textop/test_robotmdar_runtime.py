@@ -4,6 +4,7 @@ from collections import Counter
 from types import SimpleNamespace
 from typing import cast
 
+import pytest
 import torch
 
 from robotmdar_textop.runtime import (
@@ -11,6 +12,7 @@ from robotmdar_textop.runtime import (
     RobotMdarGenerator,
     RobotMdarRuntime,
 )
+from textop_protocol.timing import FUTURE_STEPS
 
 
 class _FakeRobotMdarRuntime:
@@ -88,3 +90,43 @@ def test_robotmdar_generator_evicts_least_recently_used_embedding() -> None:
     assert counts[prompts[0]] == 1
     assert counts[prompts[1]] == 2
     assert len(generator._text_embeddings) == _TEXT_EMBEDDING_CACHE_SIZE
+
+
+def test_robotmdar_generator_checkpoint_holds_last_generated_pose() -> None:
+    runtime = _FakeRobotMdarRuntime()
+    generator = _generator(runtime)
+    generated = generator.next_block(
+        prompt="stand",
+        index=0,
+        guidance_scale=5.0,
+    )
+
+    checkpoint = generator.checkpoint_block(
+        index=1,
+        prompt="stand",
+        recovery_epoch=3,
+        checkpoint_id=7,
+    )
+
+    assert checkpoint.index == 1
+    assert checkpoint.control.prompt == "stand"
+    assert checkpoint.control.recovery_epoch == 3
+    assert checkpoint.control.checkpoint_id == 7
+    assert checkpoint.joint_pos.shape[0] == FUTURE_STEPS
+    assert checkpoint.joint_vel.shape[0] == FUTURE_STEPS
+    assert (checkpoint.joint_pos == generated.joint_pos[-1]).all()
+    assert (checkpoint.joint_vel == 0.0).all()
+    assert (checkpoint.anchor_pos_w == generated.anchor_pos_w[-1]).all()
+    assert (checkpoint.anchor_quat_w == generated.anchor_quat_w[-1]).all()
+    assert runtime.encoded_prompts == ["stand"]
+    assert len(runtime.generated_embeddings) == 1
+
+
+def test_robotmdar_generator_rejects_checkpoint_before_motion() -> None:
+    with pytest.raises(RuntimeError, match="before generating motion"):
+        _generator(_FakeRobotMdarRuntime()).checkpoint_block(
+            index=0,
+            prompt="stand",
+            recovery_epoch=0,
+            checkpoint_id=1,
+        )

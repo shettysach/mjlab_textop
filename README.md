@@ -156,6 +156,14 @@ For manual control, omit the VLM options and use `--planner manual`.
 Task-specific VLM instructions default to `TASK.md`; the invariant and user
 prompts live under `src/robotmdar_textop/prompt`.
 
+VLM control is synchronized by checkpoint acknowledgments. After each bounded
+command and its generated `stand` transition, the producer sends a stationary
+checkpoint block and pauses. MJLab acknowledges that exact consumed reference
+frame with an image; only then does the producer query the VLM and resume.
+Periodic observations remain available for feedback but do not trigger VLM
+decisions. The producer and consumer must use the same motion and observation
+protocol version.
+
 ### 3. Start MJLab
 
 Run this from the MJLab TextOp repository:

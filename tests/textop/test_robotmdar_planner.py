@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 import threading
-import time
 from argparse import Namespace
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
+from builders import motion_block
 
 from robotmdar_textop import produce
 from robotmdar_textop.feedback import (
@@ -29,6 +30,7 @@ from robotmdar_textop.runtime import (
     read_prompt_path,
     stream_robotmdar_blocks,
 )
+from textop_protocol.motion import MotionBlock, StreamControl
 
 
 class _FakeObservationProvider:
@@ -36,6 +38,8 @@ class _FakeObservationProvider:
         self.observation = observation
         self.started = False
         self.closed = False
+        self.checkpoints: dict[int, FeedbackObservation] = {}
+        self.waited_for: list[int] = []
 
     def start(self) -> None:
         self.started = True
@@ -45,6 +49,33 @@ class _FakeObservationProvider:
 
     def latest(self) -> FeedbackObservation | None:
         return self.observation
+
+    def acknowledge(
+        self,
+        checkpoint_id: int,
+        *,
+        image_revision: int | None = None,
+        source_frame: int | None = None,
+    ) -> FeedbackObservation:
+        observation = _observation(
+            image_revision=image_revision or checkpoint_id,
+            checkpoint_id=checkpoint_id,
+            source_frame=source_frame if source_frame is not None else checkpoint_id * 8,
+        )
+        self.observation = observation
+        self.checkpoints[checkpoint_id] = observation
+        return observation
+
+    def wait_for_checkpoint(self, checkpoint_id: int) -> FeedbackObservation:
+        self.waited_for.append(checkpoint_id)
+        if self.observation is not None and self.observation.collision_stop:
+            return self.observation
+        try:
+            return self.checkpoints.pop(checkpoint_id)
+        except KeyError as exc:
+            raise AssertionError(
+                f"checkpoint {checkpoint_id} has not been acknowledged"
+            ) from exc
 
 
 class _FakeResponse:
@@ -116,21 +147,20 @@ class _BlockingSelector:
         return VlmPromptSelection(prompt=self.prompt, reasoning=None, response={})
 
 
-def _wait_for(condition) -> None:
-    deadline = time.monotonic() + 1.0
-    while time.monotonic() < deadline:
-        if condition():
-            return
-        time.sleep(0.01)
-    raise AssertionError("condition did not become true")
-
-
 def _choose_and_mark_block_sent(
     planner: VlmPromptPlanner,
     block_count: int,
 ) -> str:
     prompt = planner.choose_prompt(block_count=block_count)
-    planner.on_block_sent(block_count=block_count)
+    block = replace(
+        motion_block(index=block_count * 8),
+        control=StreamControl(
+            prompt=prompt,
+            recovery_epoch=planner.recovery_epoch,
+            checkpoint_id=planner.checkpoint_id,
+        ),
+    )
+    planner.on_block_sent(block_count=block_count, block=block)
     return prompt
 
 
@@ -141,6 +171,8 @@ def _observation(
     image_revision: int = 1,
     collision_stop: bool = False,
     recovery_epoch: int = 0,
+    checkpoint_id: int | None = None,
+    source_frame: int | None = None,
 ) -> FeedbackObservation:
     return FeedbackObservation(
         image_bytes=image_bytes,
@@ -148,6 +180,8 @@ def _observation(
         image_revision=image_revision,
         collision_stop=collision_stop,
         recovery_epoch=recovery_epoch,
+        checkpoint_id=checkpoint_id,
+        source_frame=source_frame,
     )
 
 
@@ -158,6 +192,7 @@ def _default_vlm_user_prompt() -> str:
 def test_parse_feedback_observation() -> None:
     observation = parse_feedback_observation(
         {
+            "protocol_version": 2,
             "image": {
                 "mime_type": "image/jpeg",
                 "data": "anBlZyBieXRlcw==",
@@ -173,7 +208,11 @@ def test_parse_feedback_observation() -> None:
 
 def test_parse_collision_feedback_without_image() -> None:
     observation = parse_feedback_observation(
-        {"collision_stop": True, "recovery_epoch": 7}
+        {
+            "protocol_version": 2,
+            "collision_stop": True,
+            "recovery_epoch": 7,
+        }
     )
 
     assert observation.image_bytes is None
@@ -185,8 +224,13 @@ def test_parse_collision_feedback_without_image() -> None:
 def test_observation_receiver_merges_images_without_clearing_collision() -> None:
     receiver = HttpObservationReceiver(port=8766)
 
-    receiver.handle_post(b'{"collision_stop":true,"recovery_epoch":7}')
-    receiver.handle_post(b'{"image":{"mime_type":"image/jpeg","data":"anBlZw=="}}')
+    receiver.handle_post(
+        b'{"protocol_version":2,"collision_stop":true,"recovery_epoch":7}'
+    )
+    receiver.handle_post(
+        b'{"protocol_version":2,"image":{"mime_type":"image/jpeg",'
+        b'"data":"anBlZw=="}}'
+    )
 
     observation = receiver.latest()
     assert observation is not None
@@ -195,7 +239,9 @@ def test_observation_receiver_merges_images_without_clearing_collision() -> None
     assert observation.collision_stop is True
     assert observation.recovery_epoch == 7
 
-    receiver.handle_post(b'{"collision_stop":false,"recovery_epoch":7}')
+    receiver.handle_post(
+        b'{"protocol_version":2,"collision_stop":false,"recovery_epoch":7}'
+    )
 
     observation = receiver.latest()
     assert observation is not None
@@ -204,11 +250,42 @@ def test_observation_receiver_merges_images_without_clearing_collision() -> None
     assert observation.collision_stop is False
     assert observation.recovery_epoch == 7
 
-    receiver.handle_post(b'{"image":{"mime_type":"image/jpeg","data":"anBlZw=="}}')
+    receiver.handle_post(
+        b'{"protocol_version":2,"image":{"mime_type":"image/jpeg",'
+        b'"data":"anBlZw=="}}'
+    )
 
     observation = receiver.latest()
     assert observation is not None
     assert observation.image_revision == 2
+
+
+def test_observation_receiver_waits_for_exact_checkpoint() -> None:
+    receiver = HttpObservationReceiver(port=8766)
+    received: list[FeedbackObservation] = []
+    thread = threading.Thread(
+        target=lambda: received.append(receiver.wait_for_checkpoint(7))
+    )
+    thread.start()
+
+    receiver.handle_post(
+        b'{"protocol_version":2,"source_frame":40,'
+        b'"image":{"mime_type":"image/jpeg","data":"cGVyaW9kaWM="}}'
+    )
+    thread.join(timeout=0.05)
+    assert thread.is_alive()
+
+    receiver.handle_post(
+        b'{"protocol_version":2,"checkpoint_id":7,"source_frame":41,'
+        b'"image":{"mime_type":"image/jpeg","data":"Y2hlY2twb2ludA=="}}'
+    )
+    thread.join(timeout=1)
+
+    assert not thread.is_alive()
+    assert len(received) == 1
+    assert received[0].image_bytes == b"checkpoint"
+    assert received[0].checkpoint_id == 7
+    assert received[0].source_frame == 41
 
 
 def test_manual_prompt_planner_uses_current_prompt_without_starting_thread() -> None:
@@ -251,108 +328,88 @@ def test_manual_prompt_planner_accepts_repeated_manual_command() -> None:
     assert planner.choose_prompt(block_count=3) == "stand"
 
 
+def test_manual_prompt_planner_does_not_bound_walk_commands() -> None:
+    planner = ManualPromptPlanner("walk", command_hold_blocks=1)
+
+    assert planner.choose_prompt(block_count=0) == "walk"
+    assert planner.choose_prompt(block_count=1) == "walk"
+    assert planner.choose_prompt(block_count=2) == "walk"
+
+
 def test_command_followups_match_direction_words_only() -> None:
     assert command_followups("turn RIGHT") == ["stand"]
+    assert command_followups("walk") == []
+    assert command_followups("walk", include_walk=True) == ["stand"]
     assert command_followups("bright light") == []
     assert command_followups("move upright") == []
     assert command_followups("leftover motion") == []
 
 
-def test_vlm_planner_queries_each_image_once() -> None:
-    provider = _FakeObservationProvider(_observation())
+def test_vlm_planner_bounds_transient_command_then_emits_checkpoint() -> None:
+    provider = _FakeObservationProvider(_observation(image_revision=99))
     selector = _FixedSelector("turn left")
     planner = VlmPromptPlanner(
         feedback=provider,
         selector=selector,
-        initial_prompt="walk forward",
+        initial_prompt="walk",
+        command_hold_blocks=2,
     )
 
     planner.start()
-
     assert provider.started is True
-    assert _choose_and_mark_block_sent(planner, 0) == "walk forward"
-    assert planner.current_prompt_source == "initial"
-    assert selector.finished.wait(timeout=1)
-    assert _choose_and_mark_block_sent(planner, 1) == "turn left"
-    assert planner.current_prompt_source == "vlm"
+    assert _choose_and_mark_block_sent(planner, 0) == "walk"
+    assert _choose_and_mark_block_sent(planner, 1) == "walk"
     assert _choose_and_mark_block_sent(planner, 2) == "stand"
-    assert planner.current_prompt_source == "followup"
-    assert selector.calls == 1
     assert _choose_and_mark_block_sent(planner, 3) == "stand"
+    assert selector.calls == 0
 
-    assert selector.calls == 1
-    provider.observation = _observation(image_revision=2)
     assert _choose_and_mark_block_sent(planner, 4) == "stand"
-    _wait_for(lambda: selector.calls == 2)
+    assert planner.current_prompt_source == "checkpoint"
+    assert planner.log_suffix == " vlm=awaiting_ack checkpoint=1"
+    assert selector.calls == 0
+
+    provider.acknowledge(1, image_revision=100, source_frame=41)
+    assert planner.before_next_block() is True
+    assert provider.waited_for == [1]
+    assert selector.calls == 1
+    assert _choose_and_mark_block_sent(planner, 5) == "turn left"
+    assert planner.current_prompt_source == "vlm"
+    assert "last_ack=(checkpoint: 1, source_frame: 41)" in planner.log_suffix
 
     planner.request_stop()
-
     assert provider.closed is True
 
 
-def test_vlm_planner_forces_stand_until_collision_recovery_clears() -> None:
-    provider = _FakeObservationProvider(
-        _observation(collision_stop=True, recovery_epoch=7)
-    )
-    selector = _FixedSelector("walk forward")
+def test_vlm_planner_queries_only_exact_checkpoint_observations() -> None:
+    provider = _FakeObservationProvider(_observation(image_revision=1))
+    selector = _FixedSelector("wave")
     planner = VlmPromptPlanner(
         feedback=provider,
         selector=selector,
-        initial_prompt="walk forward",
+        initial_prompt="stand",
     )
 
     assert _choose_and_mark_block_sent(planner, 0) == "stand"
-    assert planner.current_prompt_source == "collision_recovery"
-    assert planner.recovery_epoch == 7
+    provider.observation = _observation(image_revision=500)
     assert _choose_and_mark_block_sent(planner, 1) == "stand"
+    assert planner.current_prompt_source == "checkpoint"
     assert selector.calls == 0
 
-    provider.observation = _observation(image_revision=2, collision_stop=False)
+    provider.acknowledge(1, image_revision=7, source_frame=88)
+    assert planner.before_next_block() is True
 
-    assert _choose_and_mark_block_sent(planner, 2) == "stand"
-    assert selector.finished.wait(timeout=1)
-    assert _choose_and_mark_block_sent(planner, 3) == "walk forward"
-
-    planner.request_stop()
-
-
-def test_vlm_planner_locally_schedules_stand_after_lateral_command() -> None:
-    provider = _FakeObservationProvider(_observation())
-    selector = _FixedSelector("step RIGHT")
-    planner = VlmPromptPlanner(
-        feedback=provider,
-        selector=selector,
-        initial_prompt="walk forward",
-        command_hold_blocks=3,
-    )
-
-    assert _choose_and_mark_block_sent(planner, 0) == "walk forward"
-    assert selector.finished.wait(timeout=1)
-
-    assert _choose_and_mark_block_sent(planner, 1) == "step RIGHT"
-    assert planner.current_prompt_source == "vlm"
     assert selector.calls == 1
-
-    assert _choose_and_mark_block_sent(planner, 2) == "step RIGHT"
-    assert _choose_and_mark_block_sent(planner, 3) == "step RIGHT"
-    assert selector.calls == 1
-
-    assert _choose_and_mark_block_sent(planner, 4) == "stand"
-    assert planner.current_prompt_source == "followup"
-    assert _choose_and_mark_block_sent(planner, 5) == "stand"
-    assert _choose_and_mark_block_sent(planner, 6) == "stand"
-    assert selector.calls == 1
-
-    provider.observation = _observation(image_revision=2)
-    assert _choose_and_mark_block_sent(planner, 7) == "stand"
-    assert planner.current_prompt_source == "wait"
-    _wait_for(lambda: selector.calls == 2)
-
-    planner.request_stop()
+    assert selector.execution_contexts == [
+        VlmExecutionContext(
+            previous_decision=None,
+            executed_sequence=("stand",),
+            current_command="stand",
+        )
+    ]
 
 
-def test_vlm_planner_reports_executed_followup_to_next_query() -> None:
-    provider = _FakeObservationProvider(_observation())
+def test_vlm_planner_reports_completed_followup_to_next_query() -> None:
+    provider = _FakeObservationProvider()
     selector = _FixedSelector("turn right")
     planner = VlmPromptPlanner(
         feedback=provider,
@@ -362,14 +419,18 @@ def test_vlm_planner_reports_executed_followup_to_next_query() -> None:
     )
 
     assert _choose_and_mark_block_sent(planner, 0) == "stand"
-    assert selector.finished.wait(timeout=1)
-    assert _choose_and_mark_block_sent(planner, 1) == "turn right"
-    assert _choose_and_mark_block_sent(planner, 2) == "turn right"
-    assert _choose_and_mark_block_sent(planner, 3) == "stand"
-    provider.observation = _observation(image_revision=2)
-    assert _choose_and_mark_block_sent(planner, 4) == "stand"
+    assert _choose_and_mark_block_sent(planner, 1) == "stand"
+    assert _choose_and_mark_block_sent(planner, 2) == "stand"
+    provider.acknowledge(1)
+    assert planner.before_next_block() is True
+
+    assert _choose_and_mark_block_sent(planner, 3) == "turn right"
+    assert _choose_and_mark_block_sent(planner, 4) == "turn right"
     assert _choose_and_mark_block_sent(planner, 5) == "stand"
-    _wait_for(lambda: selector.calls == 2)
+    assert _choose_and_mark_block_sent(planner, 6) == "stand"
+    assert _choose_and_mark_block_sent(planner, 7) == "stand"
+    provider.acknowledge(2)
+    assert planner.before_next_block() is True
 
     assert selector.execution_contexts[1] == VlmExecutionContext(
         previous_decision="turn right",
@@ -377,135 +438,10 @@ def test_vlm_planner_reports_executed_followup_to_next_query() -> None:
         current_command="stand",
     )
 
-    planner.request_stop()
 
-
-def test_vlm_planner_does_not_block_while_selector_runs() -> None:
-    provider = _FakeObservationProvider(_observation())
+def test_vlm_planner_pauses_while_selector_runs() -> None:
+    provider = _FakeObservationProvider()
     selector = _BlockingSelector("turn right")
-    planner = VlmPromptPlanner(
-        feedback=provider,
-        selector=selector,
-        initial_prompt="walk forward",
-    )
-
-    assert planner.choose_prompt(block_count=0) == "walk forward"
-    assert not selector.started.wait(timeout=0.05)
-
-    planner.on_block_sent(block_count=0)
-
-    assert selector.started.wait(timeout=1)
-    assert planner.log_suffix == (
-        " vlm=inflight last_q=(block: 0, img_revision: 1)"
-    )
-    assert _choose_and_mark_block_sent(planner, 1) == "walk forward"
-    assert selector.calls == 1
-
-    selector.release.set()
-    assert selector.finished.wait(timeout=1)
-    assert _choose_and_mark_block_sent(planner, 2) == "turn right"
-    assert planner.log_suffix == (
-        " vlm=idle last_q=(block: 0, img_revision: 1)"
-    )
-
-    planner.request_stop()
-
-
-def test_vlm_planner_coalesces_images_while_request_is_inflight() -> None:
-    provider = _FakeObservationProvider(_observation(image_revision=1))
-    selector = _BlockingSelector("turn right")
-    planner = VlmPromptPlanner(
-        feedback=provider,
-        selector=selector,
-        initial_prompt="walk forward",
-    )
-
-    assert _choose_and_mark_block_sent(planner, 0) == "walk forward"
-    assert selector.started.wait(timeout=1)
-
-    provider.observation = _observation(image_revision=2)
-    assert _choose_and_mark_block_sent(planner, 1) == "walk forward"
-    provider.observation = _observation(image_revision=3)
-
-    selector.release.set()
-    assert selector.finished.wait(timeout=1)
-    assert _choose_and_mark_block_sent(planner, 2) == "turn right"
-    assert _choose_and_mark_block_sent(planner, 3) == "stand"
-    assert _choose_and_mark_block_sent(planner, 4) == "stand"
-    _wait_for(lambda: selector.calls == 2)
-
-    assert selector.image_revisions == [1, 3]
-    planner.request_stop()
-
-
-def test_vlm_planner_ignores_observations_without_images() -> None:
-    provider = _FakeObservationProvider(
-        _observation(
-            image_bytes=None,
-            image_mime_type=None,
-            image_revision=0,
-        )
-    )
-    selector = _FixedSelector("turn right")
-    planner = VlmPromptPlanner(
-        feedback=provider,
-        selector=selector,
-        initial_prompt="walk forward",
-    )
-
-    assert _choose_and_mark_block_sent(planner, 0) == "walk forward"
-    assert selector.calls == 0
-
-    planner.request_stop()
-
-
-def test_vlm_planner_keeps_current_prompt_on_selector_errors() -> None:
-    provider = _FakeObservationProvider(_observation())
-    selector = _FailingSelector()
-    planner = VlmPromptPlanner(
-        feedback=provider,
-        selector=selector,
-        initial_prompt="walk forward",
-    )
-
-    assert _choose_and_mark_block_sent(planner, 0) == "walk forward"
-    assert selector.finished.wait(timeout=1)
-    assert _choose_and_mark_block_sent(planner, 1) == "walk forward"
-    assert selector.calls == 1
-    assert planner.last_error == "TimeoutError: vlm timed out"
-    assert planner.current_prompt_source == "initial"
-    assert (
-        planner.log_suffix == " vlm=idle last_q=(block: 0, img_revision: 1)"
-        " error='TimeoutError: vlm timed out'"
-    )
-
-    planner.request_stop()
-
-
-def test_vlm_planner_keeps_last_good_prompt_on_empty_selector_result() -> None:
-    provider = _FakeObservationProvider(_observation())
-    selector = _FixedSelector("   ")
-    planner = VlmPromptPlanner(
-        feedback=provider,
-        selector=selector,
-        initial_prompt="walk forward",
-    )
-
-    assert _choose_and_mark_block_sent(planner, 0) == "walk forward"
-    assert selector.finished.wait(timeout=1)
-    assert _choose_and_mark_block_sent(planner, 1) == "   "
-    assert planner.last_error is None
-    assert planner.current_prompt_source == "vlm"
-    assert planner.log_suffix == (
-        " vlm=idle last_q=(block: 0, img_revision: 1)"
-    )
-
-    planner.request_stop()
-
-
-def test_vlm_planner_recovers_after_empty_selector_result() -> None:
-    provider = _FakeObservationProvider(_observation())
-    selector = _FixedSelector("   ")
     planner = VlmPromptPlanner(
         feedback=provider,
         selector=selector,
@@ -513,25 +449,100 @@ def test_vlm_planner_recovers_after_empty_selector_result() -> None:
     )
 
     assert _choose_and_mark_block_sent(planner, 0) == "stand"
-    assert selector.finished.wait(timeout=1)
-    assert _choose_and_mark_block_sent(planner, 1) == "   "
+    assert _choose_and_mark_block_sent(planner, 1) == "stand"
+    provider.acknowledge(1)
 
-    selector.prompt = " wave "
-    selector.finished.clear()
-    provider.observation = _observation(image_revision=2)
-    assert _choose_and_mark_block_sent(planner, 2) == "   "
-    assert selector.finished.wait(timeout=1)
-    assert _choose_and_mark_block_sent(planner, 3) == " wave "
-    assert planner.last_error is None
-    assert planner.current_prompt_source == "vlm"
+    result: list[bool] = []
+    thread = threading.Thread(target=lambda: result.append(planner.before_next_block()))
+    thread.start()
+    assert selector.started.wait(timeout=1)
+    assert thread.is_alive()
+    assert selector.calls == 1
 
-    planner.request_stop()
+    selector.release.set()
+    thread.join(timeout=1)
+    assert not thread.is_alive()
+    assert result == [True]
+    assert _choose_and_mark_block_sent(planner, 2) == "turn right"
+
+
+def test_vlm_planner_discards_selection_if_collision_arrives_during_query() -> None:
+    provider = _FakeObservationProvider()
+    selector = _BlockingSelector("walk")
+    planner = VlmPromptPlanner(
+        feedback=provider,
+        selector=selector,
+        initial_prompt="stand",
+    )
+
+    assert _choose_and_mark_block_sent(planner, 0) == "stand"
+    assert _choose_and_mark_block_sent(planner, 1) == "stand"
+    provider.acknowledge(1)
+
+    thread = threading.Thread(target=planner.before_next_block)
+    thread.start()
+    assert selector.started.wait(timeout=1)
+    provider.observation = _observation(collision_stop=True, recovery_epoch=9)
+    selector.release.set()
+    thread.join(timeout=1)
+
+    assert not thread.is_alive()
+    assert _choose_and_mark_block_sent(planner, 2) == "stand"
+    assert planner.current_prompt_source == "collision_recovery"
+    assert planner.recovery_epoch == 9
+
+
+def test_vlm_planner_recovers_from_collision_while_awaiting_ack() -> None:
+    provider = _FakeObservationProvider()
+    selector = _FixedSelector("walk")
+    planner = VlmPromptPlanner(
+        feedback=provider,
+        selector=selector,
+        initial_prompt="stand",
+    )
+
+    assert _choose_and_mark_block_sent(planner, 0) == "stand"
+    assert _choose_and_mark_block_sent(planner, 1) == "stand"
+    provider.observation = _observation(collision_stop=True, recovery_epoch=12)
+
+    assert planner.before_next_block() is True
+    assert selector.calls == 0
+    assert _choose_and_mark_block_sent(planner, 2) == "stand"
+    assert planner.current_prompt_source == "collision_recovery"
+
+    provider.observation = _observation(collision_stop=False, recovery_epoch=12)
+    assert _choose_and_mark_block_sent(planner, 3) == "stand"
+    assert planner.current_prompt_source == "followup"
+    assert _choose_and_mark_block_sent(planner, 4) == "stand"
+    assert planner.current_prompt_source == "checkpoint"
+
+
+def test_vlm_planner_fails_closed_on_selector_error() -> None:
+    provider = _FakeObservationProvider()
+    selector = _FailingSelector()
+    planner = VlmPromptPlanner(
+        feedback=provider,
+        selector=selector,
+        initial_prompt="stand",
+    )
+
+    assert _choose_and_mark_block_sent(planner, 0) == "stand"
+    assert _choose_and_mark_block_sent(planner, 1) == "stand"
+    provider.acknowledge(1)
+
+    with pytest.raises(RuntimeError, match="VLM request failed"):
+        planner.before_next_block()
+
+    assert planner.should_stop is True
+    assert planner.last_error == "TimeoutError: vlm timed out"
+    assert "error='TimeoutError: vlm timed out'" in planner.log_suffix
 
 
 def test_producer_log_prints_vlm_reasoning_once_when_enabled(monkeypatch) -> None:
     messages = []
+    provider = _FakeObservationProvider()
     planner = VlmPromptPlanner(
-        feedback=_FakeObservationProvider(_observation()),
+        feedback=provider,
         selector=_FixedSelector(
             "wave",
             reasoning="The robot is stable, so waving is feasible.",
@@ -542,8 +553,10 @@ def test_producer_log_prints_vlm_reasoning_once_when_enabled(monkeypatch) -> Non
     monkeypatch.setattr(produce, "_log_producer_message", messages.append)
 
     assert _choose_and_mark_block_sent(planner, 0) == "stand"
-    assert planner.selector.finished.wait(timeout=1)
-    assert _choose_and_mark_block_sent(planner, 1) == "wave"
+    assert _choose_and_mark_block_sent(planner, 1) == "stand"
+    provider.acknowledge(1)
+    assert planner.before_next_block() is True
+    assert _choose_and_mark_block_sent(planner, 2) == "wave"
 
     args = Namespace(vlm_reasoning=True)
     produce._log_vlm_reasoning_if_available(planner=planner, args=args)
@@ -553,10 +566,8 @@ def test_producer_log_prints_vlm_reasoning_once_when_enabled(monkeypatch) -> Non
         "vlm_reasoning The robot is stable, so waving is feasible.",
     ]
 
-    planner.request_stop()
 
-
-def test_stream_submits_planner_work_after_generation_and_logs_change(
+def test_stream_runs_controller_hooks_around_generation_and_logs_change(
     monkeypatch,
 ) -> None:
     events = []
@@ -566,12 +577,18 @@ def test_stream_submits_planner_work_after_generation_and_logs_change(
         input_active = False
         log_suffix = ""
         recovery_epoch = 0
+        checkpoint_id = None
+
+        def before_next_block(self) -> bool:
+            events.append(("before", None))
+            return False
 
         def choose_prompt(self, *, block_count: int) -> str:
             events.append(("choose", block_count))
             return "stand"
 
-        def on_block_sent(self, *, block_count: int) -> None:
+        def on_block_sent(self, *, block_count: int, block: MotionBlock) -> None:
+            del block
             events.append(("planner", block_count))
             self.should_stop = True
 
@@ -600,12 +617,97 @@ def test_stream_submits_planner_work_after_generation_and_logs_change(
     )
 
     assert events == [
+        ("before", None),
         ("choose", 0),
         ("generate", 0),
         ("send", b"block"),
         ("planner", 0),
         ("log", None),
     ]
+
+
+def test_stream_stops_generating_until_checkpoint_is_acknowledged(
+    monkeypatch,
+) -> None:
+    wait_started = threading.Event()
+    release_ack = threading.Event()
+
+    class BlockingProvider(_FakeObservationProvider):
+        def wait_for_checkpoint(self, checkpoint_id: int) -> FeedbackObservation:
+            self.waited_for.append(checkpoint_id)
+            wait_started.set()
+            assert release_ack.wait(timeout=1)
+            return _observation(
+                checkpoint_id=checkpoint_id,
+                source_frame=17,
+            )
+
+    class Generator:
+        def next_block(self, **kwargs) -> MotionBlock:
+            return replace(
+                motion_block(index=kwargs["index"]),
+                control=StreamControl(prompt=kwargs["prompt"]),
+            )
+
+        def checkpoint_block(self, **kwargs) -> MotionBlock:
+            return replace(
+                motion_block(index=kwargs["index"]),
+                control=StreamControl(
+                    prompt=kwargs["prompt"],
+                    checkpoint_id=kwargs["checkpoint_id"],
+                ),
+            )
+
+    provider = BlockingProvider()
+    planner = VlmPromptPlanner(
+        feedback=provider,
+        selector=_FixedSelector("wave"),
+        initial_prompt="stand",
+    )
+    sent: list[MotionBlock] = []
+
+    class Connection:
+        def sendall(self, block: MotionBlock) -> None:
+            sent.append(block)
+            if len(sent) == 3:
+                planner.request_stop()
+
+    monkeypatch.setattr(
+        "robotmdar_textop.runtime.textop_block_to_wire",
+        lambda block: block,
+    )
+    monkeypatch.setattr("robotmdar_textop.runtime.time.sleep", lambda _delay: None)
+    errors: list[BaseException] = []
+
+    def run_stream() -> None:
+        try:
+            stream_robotmdar_blocks(
+                conn=Connection(),
+                generator=Generator(),
+                prompt_controller=planner,
+                cfg=StreamConfig(guidance_scale=5.0, log_every_blocks=0),
+                log_message=lambda _message: None,
+                prompt_source=lambda controller: controller.current_prompt_source,
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    thread = threading.Thread(target=run_stream)
+    thread.start()
+    assert wait_started.wait(timeout=1)
+
+    assert len(sent) == 2
+    assert sent[0].control.prompt == "stand"
+    assert sent[0].control.checkpoint_id is None
+    assert sent[1].control.checkpoint_id == 1
+    assert thread.is_alive()
+
+    release_ack.set()
+    thread.join(timeout=1)
+
+    assert not thread.is_alive()
+    assert errors == []
+    assert [block.control.prompt for block in sent] == ["stand", "stand", "wave"]
 
 
 def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> None:

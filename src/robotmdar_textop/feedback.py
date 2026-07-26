@@ -19,6 +19,8 @@ class FeedbackObservation:
     image_revision: int = 0
     collision_stop: bool = False
     recovery_epoch: int = 0
+    checkpoint_id: int | None = None
+    source_frame: int | None = None
 
 
 class HttpObservationReceiver:
@@ -37,14 +39,18 @@ class HttpObservationReceiver:
         self.port = port
         self.path = path
         self._lock = threading.Lock()
+        self._condition = threading.Condition(self._lock)
         self._thread: threading.Thread | None = None
         self._server: ThreadingHTTPServer | None = None
         self._latest: FeedbackObservation | None = None
+        self._checkpoints: dict[int, FeedbackObservation] = {}
+        self._closed = False
         self.last_error: str | None = None
 
     def start(self) -> None:
         if self._thread is not None and self._thread.is_alive():
             return
+        self._closed = False
         self._server = self._make_server()
         self._thread = threading.Thread(
             target=self._server.serve_forever,
@@ -53,6 +59,9 @@ class HttpObservationReceiver:
         self._thread.start()
 
     def close(self) -> None:
+        with self._condition:
+            self._closed = True
+            self._condition.notify_all()
         if self._server is not None:
             self._server.shutdown()
             self._server.server_close()
@@ -65,14 +74,33 @@ class HttpObservationReceiver:
         with self._lock:
             return self._latest
 
+    def wait_for_checkpoint(self, checkpoint_id: int) -> FeedbackObservation:
+        with self._condition:
+            while True:
+                if self.last_error is not None:
+                    raise RuntimeError(self.last_error)
+                if self._latest is not None and self._latest.collision_stop:
+                    return self._latest
+                observation = self._checkpoints.pop(checkpoint_id, None)
+                if observation is not None:
+                    return observation
+                if self._closed:
+                    raise RuntimeError("Observation receiver closed while waiting")
+                self._condition.wait()
+
     def handle_post(self, body: bytes) -> None:
         try:
             message = parse_observation_json(body)
         except (TypeError, ValueError) as exc:
-            self.last_error = str(exc)
+            with self._condition:
+                self.last_error = str(exc)
+                self._condition.notify_all()
             raise
-        with self._lock:
+        with self._condition:
             self._latest = merge_feedback_message(self._latest, message)
+            if message.checkpoint_id is not None:
+                self._checkpoints[message.checkpoint_id] = self._latest
+            self._condition.notify_all()
 
     def _make_server(self) -> ThreadingHTTPServer:
         receiver = self
@@ -113,10 +141,14 @@ def merge_feedback_message(
     image_bytes = previous.image_bytes
     image_mime_type = previous.image_mime_type
     image_revision = previous.image_revision
+    checkpoint_id = previous.checkpoint_id
+    source_frame = previous.source_frame
     if message.image is not None:
         image_bytes = message.image.data
         image_mime_type = message.image.mime_type
         image_revision += 1
+        checkpoint_id = message.checkpoint_id
+        source_frame = message.source_frame
 
     return FeedbackObservation(
         image_bytes=image_bytes,
@@ -132,4 +164,6 @@ def merge_feedback_message(
             if message.recovery_epoch is None
             else message.recovery_epoch
         ),
+        checkpoint_id=checkpoint_id,
+        source_frame=source_frame,
     )

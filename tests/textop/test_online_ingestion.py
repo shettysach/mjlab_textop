@@ -38,6 +38,34 @@ def test_recovery_realigns_producer_indices_and_keeps_mapping_afterward() -> Non
     assert buffer.latest_index == 15
 
 
+def test_recovery_preserves_checkpoint_and_source_frame_mapping() -> None:
+    recovery_block = replace(
+        motion_block(index=24, frames=8),
+        control=StreamControl(
+            prompt="stand",
+            recovery_epoch=2,
+            checkpoint_id=11,
+        ),
+    )
+    buffer = RollingMotionBuffer()
+    ingestor = OnlineBlockIngestor(
+        QueueOnlineSource([recovery_block]),
+        buffer,
+        live=True,
+    )
+
+    ingestor.begin_recovery()
+    assert ingestor.poll_recovery(
+        max_blocks=1,
+        current_frame=4,
+        future_steps=5,
+        accepts=lambda block: True,
+    )
+
+    assert buffer.checkpoint_id_at(4) == 11
+    assert ingestor.source_frame(4) == 24
+
+
 def test_recovery_discards_blocks_rejected_by_its_policy() -> None:
     rejected = motion_block(index=8, frames=8)
     accepted = replace(

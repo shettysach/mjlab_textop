@@ -24,6 +24,7 @@ from robotmdar_textop.runtime import (
     read_prompt_path,
     stream_robotmdar_blocks,
 )
+from textop_protocol.motion import MotionBlock
 
 
 def run_debug(args: argparse.Namespace) -> None:
@@ -117,12 +118,19 @@ class PromptStateController:
     def recovery_epoch(self) -> int:
         return 0
 
+    @property
+    def checkpoint_id(self) -> int | None:
+        return None
+
+    def before_next_block(self) -> bool:
+        return False
+
     def choose_prompt(self, *, block_count: int) -> str:
         del block_count
         return self.prompt.text
 
-    def on_block_sent(self, *, block_count: int) -> None:
-        del block_count
+    def on_block_sent(self, *, block_count: int, block: MotionBlock) -> None:
+        del block_count, block
 
 
 def _prompt_loop(

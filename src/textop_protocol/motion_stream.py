@@ -20,9 +20,10 @@ from textop_protocol.motion import (
 )
 
 _MAGIC = b"TXOP"
-_VERSION = 1
+_VERSION = 2
 _PROMPT_PRESENT = 1
-_HEADER = struct.Struct("!4sBBHqqII")
+_NO_CHECKPOINT = -1
+_HEADER = struct.Struct("!4sBBHqqqII")
 _FLOATS_PER_FRAME = 29 + 29 + 3 + 4
 _MAX_FRAMES_PER_BLOCK = 4_096
 _MAX_PROMPT_BYTES = 64 * 1024
@@ -46,6 +47,11 @@ def textop_block_to_wire(block: MotionBlock) -> bytes:
         0,
         block.index,
         block.control.recovery_epoch,
+        (
+            _NO_CHECKPOINT
+            if block.control.checkpoint_id is None
+            else block.control.checkpoint_id
+        ),
         frame_count,
         len(prompt_bytes),
     )
@@ -66,9 +72,17 @@ def textop_block_from_wire(record: bytes) -> MotionBlock:
 
     if len(record) < _HEADER.size:
         raise ValueError("Live block record is shorter than its header")
-    magic, version, flags, reserved, index, recovery_epoch, frames, prompt_size = (
-        _HEADER.unpack_from(record)
-    )
+    (
+        magic,
+        version,
+        flags,
+        reserved,
+        index,
+        recovery_epoch,
+        checkpoint_id,
+        frames,
+        prompt_size,
+    ) = _HEADER.unpack_from(record)
     _validate_header(
         magic=magic,
         version=version,
@@ -108,7 +122,13 @@ def textop_block_from_wire(record: bytes) -> MotionBlock:
                 anchor_pos_w=values[velocity_end:position_end].reshape(frames, 3),
                 anchor_quat_w=values[position_end:].reshape(frames, 4),
             ),
-            control=StreamControl(prompt=prompt, recovery_epoch=recovery_epoch),
+            control=StreamControl(
+                prompt=prompt,
+                recovery_epoch=recovery_epoch,
+                checkpoint_id=(
+                    None if checkpoint_id == _NO_CHECKPOINT else checkpoint_id
+                ),
+            ),
         )
     )
 
@@ -119,7 +139,7 @@ def recv_textop_block(sock: socket.socket) -> MotionBlock | None:
     header = _recv_exact(sock, _HEADER.size, allow_eof=True)
     if header is None:
         return None
-    magic, version, flags, reserved, _index, _epoch, frames, prompt_size = (
+    magic, version, flags, reserved, _index, _epoch, _checkpoint, frames, prompt_size = (
         _HEADER.unpack(header)
     )
     _validate_header(

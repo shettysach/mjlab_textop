@@ -19,7 +19,7 @@ from mjlab_textop.core.online.source import StreamControl
 def test_textop_block_binary_round_trip() -> None:
     block = replace(
         motion_block(index=100, frames=8),
-        control=StreamControl(prompt="stand", recovery_epoch=3),
+        control=StreamControl(prompt="stand", recovery_epoch=3, checkpoint_id=9),
     )
 
     record = textop_block_to_wire(block)
@@ -29,6 +29,7 @@ def test_textop_block_binary_round_trip() -> None:
     assert parsed.index == 100
     assert parsed.control.prompt == "stand"
     assert parsed.control.recovery_epoch == 3
+    assert parsed.control.checkpoint_id == 9
     assert parsed.joint_pos.flags.writeable
     assert parsed.joint_vel.flags.writeable
     assert parsed.anchor_pos_w.flags.writeable
@@ -52,6 +53,14 @@ def test_textop_block_parser_rejects_corrupt_magic() -> None:
     record[:4] = b"NOPE"
 
     with pytest.raises(ValueError, match="magic"):
+        textop_block_from_wire(bytes(record))
+
+
+def test_textop_block_parser_rejects_old_protocol_version() -> None:
+    record = bytearray(textop_block_to_wire(motion_block(index=0, frames=8)))
+    record[4] = 1
+
+    with pytest.raises(ValueError, match="Unsupported live motion stream version: 1"):
         textop_block_from_wire(bytes(record))
 
 

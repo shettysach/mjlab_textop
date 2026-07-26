@@ -9,14 +9,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+import numpy as np
+
 from robotmdar_textop.logging import format_stream_status
 from robotmdar_textop.motion import (
     robotmdar_motion_dict_to_block,
     slice_motion_dict_tail,
 )
-from textop_protocol.motion import MotionBlock
+from textop_protocol.motion import MotionBlock, MotionFrames, StreamControl
 from textop_protocol.motion_stream import textop_block_to_wire
-from textop_protocol.timing import FPS
+from textop_protocol.timing import FPS, FUTURE_STEPS
 
 PROMPT_DIR = Path(__file__).resolve().parent / "prompt"
 DEFAULT_VLM_SYSTEM_PROMPT_FILE = Path("TASK.md")
@@ -41,7 +43,12 @@ class PromptController(Protocol):
 
     def choose_prompt(self, *, block_count: int) -> str: ...
 
-    def on_block_sent(self, *, block_count: int) -> None: ...
+    def before_next_block(self) -> bool: ...
+
+    @property
+    def checkpoint_id(self) -> int | None: ...
+
+    def on_block_sent(self, *, block_count: int, block: MotionBlock) -> None: ...
 
 
 class RobotMdarGeneratorArgs(Protocol):
@@ -80,6 +87,7 @@ class RobotMdarGenerator:
     history_len: int
     future_len: int
     abs_pose: Any
+    _last_block: MotionBlock | None = field(default=None, init=False, repr=False)
     _text_embeddings: OrderedDict[str, Any] = field(
         default_factory=OrderedDict,
         init=False,
@@ -107,11 +115,43 @@ class RobotMdarGenerator:
             guidance_scale=guidance_scale,
         )
         self.history_motion = future_motion[:, -self.history_len :, :]
-        return robotmdar_motion_dict_to_block(
+        block = robotmdar_motion_dict_to_block(
             slice_motion_dict_tail(motion_dict, self.future_len),
             index=index,
             prompt=prompt,
             recovery_epoch=recovery_epoch,
+        )
+        self._last_block = block
+        return block
+
+    def checkpoint_block(
+        self,
+        *,
+        index: int,
+        prompt: str,
+        recovery_epoch: int,
+        checkpoint_id: int,
+    ) -> MotionBlock:
+        if self._last_block is None:
+            raise RuntimeError("Cannot create a checkpoint before generating motion")
+        previous = self._last_block
+
+        def repeat_last(value: np.ndarray) -> np.ndarray:
+            return np.repeat(value[-1:], FUTURE_STEPS, axis=0)
+
+        return MotionBlock(
+            index=index,
+            motion=MotionFrames(
+                joint_pos=repeat_last(previous.joint_pos),
+                joint_vel=np.zeros_like(repeat_last(previous.joint_vel)),
+                anchor_pos_w=repeat_last(previous.anchor_pos_w),
+                anchor_quat_w=repeat_last(previous.anchor_quat_w),
+            ),
+            control=StreamControl(
+                prompt=prompt,
+                recovery_epoch=recovery_epoch,
+                checkpoint_id=checkpoint_id,
+            ),
         )
 
     def _text_embedding(self, prompt: str) -> Any:
@@ -278,6 +318,8 @@ def stream_robotmdar_blocks(
     previous_command: tuple[str, str] | None = None
 
     while not prompt_controller.should_stop:
+        if prompt_controller.before_next_block():
+            next_send_time = time.monotonic()
         block_start_time = time.monotonic()
         current_prompt = prompt_controller.choose_prompt(block_count=block_count)
         current_source = prompt_source(prompt_controller)
@@ -287,17 +329,26 @@ def stream_robotmdar_blocks(
         if after_prompt is not None:
             after_prompt(prompt_controller)
 
-        block = generator.next_block(
-            prompt=current_prompt,
-            index=frame_index,
-            guidance_scale=cfg.guidance_scale,
-            recovery_epoch=prompt_controller.recovery_epoch,
+        checkpoint_id = prompt_controller.checkpoint_id
+        block = (
+            generator.checkpoint_block(
+                prompt=current_prompt,
+                index=frame_index,
+                recovery_epoch=prompt_controller.recovery_epoch,
+                checkpoint_id=checkpoint_id,
+            )
+            if checkpoint_id is not None
+            else generator.next_block(
+                prompt=current_prompt,
+                index=frame_index,
+                guidance_scale=cfg.guidance_scale,
+                recovery_epoch=prompt_controller.recovery_epoch,
+            )
         )
         conn.sendall(textop_block_to_wire(block))
-        # Start asynchronous planner work only after motion generation so a
-        # colocated VLM can use the real-time pacing window instead of
-        # contending with RobotMDAR for the GPU.
-        prompt_controller.on_block_sent(block_count=block_count)
+        # A checkpoint transitions the controller into its acknowledgment
+        # barrier only after the complete marker block is on the wire.
+        prompt_controller.on_block_sent(block_count=block_count, block=block)
 
         block_frames = block.joint_pos.shape[0]
         frame_index += block_frames

@@ -216,6 +216,16 @@ class OnlineMotionCommand(CommandTerm):
                 OnlineObservationState(
                     frame=self.current_frame,
                     started=self._clock.started,
+                    source_frame=(
+                        self._ingestor.source_frame(self.current_frame)
+                        if self._clock.started
+                        else None
+                    ),
+                    checkpoint_id=(
+                        self.buffer.checkpoint_id_at(self.current_frame)
+                        if self._clock.started
+                        else None
+                    ),
                 )
             )
 

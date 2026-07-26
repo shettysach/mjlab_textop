@@ -67,6 +67,7 @@ class _RecordingObservationPublisher:
         self.images = []
         self.collision_stops = []
         self.collision_events = []
+        self.checkpoints = []
 
     def publish(
         self,
@@ -74,12 +75,16 @@ class _RecordingObservationPublisher:
         image=None,
         collision_stop=None,
         recovery_epoch=None,
+        checkpoint_id=None,
+        source_frame=None,
     ) -> None:
         if image is not None:
             self.images.append(image)
         if collision_stop is not None:
             self.collision_stops.append(collision_stop)
             self.collision_events.append((collision_stop, recovery_epoch))
+        if checkpoint_id is not None:
+            self.checkpoints.append((checkpoint_id, source_frame))
 
 
 class _BlockingObservationPublisher:
@@ -92,6 +97,7 @@ class _BlockingObservationPublisher:
         self.started = started
         self.release = release
         self.publish_count = 0
+        self.published = []
 
     def publish(
         self,
@@ -99,11 +105,14 @@ class _BlockingObservationPublisher:
         image=None,
         collision_stop=None,
         recovery_epoch=None,
+        checkpoint_id=None,
+        source_frame=None,
     ) -> None:
         del image
         del collision_stop
         del recovery_epoch
         self.publish_count += 1
+        self.published.append((checkpoint_id, source_frame))
         self.started.set()
         assert self.release.wait(timeout=1.0)
 
@@ -178,6 +187,20 @@ def test_rolling_buffer_stages_each_motion_field_once_per_block(monkeypatch) -> 
     RollingMotionBuffer().append_block(motion_block(frames=8))
 
     assert tensor_shapes == [(8, 29), (8, 29), (8, 3), (8, 4)]
+
+
+def test_rolling_buffer_marks_checkpoint_on_first_block_frame_only() -> None:
+    buffer = RollingMotionBuffer()
+    block = replace(
+        motion_block(index=20, frames=8),
+        control=StreamControl(prompt="stand", checkpoint_id=7),
+    )
+
+    buffer.append_block(block)
+
+    assert buffer.checkpoint_id_at(20) == 7
+    assert buffer.checkpoint_id_at(21) is None
+    assert buffer.checkpoint_id_at(27) is None
 
 
 def test_rolling_buffer_overwrites_overlapping_block_frames() -> None:
@@ -925,6 +948,100 @@ def test_online_observation_reporter_drops_observation_while_publish_inflight(
     assert publisher.publish_count == 2
 
 
+def test_online_observation_reporter_never_drops_checkpoint_under_backpressure(
+    monkeypatch,
+) -> None:
+    started = threading.Event()
+    release = threading.Event()
+    publisher = _BlockingObservationPublisher(started=started, release=release)
+    snapshots = []
+    monkeypatch.setattr(
+        "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._capture_render_snapshot",
+        lambda self: snapshots.append(object()) or snapshots[-1],
+    )
+    monkeypatch.setattr(
+        "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._render_image",
+        lambda self, snapshot: np.zeros((1, 1, 3), dtype=np.uint8),
+    )
+    monkeypatch.setattr(
+        "mjlab_textop.core.feedback.online_reporter.encode_render_image_jpeg",
+        lambda image: b"jpeg",
+    )
+    reporter = OnlineObservationReporter(
+        OnlineObservationCfg(publisher=publisher, publish_interval=100),
+        fake_env(),
+    )
+
+    reporter.maybe_publish(_observation_state(frame=0))
+    assert started.wait(timeout=1.0)
+    reporter.maybe_publish(
+        _observation_state(frame=2, checkpoint_id=7, source_frame=102)
+    )
+
+    assert len(snapshots) == 2
+    assert publisher.published == [(None, 0)]
+
+    release.set()
+    _wait_for_reporter_publish(reporter)
+    reporter.maybe_publish(_observation_state(frame=3))
+    _wait_for_reporter_publish(reporter)
+
+    assert publisher.published == [(None, 0), (7, 102)]
+
+
+def test_online_observation_reporter_retries_failed_checkpoint(monkeypatch) -> None:
+    class FailOncePublisher:
+        def __init__(self) -> None:
+            self.published = []
+
+        def publish(
+            self,
+            *,
+            image=None,
+            collision_stop=None,
+            recovery_epoch=None,
+            checkpoint_id=None,
+            source_frame=None,
+        ) -> None:
+            del image, collision_stop, recovery_epoch
+            self.published.append((checkpoint_id, source_frame))
+            if len(self.published) == 1:
+                raise OSError("receiver unavailable")
+
+    publisher = FailOncePublisher()
+    monkeypatch.setattr(
+        "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._capture_render_snapshot",
+        lambda self: object(),
+    )
+    monkeypatch.setattr(
+        "mjlab_textop.core.feedback.online_reporter.OnlineObservationReporter._render_image",
+        lambda self, snapshot: np.zeros((1, 1, 3), dtype=np.uint8),
+    )
+    monkeypatch.setattr(
+        "mjlab_textop.core.feedback.online_reporter.encode_render_image_jpeg",
+        lambda image: b"jpeg",
+    )
+    reporter = OnlineObservationReporter(
+        OnlineObservationCfg(publisher=publisher),
+        fake_env(),
+    )
+
+    reporter.maybe_publish(
+        _observation_state(frame=8, checkpoint_id=3, source_frame=80)
+    )
+    assert reporter._publish_future is not None
+    with pytest.raises(OSError, match="receiver unavailable"):
+        reporter._publish_future.result(timeout=1)
+    reporter._collect_publish_result()
+
+    assert reporter.last_publish_error == "OSError: receiver unavailable"
+    reporter.maybe_publish(_observation_state(frame=9))
+    _wait_for_reporter_publish(reporter)
+
+    assert publisher.published == [(3, 80), (3, 80)]
+    assert reporter.last_publish_error is None
+
+
 def test_online_observation_reporter_renders_off_simulation_thread(
     monkeypatch,
 ) -> None:
@@ -1091,10 +1208,17 @@ def _wait_for_reporter_publish(reporter: OnlineObservationReporter) -> None:
     reporter._collect_publish_result()
 
 
-def _observation_state(*, frame: int) -> OnlineObservationState:
+def _observation_state(
+    *,
+    frame: int,
+    checkpoint_id: int | None = None,
+    source_frame: int | None = None,
+) -> OnlineObservationState:
     return OnlineObservationState(
         frame=frame,
         started=True,
+        source_frame=frame if source_frame is None else source_frame,
+        checkpoint_id=checkpoint_id,
     )
 
 

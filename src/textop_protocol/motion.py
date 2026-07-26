@@ -23,6 +23,7 @@ class StreamControl:
 
     prompt: str | None = None
     recovery_epoch: int = 0
+    checkpoint_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -74,6 +75,12 @@ def validate_motion_block(block: MotionBlock) -> MotionBlock:
         or block.control.recovery_epoch < 0
     ):
         raise ValueError("Block recovery_epoch must be a non-negative integer")
+    if block.control.checkpoint_id is not None and (
+        not isinstance(block.control.checkpoint_id, int)
+        or isinstance(block.control.checkpoint_id, bool)
+        or block.control.checkpoint_id < 0
+    ):
+        raise ValueError("Block checkpoint_id must be a non-negative integer or None")
     for name, value in (
         ("joint_vel", joint_vel),
         ("anchor_pos_w", anchor_pos_w),

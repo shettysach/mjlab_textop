@@ -48,6 +48,9 @@ class OnlineBlockIngestor:
     def begin_recovery(self) -> None:
         self._recovery_aligned = False
 
+    def source_frame(self, mapped_frame: int) -> int:
+        return mapped_frame - self.index_offset
+
     def poll_recovery(
         self,
         *,

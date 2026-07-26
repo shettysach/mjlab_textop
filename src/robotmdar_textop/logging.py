@@ -15,6 +15,13 @@ _COLORS = {
 
 LogHealth = Literal["good", "warning", "bad"]
 
+_SOURCE_HEALTH: dict[str, LogHealth] = {
+    "vlm": "good",
+    "recov": "warning",
+    "next": "warning",
+    "sync": "warning",
+}
+
 
 def format_stream_status(
     *,
@@ -81,11 +88,7 @@ def _colored_number(value: str, health: LogHealth, *, enabled: bool) -> str:
 
 
 def _colored_source(source: str, *, enabled: bool) -> str:
-    health: LogHealth | None = {
-        "vlm": "good",
-        "recov": "warning",
-        "next": "warning",
-    }.get(source)
+    health = _SOURCE_HEALTH.get(source)
     if not enabled or health is None:
         return source
     return f"{_COLORS[health]}{source}{_RESET}"

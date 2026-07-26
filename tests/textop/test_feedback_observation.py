@@ -11,9 +11,11 @@ from mjlab_textop.core.feedback.observation import (
     encode_render_image_jpeg,
 )
 from textop_protocol.observation import (
+    OBSERVATION_PROTOCOL_VERSION,
     ObservationImage,
     ObservationMessage,
     observation_to_json,
+    parse_observation_json,
 )
 
 
@@ -68,6 +70,7 @@ def test_http_observation_publisher_posts_image_only(monkeypatch) -> None:
     assert posted["timeout"] == 2.0
     assert posted["content_type"] == "application/json"
     assert posted["payload"] == {
+        "protocol_version": OBSERVATION_PROTOCOL_VERSION,
         "image": {
             "mime_type": "image/jpeg",
             "data": "anBlZyBieXRlcw==",
@@ -86,6 +89,7 @@ def test_make_http_observation_payload_includes_image() -> None:
             image=ObservationImage(data=b"jpeg bytes", mime_type="image/jpeg")
         )
     ) == {
+        "protocol_version": OBSERVATION_PROTOCOL_VERSION,
         "image": {
             "mime_type": "image/jpeg",
             "data": "anBlZyBieXRlcw==",
@@ -96,7 +100,40 @@ def test_make_http_observation_payload_includes_image() -> None:
 def test_make_http_observation_payload_supports_collision_event() -> None:
     assert observation_to_json(
         ObservationMessage(collision_stop=True, recovery_epoch=7)
-    ) == {"collision_stop": True, "recovery_epoch": 7}
+    ) == {
+        "protocol_version": OBSERVATION_PROTOCOL_VERSION,
+        "collision_stop": True,
+        "recovery_epoch": 7,
+    }
+
+
+def test_make_http_observation_payload_supports_checkpoint_ack() -> None:
+    payload = observation_to_json(
+        ObservationMessage(
+            image=ObservationImage(data=b"jpeg", mime_type="image/jpeg"),
+            checkpoint_id=4,
+            source_frame=123,
+        )
+    )
+
+    assert payload["checkpoint_id"] == 4
+    assert payload["source_frame"] == 123
+
+
+def test_observation_parser_rejects_old_protocol_version() -> None:
+    with pytest.raises(ValueError, match="Unsupported observation protocol version"):
+        parse_observation_json({"protocol_version": 1})
+
+
+def test_observation_parser_requires_atomic_checkpoint_image() -> None:
+    with pytest.raises(ValueError, match="require an image and source_frame"):
+        parse_observation_json(
+            {
+                "protocol_version": OBSERVATION_PROTOCOL_VERSION,
+                "checkpoint_id": 4,
+                "source_frame": 123,
+            }
+        )
 
 
 def test_encode_render_image_jpeg_uses_high_quality(monkeypatch) -> None:

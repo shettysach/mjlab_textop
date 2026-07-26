@@ -5,12 +5,13 @@ import urllib.request
 from base64 import b64encode
 from collections import deque
 from collections.abc import Iterable
-from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
+from time import monotonic
 from typing import Any, Protocol
 
 from robotmdar_textop.feedback import FeedbackObservation
 from robotmdar_textop.planner.followups import CommandSequencer
+from textop_protocol.motion import MotionBlock
 
 
 class ObservationProvider(Protocol):
@@ -19,6 +20,8 @@ class ObservationProvider(Protocol):
     def close(self) -> None: ...
 
     def latest(self) -> FeedbackObservation | None: ...
+
+    def wait_for_checkpoint(self, checkpoint_id: int) -> FeedbackObservation: ...
 
 
 @dataclass(frozen=True)
@@ -33,6 +36,15 @@ class VlmExecutionContext:
     previous_decision: str | None
     executed_sequence: tuple[str, ...]
     current_command: str
+
+
+class VlmPromptSelector(Protocol):
+    def choose_prompt_with_debug(
+        self,
+        *,
+        observation: FeedbackObservation,
+        execution_context: VlmExecutionContext | None = None,
+    ) -> VlmPromptSelection: ...
 
 
 @dataclass(frozen=True)
@@ -52,7 +64,7 @@ class VlmPromptPlanner:
         self,
         *,
         feedback: ObservationProvider,
-        selector: "OpenAIChatPromptSelector",
+        selector: VlmPromptSelector,
         initial_prompt: str,
         command_hold_blocks: int = 1,
     ) -> None:
@@ -63,18 +75,22 @@ class VlmPromptPlanner:
         self.last_error: str | None = None
         self._pending_reasoning: str | None = None
         self._stop = False
-        self._future: Future[VlmPromptSelection] | None = None
-        self._future_epoch: int | None = None
-        self._selection_epoch = 0
+        self._pending_selection: VlmPromptSelection | None = None
+        self._initial_sequence_pending = True
+        self._checkpoint_to_emit: int | None = None
+        self._awaiting_checkpoint: int | None = None
+        self._next_checkpoint_id = 1
         self._collision_recovery = False
         self._recovery_epoch = 0
-        self._executor = ThreadPoolExecutor(max_workers=1)
-        self._last_query_block: int | None = None
-        self._last_query_image_revision: int | None = None
+        self._last_ack_checkpoint: int | None = None
+        self._last_ack_source_frame: int | None = None
+        self._last_vlm_ms: float | None = None
         self._last_vlm_decision: str | None = None
-        self._executed_since_query: list[str] = [initial_prompt]
+        self._executed_since_query: list[str] = []
         self._sequencer = CommandSequencer(
-            initial_prompt, hold_blocks=command_hold_blocks
+            initial_prompt,
+            hold_blocks=command_hold_blocks,
+            include_walk_followup=True,
         )
 
     @property
@@ -91,31 +107,75 @@ class VlmPromptPlanner:
 
     @property
     def log_suffix(self) -> str:
-        state = "inflight" if self._future is not None else "idle"
+        state = "awaiting_ack" if self._awaiting_checkpoint is not None else "idle"
         suffix = f" vlm={state}"
-        if (
-            self._last_query_block is not None
-            and self._last_query_image_revision is not None
-        ):
+        if self._awaiting_checkpoint is not None:
+            suffix += f" checkpoint={self._awaiting_checkpoint}"
+        if self._last_ack_checkpoint is not None:
             suffix += (
-                f" last_q=(block: {self._last_query_block}, "
-                f"img_revision: {self._last_query_image_revision})"
+                f" last_ack=(checkpoint: {self._last_ack_checkpoint}, "
+                f"source_frame: {self._last_ack_source_frame})"
             )
+        if self._last_vlm_ms is not None:
+            suffix += f" vlm_ms={self._last_vlm_ms:.1f}"
         if self.last_error is not None:
             suffix += f" error={self.last_error!r}"
         return suffix
+
+    @property
+    def checkpoint_id(self) -> int | None:
+        return self._checkpoint_to_emit
 
     def start(self) -> None:
         self.feedback.start()
 
     def request_stop(self) -> None:
         self._stop = True
+        self.feedback.close()
+
+    def before_next_block(self) -> bool:
+        checkpoint_id = self._awaiting_checkpoint
+        if checkpoint_id is None:
+            return False
+
+        observation = self.feedback.wait_for_checkpoint(checkpoint_id)
+        self._awaiting_checkpoint = None
+        if observation.collision_stop:
+            self._enter_collision_recovery(observation.recovery_epoch)
+            return True
+        if observation.checkpoint_id != checkpoint_id:
+            raise RuntimeError(
+                f"Expected checkpoint {checkpoint_id}, got {observation.checkpoint_id}"
+            )
+
+        self._last_ack_checkpoint = checkpoint_id
+        self._last_ack_source_frame = observation.source_frame
+        execution_context = VlmExecutionContext(
+            previous_decision=self._last_vlm_decision,
+            executed_sequence=tuple(self._executed_since_query)
+            or (self.current_prompt,),
+            current_command=self.current_prompt,
+        )
+        self._executed_since_query.clear()
+        started = monotonic()
         try:
-            self.feedback.close()
-        finally:
-            if self._future is not None:
-                self._future.cancel()
-            self._executor.shutdown(wait=True, cancel_futures=True)
+            selection = self.selector.choose_prompt_with_debug(
+                observation=observation,
+                execution_context=execution_context,
+            )
+        except Exception as exc:
+            self.last_error = f"{type(exc).__name__}: {exc}"
+            self._stop = True
+            raise RuntimeError(f"VLM request failed: {self.last_error}") from exc
+        self._last_vlm_ms = (monotonic() - started) * 1000.0
+
+        latest = self.feedback.latest()
+        if latest is not None and latest.collision_stop:
+            self._enter_collision_recovery(latest.recovery_epoch)
+            return True
+        self._pending_selection = selection
+        self.last_error = None
+        return True
 
     def choose_prompt(self, *, block_count: int) -> str:
         observation = self.feedback.latest()
@@ -125,12 +185,32 @@ class VlmPromptPlanner:
         if self._collision_recovery:
             self._collision_recovery = False
             self._sequencer.release()
-            self._set_current(self.current_prompt, "wait")
+            command = self._sequencer.activate(
+                "stand",
+                source="followup",
+                block_count=block_count,
+                replace=True,
+            )
+            return self._set_current(command.text, command.source)
 
-        if self._collect_finished_request():
+        if self._pending_selection is not None:
+            selection = self._pending_selection
+            self._pending_selection = None
+            self.current_prompt = selection.prompt
+            self._last_vlm_decision = selection.prompt
+            self._pending_reasoning = selection.reasoning
             command = self._sequencer.activate(
                 self.current_prompt,
                 source="vlm",
+                block_count=block_count,
+            )
+            return self._set_current(command.text, command.source)
+
+        if self._initial_sequence_pending:
+            self._initial_sequence_pending = False
+            command = self._sequencer.activate(
+                self.current_prompt,
+                source="initial",
                 block_count=block_count,
             )
             return self._set_current(command.text, command.source)
@@ -140,91 +220,49 @@ class VlmPromptPlanner:
         if changed:
             return self._set_current(command.text, command.source)
         if command_was_active and not self._sequencer.busy:
-            return self._set_current(self.current_prompt, "wait")
+            self._checkpoint_to_emit = self._next_checkpoint_id
+            self._next_checkpoint_id += 1
+            return self._set_current(self.current_prompt, "checkpoint")
         return self.current_prompt
 
-    def on_block_sent(self, *, block_count: int) -> None:
-        if (
-            self._stop
-            or self._future is not None
-            or self._collision_recovery
-            or self._sequencer.busy
-        ):
+    def on_block_sent(self, *, block_count: int, block: MotionBlock) -> None:
+        checkpoint_id = self._checkpoint_to_emit
+        if checkpoint_id is None:
+            prompt = block.control.prompt or self.current_prompt
+            if (
+                not self._executed_since_query
+                or self._executed_since_query[-1] != prompt
+            ):
+                self._executed_since_query.append(prompt)
             return
-
-        observation = self.feedback.latest()
-        if observation is None or not self._is_unqueried_image(observation):
-            return
-
-        self._last_query_block = block_count
-        self._last_query_image_revision = observation.image_revision
-        self._future_epoch = self._selection_epoch
-        execution_context = VlmExecutionContext(
-            previous_decision=self._last_vlm_decision,
-            executed_sequence=tuple(self._executed_since_query)
-            or (self.current_prompt,),
-            current_command=self.current_prompt,
-        )
-        self._executed_since_query.clear()
-        self._future = self._executor.submit(
-            self.selector.choose_prompt_with_debug,
-            observation=observation,
-            execution_context=execution_context,
-        )
+        if block.control.checkpoint_id != checkpoint_id:
+            raise RuntimeError(
+                f"Checkpoint block mismatch: expected {checkpoint_id}, "
+                f"got {block.control.checkpoint_id}"
+            )
+        self._awaiting_checkpoint = checkpoint_id
+        self._checkpoint_to_emit = None
 
     def _enter_collision_recovery(self, recovery_epoch: int) -> None:
         if not self._collision_recovery:
             self._collision_recovery = True
-            self._selection_epoch += 1
-            if self._future is not None and self._future.cancel():
-                self._future = None
-                self._future_epoch = None
+            self._pending_selection = None
+            self._checkpoint_to_emit = None
+            self._awaiting_checkpoint = None
+            self._executed_since_query.clear()
+            command = self._sequencer.override("stand", source="collision_recovery")
+            self._set_current(command.text, command.source)
         self._recovery_epoch = recovery_epoch
-        command = self._sequencer.override("stand", source="collision_recovery")
-        self._set_current(command.text, command.source)
 
     def _set_current(self, prompt: str, source: str) -> str:
         self.current_prompt = prompt
         self.current_prompt_source = source
-        if not self._executed_since_query or self._executed_since_query[-1] != prompt:
-            self._executed_since_query.append(prompt)
         return prompt
 
     def consume_pending_reasoning(self) -> str | None:
         reasoning = self._pending_reasoning
         self._pending_reasoning = None
         return reasoning
-
-    def _collect_finished_request(self) -> bool:
-        if self._future is None or not self._future.done():
-            return False
-
-        received_command = False
-        try:
-            selection = self._future.result()
-            if self._future_epoch == self._selection_epoch:
-                self.current_prompt = selection.prompt
-                self._last_vlm_decision = selection.prompt
-                self._pending_reasoning = selection.reasoning
-                received_command = True
-            self.last_error = None
-        except Exception as exc:
-            self.last_error = f"{type(exc).__name__}: {exc}"
-        finally:
-            self._future = None
-            self._future_epoch = None
-        return received_command
-
-    def _is_unqueried_image(self, observation: FeedbackObservation) -> bool:
-        if (
-            observation.collision_stop
-            or observation.image_bytes is None
-            or observation.image_mime_type is None
-        ):
-            return False
-        if self._last_query_image_revision is None:
-            return True
-        return observation.image_revision > self._last_query_image_revision
 
 
 class OpenAIChatPromptSelector:

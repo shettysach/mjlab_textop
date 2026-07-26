@@ -4,6 +4,7 @@ import threading
 from dataclasses import dataclass
 
 from robotmdar_textop.planner.followups import CommandSequencer
+from textop_protocol.motion import MotionBlock
 
 
 @dataclass
@@ -40,6 +41,13 @@ class ManualPromptPlanner:
     def log_suffix(self) -> str:
         return "\nEnter text prompt (or q to exit): "
 
+    @property
+    def checkpoint_id(self) -> int | None:
+        return None
+
+    def before_next_block(self) -> bool:
+        return False
+
     def start(self) -> None:
         self._thread = threading.Thread(
             target=_prompt_loop,
@@ -68,8 +76,8 @@ class ManualPromptPlanner:
         command, _ = self._sequencer.advance(block_count)
         return command.text
 
-    def on_block_sent(self, *, block_count: int) -> None:
-        del block_count
+    def on_block_sent(self, *, block_count: int, block: MotionBlock) -> None:
+        del block_count, block
 
 
 def _prompt_loop(prompt: PromptState) -> None:

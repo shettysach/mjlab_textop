@@ -16,6 +16,7 @@ class BufferedMotionFrame:
     joint_vel: torch.Tensor
     anchor_pos_w: torch.Tensor
     anchor_quat_w: torch.Tensor
+    checkpoint_id: int | None = None
 
 
 class RollingMotionBuffer:
@@ -74,6 +75,7 @@ class RollingMotionBuffer:
                 joint_vel=joint_vel_tensor[offset],
                 anchor_pos_w=anchor_pos_w_tensor[offset],
                 anchor_quat_w=anchor_quat_w_tensor[offset],
+                checkpoint_id=(block.control.checkpoint_id if offset == 0 else None),
             )
 
         block_latest = block.index + joint_pos.shape[0] - 1
@@ -89,6 +91,10 @@ class RollingMotionBuffer:
         for index in tuple(self._frames):
             if index < frame:
                 del self._frames[index]
+
+    def checkpoint_id_at(self, frame: int) -> int | None:
+        buffered = self._frames.get(frame)
+        return None if buffered is None else buffered.checkpoint_id
 
     def can_start(self, frame: int, future_steps: int) -> bool:
         return all((frame + offset) in self._frames for offset in range(future_steps))

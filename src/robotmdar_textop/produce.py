@@ -131,6 +131,7 @@ def _prompt_source(
             "vlm": "vlm",
             "collision_recovery": "recov",
             "followup": "next",
+            "checkpoint": "sync",
         }.get(planner.current_prompt_source, planner.current_prompt_source)
     return "manual"
 

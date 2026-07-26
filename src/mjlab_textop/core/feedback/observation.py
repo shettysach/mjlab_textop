@@ -22,6 +22,8 @@ JPEG_QUALITY = 85
 class OnlineObservationState:
     frame: int
     started: bool
+    source_frame: int | None = None
+    checkpoint_id: int | None = None
 
 
 class ObservationPublisher(Protocol):
@@ -31,6 +33,8 @@ class ObservationPublisher(Protocol):
         image: ObservationImage | None,
         collision_stop: bool | None = None,
         recovery_epoch: int | None = None,
+        checkpoint_id: int | None = None,
+        source_frame: int | None = None,
     ) -> None:
         """Publish one MJLab observation payload."""
 
@@ -70,6 +74,8 @@ class HttpObservationPublisher:
         image: ObservationImage | None,
         collision_stop: bool | None = None,
         recovery_epoch: int | None = None,
+        checkpoint_id: int | None = None,
+        source_frame: int | None = None,
     ) -> None:
         request = urllib.request.Request(
             self.url,
@@ -79,6 +85,8 @@ class HttpObservationPublisher:
                         image=image,
                         collision_stop=collision_stop,
                         recovery_epoch=recovery_epoch,
+                        checkpoint_id=checkpoint_id,
+                        source_frame=source_frame,
                     )
                 ),
                 separators=(",", ":"),
