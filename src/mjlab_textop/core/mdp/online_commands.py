@@ -221,8 +221,8 @@ class OnlineMotionCommand(CommandTerm):
                         if self._clock.started
                         else None
                     ),
-                    observation_request_id=(
-                        self.buffer.observation_request_id_at(self.current_frame)
+                    request_id=(
+                        self.buffer.request_id_at(self.current_frame)
                         if self._clock.started
                         else None
                     ),

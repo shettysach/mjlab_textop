@@ -33,7 +33,7 @@ class _RenderSnapshot:
 @dataclass(frozen=True)
 class _ObservationRequest:
     snapshot: _RenderSnapshot
-    observation_request_id: int | None
+    request_id: int | None
     source_frame: int
 
 
@@ -52,7 +52,7 @@ class OnlineObservationReporter:
         self._publish_future: Future[None] | None = None
         self._active_request: _ObservationRequest | None = None
         self._pending_requested: _ObservationRequest | None = None
-        self._last_observation_request_id: int | None = None
+        self._last_request_id: int | None = None
         self._event_futures: deque[Future[None]] = deque()
         self.last_publish_error: str | None = None
         self._closed = False
@@ -80,15 +80,12 @@ class OnlineObservationReporter:
         publisher: ObservationPublisher,
         state: OnlineObservationState,
     ) -> None:
-        if (
-            state.observation_request_id is not None
-            and state.observation_request_id != self._last_observation_request_id
-        ):
+        if state.request_id is not None and state.request_id != self._last_request_id:
             assert state.source_frame is not None
-            self._last_observation_request_id = state.observation_request_id
+            self._last_request_id = state.request_id
             request = _ObservationRequest(
                 snapshot=self._capture_render_snapshot(),
-                observation_request_id=state.observation_request_id,
+                request_id=state.request_id,
                 source_frame=state.source_frame,
             )
             if self._publish_future is None:
@@ -116,7 +113,7 @@ class OnlineObservationReporter:
             publisher,
             _ObservationRequest(
                 snapshot=self._capture_render_snapshot(),
-                observation_request_id=None,
+                request_id=None,
                 source_frame=state.source_frame,
             ),
         )
@@ -146,7 +143,7 @@ class OnlineObservationReporter:
                 data=data,
                 mime_type="image/jpeg",
             ),
-            observation_request_id=request.observation_request_id,
+            request_id=request.request_id,
             source_frame=request.source_frame,
         )
 
@@ -177,7 +174,7 @@ class OnlineObservationReporter:
         except Exception as exc:
             self.last_publish_error = f"{type(exc).__name__}: {exc}"
             request = self._active_request
-            if request is not None and request.observation_request_id is not None:
+            if request is not None and request.request_id is not None:
                 self._pending_requested = request
         finally:
             self._publish_future = None

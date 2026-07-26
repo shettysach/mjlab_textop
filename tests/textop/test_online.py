@@ -75,7 +75,7 @@ class _RecordingObservationPublisher:
         image=None,
         collision_stop=None,
         recovery_epoch=None,
-        observation_request_id=None,
+        request_id=None,
         source_frame=None,
     ) -> None:
         if image is not None:
@@ -83,8 +83,8 @@ class _RecordingObservationPublisher:
         if collision_stop is not None:
             self.collision_stops.append(collision_stop)
             self.collision_events.append((collision_stop, recovery_epoch))
-        if observation_request_id is not None:
-            self.requests.append((observation_request_id, source_frame))
+        if request_id is not None:
+            self.requests.append((request_id, source_frame))
 
 
 class _BlockingObservationPublisher:
@@ -105,14 +105,14 @@ class _BlockingObservationPublisher:
         image=None,
         collision_stop=None,
         recovery_epoch=None,
-        observation_request_id=None,
+        request_id=None,
         source_frame=None,
     ) -> None:
         del image
         del collision_stop
         del recovery_epoch
         self.publish_count += 1
-        self.published.append((observation_request_id, source_frame))
+        self.published.append((request_id, source_frame))
         self.started.set()
         assert self.release.wait(timeout=1.0)
 
@@ -193,14 +193,14 @@ def test_rolling_buffer_marks_request_on_first_block_frame_only() -> None:
     buffer = RollingMotionBuffer()
     block = replace(
         motion_block(index=20, frames=8),
-        control=StreamControl(prompt="stand", observation_request_id=7),
+        control=StreamControl(prompt="stand", request_id=7),
     )
 
     buffer.append_block(block)
 
-    assert buffer.observation_request_id_at(20) == 7
-    assert buffer.observation_request_id_at(21) is None
-    assert buffer.observation_request_id_at(27) is None
+    assert buffer.request_id_at(20) == 7
+    assert buffer.request_id_at(21) is None
+    assert buffer.request_id_at(27) is None
 
 
 def test_rolling_buffer_overwrites_overlapping_block_frames() -> None:
@@ -933,7 +933,7 @@ def test_online_observation_reporter_drops_observation_while_publish_inflight(
         fake_env(),
     )
 
-    reporter.maybe_publish(_observation_state(frame=0, observation_request_id=7))
+    reporter.maybe_publish(_observation_state(frame=0, request_id=7))
     assert started.wait(timeout=1.0)
     reporter.maybe_publish(_observation_state(frame=2))
 
@@ -976,13 +976,9 @@ def test_requested_observation_mode_ignores_frames_without_request(
     reporter.maybe_publish(_observation_state(frame=0))
     assert snapshots == []
 
-    reporter.maybe_publish(
-        _observation_state(frame=2, observation_request_id=7, source_frame=102)
-    )
+    reporter.maybe_publish(_observation_state(frame=2, request_id=7, source_frame=102))
     _wait_for_reporter_publish(reporter)
-    reporter.maybe_publish(
-        _observation_state(frame=2, observation_request_id=7, source_frame=102)
-    )
+    reporter.maybe_publish(_observation_state(frame=2, request_id=7, source_frame=102))
 
     assert len(snapshots) == 1
     assert publisher.requests == [(7, 102)]
@@ -999,11 +995,11 @@ def test_online_observation_reporter_retries_failed_request(monkeypatch) -> None
             image=None,
             collision_stop=None,
             recovery_epoch=None,
-            observation_request_id=None,
+            request_id=None,
             source_frame=None,
         ) -> None:
             del image, collision_stop, recovery_epoch
-            self.published.append((observation_request_id, source_frame))
+            self.published.append((request_id, source_frame))
             if len(self.published) == 1:
                 raise OSError("receiver unavailable")
 
@@ -1025,9 +1021,7 @@ def test_online_observation_reporter_retries_failed_request(monkeypatch) -> None
         fake_env(),
     )
 
-    reporter.maybe_publish(
-        _observation_state(frame=8, observation_request_id=3, source_frame=80)
-    )
+    reporter.maybe_publish(_observation_state(frame=8, request_id=3, source_frame=80))
     assert reporter._publish_future is not None
     with pytest.raises(OSError, match="receiver unavailable"):
         reporter._publish_future.result(timeout=1)
@@ -1210,14 +1204,14 @@ def _wait_for_reporter_publish(reporter: OnlineObservationReporter) -> None:
 def _observation_state(
     *,
     frame: int,
-    observation_request_id: int | None = None,
+    request_id: int | None = None,
     source_frame: int | None = None,
 ) -> OnlineObservationState:
     return OnlineObservationState(
         frame=frame,
         started=True,
         source_frame=frame if source_frame is None else source_frame,
-        observation_request_id=observation_request_id,
+        request_id=request_id,
     )
 
 

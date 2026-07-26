@@ -24,7 +24,7 @@ class OnlineObservationState:
     frame: int
     started: bool
     source_frame: int | None = None
-    observation_request_id: int | None = None
+    request_id: int | None = None
 
 
 class ObservationPublisher(Protocol):
@@ -34,7 +34,7 @@ class ObservationPublisher(Protocol):
         image: ObservationImage | None,
         collision_stop: bool | None = None,
         recovery_epoch: int | None = None,
-        observation_request_id: int | None = None,
+        request_id: int | None = None,
         source_frame: int | None = None,
     ) -> None:
         """Publish one MJLab observation payload."""
@@ -74,7 +74,7 @@ class HttpObservationPublisher:
         image: ObservationImage | None,
         collision_stop: bool | None = None,
         recovery_epoch: int | None = None,
-        observation_request_id: int | None = None,
+        request_id: int | None = None,
         source_frame: int | None = None,
     ) -> None:
         request = urllib.request.Request(
@@ -85,7 +85,7 @@ class HttpObservationPublisher:
                         image=image,
                         collision_stop=collision_stop,
                         recovery_epoch=recovery_epoch,
-                        observation_request_id=observation_request_id,
+                        request_id=request_id,
                         source_frame=source_frame,
                     )
                 ),

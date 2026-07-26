@@ -33,7 +33,7 @@ class BlockPlan:
     prompt: str
     source: str
     recovery_epoch: int = 0
-    observation_request_id: int | None = None
+    request_id: int | None = None
     reset_pacing: bool = False
 
 
@@ -123,13 +123,13 @@ class RobotMdarGenerator:
         self._last_block = block
         return block
 
-    def observation_request_block(
+    def observation_block(
         self,
         *,
         index: int,
         prompt: str,
         recovery_epoch: int,
-        observation_request_id: int,
+        request_id: int,
     ) -> MotionBlock:
         if self._last_block is None:
             raise RuntimeError("Cannot request an observation before generating motion")
@@ -150,7 +150,7 @@ class RobotMdarGenerator:
             control=StreamControl(
                 prompt=prompt,
                 recovery_epoch=recovery_epoch,
-                observation_request_id=observation_request_id,
+                request_id=request_id,
             ),
         )
 
@@ -330,13 +330,13 @@ def stream_robotmdar_blocks(
             after_plan()
 
         block = (
-            generator.observation_request_block(
+            generator.observation_block(
                 prompt=current_prompt,
                 index=frame_index,
                 recovery_epoch=plan.recovery_epoch,
-                observation_request_id=plan.observation_request_id,
+                request_id=plan.request_id,
             )
-            if plan.observation_request_id is not None
+            if plan.request_id is not None
             else generator.next_block(
                 prompt=current_prompt,
                 index=frame_index,

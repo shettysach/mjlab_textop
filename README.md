@@ -160,8 +160,8 @@ VLM control uses requested observations. After each bounded command and its
 generated `stand` transition, the producer inserts a stationary observation
 request and pauses. MJLab responds when it reaches that exact reference frame;
 only then does the producer query the VLM and resume. Periodic mode is available
-for best-effort monitoring but does not drive this VLM planner. The producer and
-consumer must use the same motion and observation protocol version.
+for best-effort monitoring but does not drive this VLM planner. Run the producer
+and consumer from the same commit.
 
 ### 3. Start MJLab
 

@@ -101,17 +101,17 @@ def test_robotmdar_generator_request_holds_last_generated_pose() -> None:
         guidance_scale=5.0,
     )
 
-    request = generator.observation_request_block(
+    request = generator.observation_block(
         index=1,
         prompt="stand",
         recovery_epoch=3,
-        observation_request_id=7,
+        request_id=7,
     )
 
     assert request.index == 1
     assert request.control.prompt == "stand"
     assert request.control.recovery_epoch == 3
-    assert request.control.observation_request_id == 7
+    assert request.control.request_id == 7
     assert request.joint_pos.shape[0] == FUTURE_STEPS
     assert request.joint_vel.shape[0] == FUTURE_STEPS
     assert (request.joint_pos == generated.joint_pos[-1]).all()
@@ -124,9 +124,9 @@ def test_robotmdar_generator_request_holds_last_generated_pose() -> None:
 
 def test_robotmdar_generator_rejects_request_before_motion() -> None:
     with pytest.raises(RuntimeError, match="before generating motion"):
-        _generator(_FakeRobotMdarRuntime()).observation_request_block(
+        _generator(_FakeRobotMdarRuntime()).observation_block(
             index=0,
             prompt="stand",
             recovery_epoch=0,
-            observation_request_id=1,
+            request_id=1,
         )

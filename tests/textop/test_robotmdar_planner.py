@@ -56,30 +56,28 @@ class _FakeObservationProvider:
 
     def acknowledge(
         self,
-        observation_request_id: int,
+        request_id: int,
         *,
         image_revision: int | None = None,
         source_frame: int | None = None,
     ) -> FeedbackObservation:
         observation = _observation(
-            image_revision=image_revision or observation_request_id,
-            observation_request_id=observation_request_id,
-            source_frame=(
-                source_frame if source_frame is not None else observation_request_id * 8
-            ),
+            image_revision=image_revision or request_id,
+            request_id=request_id,
+            source_frame=(source_frame if source_frame is not None else request_id * 8),
         )
         self.observation = observation
         self.request = observation
         return observation
 
-    def wait_for_observation(self, observation_request_id: int) -> FeedbackObservation:
-        self.waited_for.append(observation_request_id)
+    def wait_for_observation(self, request_id: int) -> FeedbackObservation:
+        self.waited_for.append(request_id)
         if self.observation is not None and self.observation.collision_stop:
             return self.observation
         observation = self.request
         self.request = None
         assert observation is not None
-        assert observation.observation_request_id == observation_request_id
+        assert observation.request_id == request_id
         return observation
 
 
@@ -166,7 +164,7 @@ def _observation(
     image_revision: int = 1,
     collision_stop: bool = False,
     recovery_epoch: int = 0,
-    observation_request_id: int | None = None,
+    request_id: int | None = None,
     source_frame: int | None = None,
 ) -> FeedbackObservation:
     return FeedbackObservation(
@@ -175,7 +173,7 @@ def _observation(
         image_revision=image_revision,
         collision_stop=collision_stop,
         recovery_epoch=recovery_epoch,
-        observation_request_id=observation_request_id,
+        request_id=request_id,
         source_frame=source_frame,
     )
 
@@ -187,7 +185,6 @@ def _default_vlm_user_prompt() -> str:
 def test_parse_feedback_observation() -> None:
     observation = parse_feedback_observation(
         {
-            "protocol_version": 3,
             "image": {
                 "mime_type": "image/jpeg",
                 "data": "anBlZyBieXRlcw==",
@@ -204,7 +201,6 @@ def test_parse_feedback_observation() -> None:
 def test_parse_collision_feedback_without_image() -> None:
     observation = parse_feedback_observation(
         {
-            "protocol_version": 3,
             "collision_stop": True,
             "recovery_epoch": 7,
         }
@@ -219,12 +215,8 @@ def test_parse_collision_feedback_without_image() -> None:
 def test_observation_receiver_merges_images_without_clearing_collision() -> None:
     receiver = HttpObservationReceiver(port=8766)
 
-    receiver.handle_post(
-        b'{"protocol_version":3,"collision_stop":true,"recovery_epoch":7}'
-    )
-    receiver.handle_post(
-        b'{"protocol_version":3,"image":{"mime_type":"image/jpeg","data":"anBlZw=="}}'
-    )
+    receiver.handle_post(b'{"collision_stop":true,"recovery_epoch":7}')
+    receiver.handle_post(b'{"image":{"mime_type":"image/jpeg","data":"anBlZw=="}}')
 
     observation = receiver.latest()
     assert observation is not None
@@ -233,9 +225,7 @@ def test_observation_receiver_merges_images_without_clearing_collision() -> None
     assert observation.collision_stop is True
     assert observation.recovery_epoch == 7
 
-    receiver.handle_post(
-        b'{"protocol_version":3,"collision_stop":false,"recovery_epoch":7}'
-    )
+    receiver.handle_post(b'{"collision_stop":false,"recovery_epoch":7}')
 
     observation = receiver.latest()
     assert observation is not None
@@ -244,9 +234,7 @@ def test_observation_receiver_merges_images_without_clearing_collision() -> None
     assert observation.collision_stop is False
     assert observation.recovery_epoch == 7
 
-    receiver.handle_post(
-        b'{"protocol_version":3,"image":{"mime_type":"image/jpeg","data":"anBlZw=="}}'
-    )
+    receiver.handle_post(b'{"image":{"mime_type":"image/jpeg","data":"anBlZw=="}}')
 
     observation = receiver.latest()
     assert observation is not None
@@ -262,14 +250,13 @@ def test_observation_receiver_waits_for_exact_request() -> None:
     thread.start()
 
     receiver.handle_post(
-        b'{"protocol_version":3,"source_frame":40,'
-        b'"image":{"mime_type":"image/jpeg","data":"cGVyaW9kaWM="}}'
+        b'{"source_frame":40,"image":{"mime_type":"image/jpeg","data":"cGVyaW9kaWM="}}'
     )
     thread.join(timeout=0.05)
     assert thread.is_alive()
 
     receiver.handle_post(
-        b'{"protocol_version":3,"observation_request_id":7,"source_frame":41,'
+        b'{"request_id":7,"source_frame":41,'
         b'"image":{"mime_type":"image/jpeg","data":"cmVxdWVzdA=="}}'
     )
     thread.join(timeout=1)
@@ -277,19 +264,17 @@ def test_observation_receiver_waits_for_exact_request() -> None:
     assert not thread.is_alive()
     assert len(received) == 1
     assert received[0].image_bytes == b"request"
-    assert received[0].observation_request_id == 7
+    assert received[0].request_id == 7
     assert received[0].source_frame == 41
 
 
 def test_observation_receiver_discards_request_preempted_by_collision() -> None:
     receiver = HttpObservationReceiver(port=8766)
     receiver.handle_post(
-        b'{"protocol_version":3,"observation_request_id":7,"source_frame":41,'
+        b'{"request_id":7,"source_frame":41,'
         b'"image":{"mime_type":"image/jpeg","data":"cmVxdWVzdA=="}}'
     )
-    receiver.handle_post(
-        b'{"protocol_version":3,"collision_stop":true,"recovery_epoch":3}'
-    )
+    receiver.handle_post(b'{"collision_stop":true,"recovery_epoch":3}')
 
     observation = receiver.wait_for_observation(7)
 
@@ -375,7 +360,7 @@ def test_vlm_planner_bounds_transient_command_then_emits_request() -> None:
     request = planner.next_plan(block_count=4)
     assert request.prompt == "stand"
     assert request.source == "requested"
-    assert request.observation_request_id == 1
+    assert request.request_id == 1
     assert planner.log_suffix == " vlm=awaiting_observation request=1"
     assert selector.calls == 0
 
@@ -636,14 +621,12 @@ def test_stream_stops_generating_until_request_is_acknowledged(
     release_ack = threading.Event()
 
     class BlockingProvider(_FakeObservationProvider):
-        def wait_for_observation(
-            self, observation_request_id: int
-        ) -> FeedbackObservation:
-            self.waited_for.append(observation_request_id)
+        def wait_for_observation(self, request_id: int) -> FeedbackObservation:
+            self.waited_for.append(request_id)
             wait_started.set()
             assert release_ack.wait(timeout=1)
             return _observation(
-                observation_request_id=observation_request_id,
+                request_id=request_id,
                 source_frame=17,
             )
 
@@ -654,12 +637,12 @@ def test_stream_stops_generating_until_request_is_acknowledged(
                 control=StreamControl(prompt=kwargs["prompt"]),
             )
 
-        def observation_request_block(self, **kwargs) -> MotionBlock:
+        def observation_block(self, **kwargs) -> MotionBlock:
             return replace(
                 motion_block(index=kwargs["index"]),
                 control=StreamControl(
                     prompt=kwargs["prompt"],
-                    observation_request_id=kwargs["observation_request_id"],
+                    request_id=kwargs["request_id"],
                 ),
             )
 
@@ -702,8 +685,8 @@ def test_stream_stops_generating_until_request_is_acknowledged(
 
     assert len(sent) == 2
     assert sent[0].control.prompt == "stand"
-    assert sent[0].control.observation_request_id is None
-    assert sent[1].control.observation_request_id == 1
+    assert sent[0].control.request_id is None
+    assert sent[1].control.request_id == 1
     assert thread.is_alive()
 
     release_ack.set()

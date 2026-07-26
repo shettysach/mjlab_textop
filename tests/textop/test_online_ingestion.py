@@ -44,7 +44,7 @@ def test_recovery_preserves_request_and_source_frame_mapping() -> None:
         control=StreamControl(
             prompt="stand",
             recovery_epoch=2,
-            observation_request_id=11,
+            request_id=11,
         ),
     )
     buffer = RollingMotionBuffer()
@@ -62,7 +62,7 @@ def test_recovery_preserves_request_and_source_frame_mapping() -> None:
         accepts=lambda block: True,
     )
 
-    assert buffer.observation_request_id_at(4) == 11
+    assert buffer.request_id_at(4) == 11
     assert ingestor.source_frame(4) == 24
 
 

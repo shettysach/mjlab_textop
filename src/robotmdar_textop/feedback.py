@@ -19,7 +19,7 @@ class FeedbackObservation:
     image_revision: int = 0
     collision_stop: bool = False
     recovery_epoch: int = 0
-    observation_request_id: int | None = None
+    request_id: int | None = None
     source_frame: int | None = None
 
 
@@ -73,7 +73,7 @@ class HttpObservationReceiver:
         with self._condition:
             return self._latest
 
-    def wait_for_observation(self, observation_request_id: int) -> FeedbackObservation:
+    def wait_for_observation(self, request_id: int) -> FeedbackObservation:
         with self._condition:
             while True:
                 if self.last_error is not None:
@@ -84,10 +84,7 @@ class HttpObservationReceiver:
                 observation = self._requested_observation
                 if observation is not None:
                     self._requested_observation = None
-                if (
-                    observation is not None
-                    and observation.observation_request_id == observation_request_id
-                ):
+                if observation is not None and observation.request_id == request_id:
                     return observation
                 if self._closed:
                     raise RuntimeError("Observation receiver closed while waiting")
@@ -103,7 +100,7 @@ class HttpObservationReceiver:
             raise
         with self._condition:
             self._latest = merge_feedback_message(self._latest, message)
-            if message.observation_request_id is not None:
+            if message.request_id is not None:
                 self._requested_observation = self._latest
             self._condition.notify_all()
 
@@ -146,13 +143,13 @@ def merge_feedback_message(
     image_bytes = previous.image_bytes
     image_mime_type = previous.image_mime_type
     image_revision = previous.image_revision
-    observation_request_id = previous.observation_request_id
+    request_id = previous.request_id
     source_frame = previous.source_frame
     if message.image is not None:
         image_bytes = message.image.data
         image_mime_type = message.image.mime_type
         image_revision += 1
-        observation_request_id = message.observation_request_id
+        request_id = message.request_id
         source_frame = message.source_frame
 
     return FeedbackObservation(
@@ -169,6 +166,6 @@ def merge_feedback_message(
             if message.recovery_epoch is None
             else message.recovery_epoch
         ),
-        observation_request_id=observation_request_id,
+        request_id=request_id,
         source_frame=source_frame,
     )

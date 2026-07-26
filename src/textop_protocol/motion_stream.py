@@ -22,7 +22,7 @@ from textop_protocol.motion import (
 _MAGIC = b"TXOP"
 _VERSION = 2
 _PROMPT_PRESENT = 1
-_NO_OBSERVATION_REQUEST = -1
+_NO_REQUEST = -1
 _HEADER = struct.Struct("!4sBBHqqqII")
 _FLOATS_PER_FRAME = 29 + 29 + 3 + 4
 _MAX_FRAMES_PER_BLOCK = 4_096
@@ -47,11 +47,7 @@ def textop_block_to_wire(block: MotionBlock) -> bytes:
         0,
         block.index,
         block.control.recovery_epoch,
-        (
-            _NO_OBSERVATION_REQUEST
-            if block.control.observation_request_id is None
-            else block.control.observation_request_id
-        ),
+        (_NO_REQUEST if block.control.request_id is None else block.control.request_id),
         frame_count,
         len(prompt_bytes),
     )
@@ -79,7 +75,7 @@ def textop_block_from_wire(record: bytes) -> MotionBlock:
         reserved,
         index,
         recovery_epoch,
-        observation_request_id,
+        request_id,
         frames,
         prompt_size,
     ) = _HEADER.unpack_from(record)
@@ -125,11 +121,7 @@ def textop_block_from_wire(record: bytes) -> MotionBlock:
             control=StreamControl(
                 prompt=prompt,
                 recovery_epoch=recovery_epoch,
-                observation_request_id=(
-                    None
-                    if observation_request_id == _NO_OBSERVATION_REQUEST
-                    else observation_request_id
-                ),
+                request_id=(None if request_id == _NO_REQUEST else request_id),
             ),
         )
     )
