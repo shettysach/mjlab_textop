@@ -6,39 +6,46 @@ grounded in the rendered images inspected during scouting. Phase 2 uses it while
 controlling a robot through live forward-facing renders from an MJLab simulation
 and allowed TextOp motion commands.
 
-Keep each section brief. Write `Environment` as one short paragraph containing
-only task-relevant recognition cues, not an exhaustive scene report or numbered
-inventory.
+Keep each section brief and use prose, not an exhaustive or numbered inventory.
 
-Use exactly these three sections and no others:
+Use exactly these four sections and no others:
 
 ```markdown
 # Objective
 
-<one sentence stating what the robot must accomplish>
+<one sentence preserving the required end state>
 
 # Environment
 
-<concise visual description of the surroundings, target, distractors, and
-obstacles without revealing the target's privileged location>
+<initial surroundings and useful scene structure, openings, obstacles,
+landmarks, and distractors>
+
+# Target
+
+<visual appearance and distinguishing cues without location information>
 
 # Success
 
 <observable condition or final pose that means the task is complete>
 ```
 
-## Required content
+## Content rules
 
-- Describe the **particular environment actually observed**, not merely its task
-  type or a generic statement that it contains corridors, goals, or obstacles.
-- Describe the goal's visible appearance and distinguish it from distractors when
-  the images support doing so.
-- Describe the general structure, visible object types, obstacles, and
-  distractors without mapping the goal to a particular location.
-- State a success condition that Phase 2 can recognize from its live normal-camera
-  images or from the intended final pose.
-- Include only claims supported by the task information and rendered images. Do
-  not invent missing visual or spatial details.
+- Preserve the supplied objective exactly. Use the images to ground it, not to
+  broaden, narrow, or reinterpret it.
+- Describe the particular scene, including the robot's initial surroundings and
+  navigation-relevant topology. Spatial detail is allowed for walls, openings,
+  turns, obstacles, and landmarks, but not for locating the target.
+- Keep target appearance separate from target location. Give only useful,
+  supported cues that distinguish it from distractors.
+- Treat the images as separate viewpoints of one scene. Do not present a
+  privileged camera composition as the robot's current view.
+- Use exact counts only when unambiguous and relevant. Omit uncertain details
+  rather than guessing.
+- State success using evidence available from the live forward-facing camera and
+  the requested final pose. Do not invent numerical distances, tolerances, or
+  hidden reward conditions. Merely seeing the target is not completion unless
+  the objective says so.
 
 ## Prohibited content
 
@@ -53,11 +60,11 @@ Do not include:
 - an agent persona, generic capabilities, procedural boilerplate, or sections
   such as `Views Available`, `Instructions`, or `Constraints and Rules`;
 - world coordinates, exact dimensions, body/geometry identifiers, source-code
-  names, or simulator implementation details; or
-- an exact route, oracle action sequence, or sequence of mandatory motion
-  commands; or
-- the goal's privileged location, including which side, branch, room, alcove,
-  station, corridor, or direction contains it.
+  names, or simulator implementation details;
+- a route, search order, action plan, or sequence of motion commands; or
+- the target's privileged location, directly or indirectly, including its side,
+  branch, room, corridor, direction, ordering, adjacency, nearby landmark, or
+  required turns.
 
 Do not restate generic command-selection, output-format, collision-avoidance, or
 corridor-following behavior. The invariant Phase 2 controller prompt already

@@ -34,13 +34,10 @@ to request those views. Therefore, `TASK.md` must turn the privileged Phase 1
 inspection into a self-contained visual description usable from the live robot
 camera.
 
-The invariant controller prompt already supplies generic navigation and command
-rules. `TASK.md` should contain only the task-specific objective, visually
-grounded environment details, target appearance, and observable success
-condition. Describe what the environment contains, but do not reveal the goal's
-privileged location or tell Phase 2 where to go. Include visual recognition cues
-for targets and distractors without associating the goal with a specific side,
-branch, room, landmark, or direction learned from privileged views.
+Describe the robot's initial surroundings, general layout, openings, obstacles, landmarks, 
+target appearance, distractors, and observable success condition. 
+Spatial detail is useful for the environment, but never bind the target 
+to a privileged location or tell Phase 2 where to go.
 
 ## Procedure
 
@@ -48,15 +45,17 @@ branch, room, landmark, or direction learned from privileged views.
 
 2. Inspect **ALL camera preset views** returned by `load_task`, including `agent`,
    `overview`, `overhead`, and every task-specific preset. Only then compare the
-   images and infer the environment, target, obstacles, distractors,
-   and success condition. Never decide that one view is sufficient.
+   images and infer the environment, target, obstacles, distractors, and success
+   condition. Reconcile them as separate perspectives of one scene; do not treat
+   a privileged preset composition as the robot's current view.
 
-3. Go in detail regarding the environment, where the robot starts, how many obstacles, 
-   corridors, turns, etc. are in the environment, and how to analyze and proceed further.
+3. Build a compact scene model containing only useful visual and structural
+   facts. Use exact counts only when clear and relevant, and omit uncertain
+   details. Keep target appearance separate from target location or route.
 
-4. Write `TASK.md` exactly according to the contract. Describe what Phase 2 needs
-   to recognize, not a privileged target location, route, action plan, or the
-   views and tools used to discover it.
+4. Write or replace `TASK.md` in the workspace root exactly according to the
+   contract. Describe what Phase 2 needs to recognize, not a privileged target
+   location, route, action plan, or the views and tools used to discover it.
 
 5. Call `close_task` after writing. If scouting or writing fails, still call
    `close_task` before reporting the failure.
