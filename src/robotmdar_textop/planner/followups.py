@@ -10,7 +10,7 @@ def command_followups(command: str) -> list[str]:
 
 
 def vlm_command_followups(command: str) -> list[str]:
-    return _stand_followup(command, transient_words={"left", "right", "walk"})
+    return _stand_followup(command, transient_words={"left", "right"})
 
 
 def _stand_followup(command: str, *, transient_words: set[str]) -> list[str]:
