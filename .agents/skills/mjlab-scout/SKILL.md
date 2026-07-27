@@ -16,9 +16,9 @@ live navigation run. Phase 1's only deliverable is `TASK.md`.
   distractors, and observable success condition. Do not navigate, send motion
   commands, advance the simulation, or inspect source code.
 - **Phase 2: live navigation.** A clean-context VLM controls an MJLab simulation
-  through TextOp/RobotMDAR. It receives the invariant controller prompt,
-  `TASK.md`, a live image from the robot's normal forward-facing camera, and the
-  allowed motion commands.
+  through TextOp/RobotMDAR. It receives `TASK.md`, a live image from the robot's
+  normal forward-facing camera, and the allowed motion commands. It may also
+  receive the optional invariant controller prompt.
 - **Phase 2 does not have** the Phase 1 conversation or reasoning, Scout tools,
   camera presets, overview or overhead images, view names, or any way to request
   those views. `TASK.md` must therefore carry only the visual knowledge Phase 2
@@ -38,7 +38,8 @@ live navigation run. Phase 1's only deliverable is `TASK.md`.
    Treat visible non-matches as distractors.
 
 4. Build a compact description using only supported visual facts. Describe the
-   initial surroundings and useful scene structure, but keep the target's
+   initial surroundings and useful scene structure, and derive concise
+   navigation principles from the visible geometry. Keep the target's
    appearance separate from its location or route.
 
 5. Write or replace `TASK.md` in the workspace root using the mandatory format
@@ -49,15 +50,20 @@ live navigation run. Phase 1's only deliverable is `TASK.md`.
 
 ## Mandatory TASK.md format
 
-Write raw Markdown with exactly four first-level headings, each appearing once
+Write raw Markdown with exactly five first-level headings, each appearing once
 and in this order. Do not add an outer title or code fence.
 
 1. `# Objective` — One sentence preserving the supplied required end state.
 2. `# Environment` — Brief prose describing the initial surroundings, useful
    layout, openings, obstacles, landmarks, and distractors.
-3. `# Target` — Brief prose describing the target's visible appearance and
+3. `# Navigation Principles` — A short bullet list of task- and
+   environment-specific visual guidance for safe movement, exploration, and
+   recovery. State how to recognize traversable space and respond to visible
+   obstacles without prescribing a fixed route or revealing the target's
+   location.
+4. `# Target` — Brief prose describing the target's visible appearance and
    distinguishing cues without revealing its location.
-4. `# Success` — Brief prose stating evidence of completion observable from the
+5. `# Success` — Brief prose stating evidence of completion observable from the
    live forward-facing camera and required final pose.
 
 ## TASK.md rules
@@ -70,12 +76,17 @@ and in this order. Do not add an outer title or code fence.
   to a side, direction, branch, room, corridor, ordering, adjacency, landmark,
   turn sequence, or other privileged location clue.
 - Describe what Phase 2 should visually recognize, not where it should go. Do
-  not include a route, search order, action plan, or motion commands.
+  not include a route, search order, fixed action sequence, or privileged
+  motion plan.
+- Keep navigation principles concise, actionable from the live forward-facing
+  image, and supported by visible scene geometry. Include only principles that
+  materially help this task; do not pad the section with generic controller
+  boilerplate.
 - Do not present a privileged camera composition as the robot's current view.
 - Make success stricter than merely seeing the target unless the objective says
   otherwise. Do not invent distances, tolerances, or hidden reward conditions.
 - Do not mention scouting, phases, MCP, tools, cameras, presets, view names,
   unavailable context, or prompt-generation instructions.
-- Do not add personas, execution instructions, generic navigation advice,
-  simulator or robot make/model details, coordinates, dimensions, source-code
-  names, implementation details, uncertainty commentary, or extra sections.
+- Do not add personas, simulator or robot make/model details, coordinates,
+  dimensions, source-code names, implementation details, uncertainty
+  commentary, or extra sections.

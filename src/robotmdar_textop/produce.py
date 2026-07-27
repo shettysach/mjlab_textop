@@ -133,7 +133,8 @@ def make_prompt_planner(
             base_url=args.vlm_base_url,
             model=args.vlm_model,
             system_prompt=compose_system_prompt(
-                read_prompt_path(args.vlm_system_prompt)
+                read_prompt_path(args.vlm_system_prompt),
+                include_invariant=args.vlm_invariant,
             ),
             user_prompt=read_prompt_path(args.vlm_user_prompt),
             timeout_sec=args.vlm_timeout_sec,

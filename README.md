@@ -149,16 +149,19 @@ uv run python -m robotmdar_textop.produce \
   --prompt "stand" \
   --observation-listen-port 8766 \
   --vlm-base-url http://127.0.0.1:9379 \
-  --vlm-model gemma-4-E4B-it
+  --vlm-model gemma-4-E4B-it \
+  --vlm-invariant
 ```
 
 For manual control, omit the VLM options and use `--planner manual`.
-Task-specific VLM instructions default to `TASK.md`; the invariant and user
-prompts live under `src/robotmdar_textop/prompt`.
+Task-specific VLM instructions default to `TASK.md`. Pass `--vlm-invariant` to
+prepend the bundled navigation principles; without the flag, `TASK.md` is used
+unchanged. The invariant and user prompts live under
+`src/robotmdar_textop/prompt`.
 
-VLM control uses requested observations. After each bounded command and its
-generated `stand` transition, the producer inserts a stationary observation
-request and pauses. MJLab responds when it reaches that exact reference frame;
+VLM control uses requested observations. After each bounded command and any
+generated `stand` transition, the producer inserts an observation request and
+pauses. MJLab responds when it reaches that exact reference frame;
 only then does the producer query the VLM and resume. Periodic mode is available
 for best-effort monitoring but does not drive this VLM planner. Run the producer
 and consumer from the same commit.

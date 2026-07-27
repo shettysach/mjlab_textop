@@ -37,7 +37,10 @@ def run_debug(args: argparse.Namespace) -> None:
     selector = OpenAIChatPromptSelector(
         base_url=args.vlm_base_url,
         model=args.vlm_model,
-        system_prompt=compose_system_prompt(read_prompt_path(args.vlm_system_prompt)),
+        system_prompt=compose_system_prompt(
+            read_prompt_path(args.vlm_system_prompt),
+            include_invariant=args.vlm_invariant,
+        ),
         user_prompt=read_prompt_path(args.vlm_user_prompt),
         timeout_sec=args.vlm_timeout_sec,
         history_length=args.vlm_history_length,

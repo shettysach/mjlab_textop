@@ -408,9 +408,12 @@ def read_prompt_path(path: str | Path) -> str:
     return Path(path).expanduser().read_text(encoding="utf-8")
 
 
-def compose_system_prompt(task_prompt: str) -> str:
+def compose_system_prompt(task_prompt: str, *, include_invariant: bool = False) -> str:
+    task_prompt = task_prompt.strip()
+    if not include_invariant:
+        return task_prompt
     invariant_prompt = read_prompt_path(INVARIANT_CONTROLLER_PROMPT).strip()
-    return f"{invariant_prompt}\n\n{task_prompt.strip()}"
+    return f"{invariant_prompt}\n\n{task_prompt}"
 
 
 def _configure_robotmdar_cfg(

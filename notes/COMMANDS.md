@@ -54,6 +54,7 @@ uv run python -m robotmdar_textop.produce \
   --vlm-base-url http://127.0.0.1:9379 \
   --vlm-model gemma-4-E4B-it \
   --vlm-system-prompt ./sys.md \
+  --vlm-invariant \
   --vlm-user-prompt ./user.md \
   --vlm-history-length -1 \
   --vlm-reasoning

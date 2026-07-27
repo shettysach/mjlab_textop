@@ -1093,7 +1093,10 @@ def test_http_vlm_prompt_selector_returns_choice_reasoning(monkeypatch) -> None:
     assert selection.reasoning == "The path is blocked."
 
 
-def test_make_prompt_planner_reads_vlm_prompt_files(tmp_path) -> None:
+@pytest.mark.parametrize("vlm_invariant", [False, True])
+def test_make_prompt_planner_reads_vlm_prompt_files(
+    tmp_path, vlm_invariant: bool
+) -> None:
     system_prompt_file = tmp_path / "sys.md"
     user_prompt_file = tmp_path / "user.md"
     system_prompt_file.write_text("System file prompt.\n", encoding="utf-8")
@@ -1109,6 +1112,7 @@ def test_make_prompt_planner_reads_vlm_prompt_files(tmp_path) -> None:
             vlm_base_url="http://127.0.0.1:9379",
             vlm_model="gemma-4-e2b-it",
             vlm_system_prompt=system_prompt_file,
+            vlm_invariant=vlm_invariant,
             vlm_user_prompt=user_prompt_file,
             vlm_timeout_sec=1.0,
             vlm_history_length=5,
@@ -1118,7 +1122,7 @@ def test_make_prompt_planner_reads_vlm_prompt_files(tmp_path) -> None:
 
     assert isinstance(planner, VlmPromptPlanner)
     assert planner.selector.system_prompt == compose_system_prompt(
-        "System file prompt.\n"
+        "System file prompt.\n", include_invariant=vlm_invariant
     )
     assert planner.selector.user_prompt == "User file prompt.\n"
     assert planner.selector.history_length == 5
