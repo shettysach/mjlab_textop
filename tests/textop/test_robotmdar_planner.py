@@ -728,7 +728,7 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
         user_prompt=_default_vlm_user_prompt(),
         timeout_sec=1.5,
     )
-    assert selector.history_length == 5
+    assert selector.history_length == -1
 
     prompt = selector.choose_prompt(
         observation=_observation(
@@ -934,14 +934,63 @@ def test_http_vlm_prompt_selector_history_length_one_is_stateless(monkeypatch) -
     ]
 
 
+def test_http_vlm_prompt_selector_default_history_is_unlimited(monkeypatch) -> None:
+    posted = []
+
+    def fake_urlopen(request, timeout):
+        del timeout
+        posted.append(json.loads(request.data.decode("utf-8")))
+        return _FakeResponse({"choices": [{"message": {"content": "stand"}}]})
+
+    monkeypatch.setattr(
+        "robotmdar_textop.planner.vlm.urllib.request.urlopen",
+        fake_urlopen,
+    )
+    selector = OpenAIChatPromptSelector(
+        base_url="http://127.0.0.1:9379",
+        model="gemma-4-e2b-it",
+        system_prompt="You are a motion planner.",
+        user_prompt=_default_vlm_user_prompt(),
+    )
+
+    for image_bytes in (b"first", b"second", b"third"):
+        selector.choose_prompt(observation=_observation(image_bytes=image_bytes))
+
+    assert [message["role"] for message in posted[2]["messages"]] == [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+    ]
+
+
 def test_http_vlm_prompt_selector_rejects_empty_history() -> None:
-    with pytest.raises(ValueError, match="history_length must be positive"):
+    with pytest.raises(
+        ValueError,
+        match=r"history_length must be -1 \(unlimited\) or positive",
+    ):
         OpenAIChatPromptSelector(
             base_url="http://127.0.0.1:9379",
             model="gemma-4-e2b-it",
             system_prompt="You are a motion planner.",
             user_prompt=_default_vlm_user_prompt(),
             history_length=0,
+        )
+
+
+def test_http_vlm_prompt_selector_rejects_history_below_unlimited_sentinel() -> None:
+    with pytest.raises(
+        ValueError,
+        match=r"history_length must be -1 \(unlimited\) or positive",
+    ):
+        OpenAIChatPromptSelector(
+            base_url="http://127.0.0.1:9379",
+            model="gemma-4-e2b-it",
+            system_prompt="You are a motion planner.",
+            user_prompt=_default_vlm_user_prompt(),
+            history_length=-2,
         )
 
 

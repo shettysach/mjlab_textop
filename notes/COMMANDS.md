@@ -55,7 +55,7 @@ uv run python -m robotmdar_textop.produce \
   --vlm-model gemma-4-E4B-it \
   --vlm-system-prompt ./sys.md \
   --vlm-user-prompt ./user.md \
-  --vlm-history-length 5 \
+  --vlm-history-length -1 \
   --vlm-reasoning
 ```
 
@@ -63,13 +63,13 @@ The first VLM request starts after the initial motion block is generated. Later
 requests only use new images; images received during inference are coalesced to
 the newest one. `--obs.every-frames` after `obs` controls the maximum
 query rate. Repeated RobotMDAR prompts reuse a bounded text-embedding cache
-automatically. Each VLM request includes at most five user-image turns: four
-completed user/assistant pairs plus the current image. Returned reasoning is
-preserved with each assistant turn so Gemma 4 can continue thinking across the
-conversation. The 8192-token context provides headroom for that window, while
-prompt caching reuses compatible KV cache regions. The server reserves up to
-256 of the 320 completion tokens for reasoning, leaving room for the final
-command. Set `--vlm-history-length 1` to restore stateless requests.
+automatically. Each VLM request includes the full conversation history by
+default. Returned reasoning is preserved with each assistant turn so Gemma 4
+can continue thinking across the conversation, while prompt caching reuses
+compatible KV cache regions. The server reserves up to 256 of the 320
+completion tokens for reasoning, leaving room for the final command. Set
+`--vlm-history-length` to a positive number to bound the number of user-image
+turns, or to `1` for stateless requests.
 
 ## 3. `play-live`
 

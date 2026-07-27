@@ -273,7 +273,7 @@ class OpenAIChatPromptSelector:
         system_prompt: str,
         user_prompt: str,
         timeout_sec: float = 30.0,
-        history_length: int = 5,
+        history_length: int = -1,
     ) -> None:
         if not model:
             raise ValueError("model must be a non-empty string")
@@ -281,15 +281,19 @@ class OpenAIChatPromptSelector:
             raise ValueError("user_prompt must be a non-empty string")
         if timeout_sec <= 0:
             raise ValueError(f"timeout_sec must be positive, got {timeout_sec}")
-        if history_length <= 0:
-            raise ValueError(f"history_length must be positive, got {history_length}")
+        if history_length == 0 or history_length < -1:
+            raise ValueError(
+                "history_length must be -1 (unlimited) or positive, "
+                f"got {history_length}"
+            )
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.system_prompt = system_prompt
         self.user_prompt = user_prompt
         self.timeout_sec = timeout_sec
         self.history_length = history_length
-        self._history: deque[_VlmConversationTurn] = deque(maxlen=history_length - 1)
+        max_history = None if history_length == -1 else history_length - 1
+        self._history: deque[_VlmConversationTurn] = deque(maxlen=max_history)
 
     def choose_prompt(
         self,

@@ -55,10 +55,10 @@ def add_vlm_arguments(
     parser.add_argument(
         "--vlm-history-length",
         type=int,
-        default=5,
+        default=-1,
         help=(
             "Maximum number of user-image turns in each VLM request, including "
-            "the current turn (default: 5)."
+            "the current turn; -1 keeps unlimited history (default: -1)."
         ),
     )
 
@@ -68,9 +68,10 @@ def validate_vlm_arguments(args: argparse.Namespace, *, planner_name: str) -> No
         raise ValueError(
             f"--vlm-timeout-sec must be positive, got {args.vlm_timeout_sec}"
         )
-    if args.vlm_history_length <= 0:
+    if args.vlm_history_length == 0 or args.vlm_history_length < -1:
         raise ValueError(
-            f"--vlm-history-length must be positive, got {args.vlm_history_length}"
+            "--vlm-history-length must be -1 (unlimited) or positive, "
+            f"got {args.vlm_history_length}"
         )
     if args.observation_listen_port is None:
         raise ValueError(f"--observation-listen-port is required with {planner_name}")
