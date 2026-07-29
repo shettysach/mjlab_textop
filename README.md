@@ -200,3 +200,10 @@ uv run python -m robotmdar_textop.produce --help
 
 See [`notes/COMMANDS.md`](notes/COMMANDS.md) for detailed runtime and tuning
 notes.
+
+## Attribution
+
+TextOp paper and repo
+- https://text-op.github.io/
+- https://arxiv.org/abs/2602.07439
+- https://github.com/TeleHuman/TextOp
